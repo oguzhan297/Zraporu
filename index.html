@@ -397,22 +397,54 @@ async function getOCR(onProg){
   })().catch(e=>{ocrLoading=null;throw e});
   return ocrLoading;
 }
-async function prepImage(blob){
-  // gri ton + otomatik eşikleme: termal fişlerde okumayı belirgin şekilde iyileştirir
-  const bmp=await createImageBitmap(blob);
-  const target=Math.min(1800,Math.max(1100,bmp.width)),sc=target/bmp.width;
-  const c=document.createElement('canvas');c.width=Math.round(bmp.width*sc);c.height=Math.round(bmp.height*sc);
-  const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(bmp,0,0,c.width,c.height);
-  const im=x.getImageData(0,0,c.width,c.height),p=im.data,hist=new Array(256).fill(0),g=new Uint8Array(c.width*c.height);
-  for(let i=0,j=0;i<p.length;i+=4,j++){const v=(p[i]*299+p[i+1]*587+p[i+2]*114)/1000|0;g[j]=v;hist[v]++}
-  let sum=0;for(let i=0;i<256;i++)sum+=i*hist[i];let sB=0,wB=0,max=0,th=128;const tot=g.length;
-  for(let t=0;t<256;t++){wB+=hist[t];if(!wB)continue;const wF=tot-wB;if(!wF)break;sB+=t*hist[t];const mB=sB/wB,mF=(sum-sB)/wF,b=wB*wF*(mB-mF)*(mB-mF);if(b>max){max=b;th=t}}
-  for(let i=0,j=0;i<p.length;i+=4,j++){const v=g[j]>th?255:0;p[i]=p[i+1]=p[i+2]=v}
-  x.putImageData(im,0,0);return c;
+function openImage(src){return new Promise((res,rej)=>{const u=URL.createObjectURL(src),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);res(im)};im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('Fotoğraf açılamadı'))};im.src=u})}
+function grayOf(ctx,w,h){const p=ctx.getImageData(0,0,w,h).data,g=new Uint8Array(w*h);for(let i=0,j=0;i<p.length;i+=4,j++)g[j]=(p[i]*299+p[i+1]*587+p[i+2]*114)/1000|0;return g}
+function cropBox(im){
+  // Küçük kopyada kâğıdı (en açık bölge) bulup fişi kırp
+  const W=im.naturalWidth,H=im.naturalHeight,sw=300,sh=Math.max(1,Math.round(H*sw/W));
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(im,0,0,sw,sh);
+  const g=grayOf(x,sw,sh),srt=Array.from(g).sort((a,b)=>a-b),pc=q=>srt[Math.min(srt.length-1,Math.floor(q*srt.length))];
+  const hi=pc(.97),lo=pc(.40),th=lo+(hi-lo)*.55,pap=new Uint8Array(g.length);for(let i=0;i<g.length;i++)pap[i]=g[i]>th?1:0;
+  let x0=-1,x1=-1;for(let cx=0;cx<sw;cx++){let n=0;for(let y=0;y<sh;y++)n+=pap[y*sw+cx];if(n/sh>.5){if(x0<0)x0=cx;x1=cx}}
+  if(x0<0||x1-x0<5)return [0,0,W,H];
+  let y0=-1,y1=-1;for(let y=0;y<sh;y++){let n=0;for(let cx=x0;cx<=x1;cx++)n+=pap[y*sw+cx];if(n/(x1-x0+1)>.5){if(y0<0)y0=y;y1=y}}
+  if(y0<0||y1-y0<5)return [0,0,W,H];
+  const f=W/sw;let bx0=x0*f,bx1=(x1+1)*f,by0=y0*f,by1=(y1+1)*f;const mx=(bx1-bx0)*.03,my=(by1-by0)*.01;
+  bx0=Math.max(0,bx0-mx);by0=Math.max(0,by0-my);bx1=Math.min(W,bx1+mx);by1=Math.min(H,by1+my);
+  const a=(bx1-bx0)*(by1-by0)/(W*H);return a>.05&&a<.95?[bx0,by0,bx1-bx0,by1-by0]:[0,0,W,H];
+}
+function lanczos(src,sw,sh,dw,dh){
+  // Lanczos-3 yeniden boyutlandırma (gri ton): küçük yazılı fişlerde en net sonucu verir
+  const L=x=>{if(x===0)return 1;if(x<=-3||x>=3)return 0;const p=Math.PI*x;return 3*Math.sin(p)*Math.sin(p/3)/(p*p)};
+  const pass=(inp,iw,ih,ow,horiz)=>{const n=horiz?iw:ih,on=ow,sc=n/on,fs=Math.max(1,sc),sup=3*fs;
+    const W=[],I=[];for(let o=0;o<on;o++){const c=(o+.5)*sc-.5,a=Math.max(0,Math.ceil(c-sup)),b=Math.min(n-1,Math.floor(c+sup));let ws=[],t=0;for(let j=a;j<=b;j++){const w=L((j-c)/fs);ws.push(w);t+=w}I.push(a);W.push(Float32Array.from(ws,w=>w/t))}
+    const OW=horiz?ow:iw,OH=horiz?ih:ow,out=new Float32Array(OW*OH);
+    if(horiz){for(let y=0;y<ih;y++){const r=y*iw,ro=y*OW;for(let o=0;o<on;o++){const w=W[o],a=I[o];let s=0;for(let k=0;k<w.length;k++)s+=inp[r+a+k]*w[k];out[ro+o]=s}}}
+    else{for(let o=0;o<on;o++){const w=W[o],a=I[o],ro=o*OW;for(let k=0;k<w.length;k++){const wk=w[k],r=(a+k)*iw;for(let x=0;x<iw;x++)out[ro+x]+=inp[r+x]*wk}}}
+    return out};
+  const h1=pass(src,sw,sh,dw,true);const v=pass(h1,dw,sh,dh,false);
+  const g=new Uint8Array(dw*dh);for(let i=0;i<g.length;i++){const x=v[i];g[i]=x<0?0:x>255?255:x+.5|0}return g;
+}
+async function prepImage(src,opt={}){
+  // 1) fişi kırp  2) genişliği 1400 px'e getir  3) bölgesel eşikleme (gölge ve gri zemine dayanıklı)
+  const im=await openImage(src),[cx,cy,cw,ch]=cropBox(im);
+  let tw=opt.tw||1400,th=Math.round(ch*tw/cw);if(tw*th>12e6){const k=Math.sqrt(12e6/(tw*th));tw=Math.round(tw*k);th=Math.round(th*k)}
+  // fişi kendi çözünürlüğünde al (en fazla 16 MP), sonra Lanczos ile hedef boyuta getir
+  let nw=Math.round(cw),nh=Math.round(ch);if(nw*nh>16e6){const k=Math.sqrt(16e6/(nw*nh));nw=Math.round(nw*k);nh=Math.round(nh*k)}
+  const c0=document.createElement('canvas');c0.width=nw;c0.height=nh;const x0=c0.getContext('2d',{willReadFrequently:true});x0.drawImage(im,cx,cy,cw,ch,0,0,nw,nh);
+  const g=lanczos(grayOf(x0,nw,nh),nw,nh,tw,th);c0.width=c0.height=1;
+  const c=document.createElement('canvas');c.width=tw;c.height=th;const x=c.getContext('2d',{willReadFrequently:true});
+  const W1=tw+1,I=new Uint32Array(W1*(th+1));
+  for(let y=1;y<=th;y++){let row=0;for(let xx=1;xx<=tw;xx++){row+=g[(y-1)*tw+xx-1];I[y*W1+xx]=I[(y-1)*W1+xx]+row}}
+  const S=Math.max(15,(tw*(opt.win||1/16))|0)|1,r=S>>1,T=opt.t||.15,img=x.createImageData(tw,th),o=img.data;
+  for(let y=0;y<th;y++){const ya=Math.max(0,y-r),yb=Math.min(th,y+r+1);for(let xx=0;xx<tw;xx++){
+    const xa=Math.max(0,xx-r),xb=Math.min(tw,xx+r+1),cnt=(yb-ya)*(xb-xa),sum=I[yb*W1+xb]-I[ya*W1+xb]-I[yb*W1+xa]+I[ya*W1+xa];
+    const v=g[y*tw+xx]*cnt<=sum*(1-T)?0:255,k=(y*tw+xx)*4;o[k]=o[k+1]=o[k+2]=v;o[k+3]=255}}
+  x.putImageData(img,0,0);return c;
 }
 function setProg(r,txt){r.prog=txt;const el=document.querySelector(`#c_${r.id} .t2`);if(el)el.textContent=txt}
-function applyParse(r,text){
-  const res=ZParse.parseZ(text);const d=res.d;
+function applyParse(r,text,pre){
+  const res=pre||ZParse.parseZ(text);const d=res.d;
   const keepAck=r.d&&r.d.aciklama&&r.d.aciklama!==r._ack?r.d.aciklama:null;
   d.not=res.notes.join(' · ');d.z_rapor_mu=res.found>=4?undefined:false;
   r.ocr=text;r.auto=fill(d);
@@ -422,12 +454,22 @@ function applyParse(r,text){
 async function extractFree(r){
   r.status='work';setProg(r,'Hazırlanıyor…');render();
   try{
-    const w=await getOCR(m=>{if(m.status==='recognizing text')setProg(r,`Okunuyor… %${Math.round(m.progress*100)}`);else if(/load|init/i.test(m.status))setProg(r,'İlk kullanım: Türkçe dil dosyası indiriliyor (bir kez)…')});
-    const img=await prepImage(r.blob);
-    setProg(r,'Okunuyor…');
-    const {data}=await w.recognize(img);
-    applyParse(r,data.text||'');
-    r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.prog;
+    const w=await getOCR(m=>{if(m.status==='recognizing text'&&!/tekrar/.test(r.prog||''))setProg(r,`Okunuyor… %${Math.round(m.progress*100)}`);else if(/load|init/i.test(m.status))setProg(r,'İlk kullanım: Türkçe dil dosyası indiriliyor (bir kez)…')});
+    // Tutarlı sonuç çıkana kadar en fazla 3 farklı ayarla oku, en tutarlısını seç
+    const passes=[{tw:1400,t:.15,win:1/16},{tw:1100,t:.20,win:1/8},{tw:1700,t:.20,win:1/16}];
+    let best=null;const all=[],texts=[];
+    for(let n=0;n<passes.length;n++){
+      setProg(r,n?`Toplamlar tutmadı, tekrar okunuyor (${n+1}/3)…`:'Okunuyor…');
+      const img=await prepImage(r.file||r.blob,passes[n]);
+      const {data}=await w.recognize(img);
+      const res=ZParse.parseZ(data.text||''),sc=ZParse.consistency(res);
+      all.push(res);texts.push(data.text||'');
+      if(!best||sc>best.sc)best={res,sc,text:data.text||''};
+      if(sc>=6)break;
+    }
+    const merged=all.length>1?ZParse.merge(all):best.res;
+    applyParse(r,all.length>1?texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'):best.text,merged);
+    r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;delete r.prog;
     save(r);saveImg(r,r._small);delete r._small;
   }catch(e){r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog}
   render();
@@ -443,7 +485,7 @@ async function extract(r){
     for(const f of FIELDS){const v=j[f.k];d[f.k]=f.t==='text'?(v==null?'':String(v).trim()):(f.t==='int'?(pn(v)==null?null:Math.round(pn(v))):pn(v))}
     d.z_rapor_mu=j.z_rapor_mu;d.tarih=normDate(d.tarih);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
     r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];
-    r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;
+    r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;
     save(r);saveImg(r,r._small);delete r._small;
   }catch(e){
     r.status='error';
@@ -459,7 +501,7 @@ async function onFiles(list){
   if(noKey){notice('Claude API ile okuma için ⚙️ Ayarlar’dan API anahtarını gir ya da yöntemi “Ücretsiz” yap. Şimdilik fotoğraflar eklendi; değerleri elle girebilirsin.');$('#settings').open=true}
   for(const file of files){
     const r={id:uid(),status:'queued',d:{},unsure:[],src:'foto',created:Date.now(),_local:true};rows.unshift(r);render();
-    try{const s=await shrink(file);r.blob=s.blob;r.thumb=s.thumb;r._small=s.small}catch(e){r.status='error';r.err=e.message;continue}
+    try{const s=await shrink(file);r.blob=s.blob;r.thumb=s.thumb;r._small=s.small;r.file=file}catch(e){r.status='error';r.err=e.message;continue}
     if(noKey){r.status='done';r.d={aciklama:mkAck({})};r._ack=r.d.aciklama;r.open=true;r.created=Date.now();r._local=true;save(r);saveImg(r,r._small);delete r._small;continue}
     queue.push(r);
   }
