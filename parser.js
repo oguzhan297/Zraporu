@@ -51,6 +51,33 @@
   const hasLetters = s => /[A-ZÇĞİÖŞÜ]{2,}/.test(s);
   const r2 = n => Math.round(n * 100) / 100;
 
+  // Eksik KDV grubunu tamamla: genel toplamdan kalan tutar + orana uyan KDV metinde varsa kesin kabul et
+  function complete(d, amts, unsure, notes) {
+    if (d.genel == null) return;
+    const R = [['g1', 'm1', 'k1', 1], ['g10', 'm10', 'k10', 10], ['g20', 'm20', 'k20', 20]];
+    const okG = x => d[x[0]] != null && !unsure.includes(x[0]);
+    const known = ['tekel', 'gp'].reduce((a, x) => a + (d[x] || 0), 0) + R.filter(okG).reduce((a, x) => a + d[x[0]], 0);
+    const rest = r2(d.genel - known), miss = R.filter(x => !okG(x));
+    if (!miss.length || rest < 0.06) { if (miss.length && Math.abs(rest) < 0.06) miss.forEach(([g, m, k]) => { if (d[g] == null || d[g] === 0) { d[g] = 0; d[m] = 0; d[k] = 0; [g, m, k].forEach(x => { const i = unsure.indexOf(x); if (i >= 0) unsure.splice(i, 1); }); } }); return; }
+    const kOf = (g, r) => { const e = g * r / (100 + r), t = Math.max(0.15, e * 0.004); return amts.filter(v => Math.abs(v - e) <= t).sort((a, b) => Math.abs(a - e) - Math.abs(b - e))[0]; };
+    const set = ([g, m, k, r], gv, kv) => { d[g] = gv; d[k] = kv; d[m] = r2(gv - kv); [g, m, k].forEach(x => { const i = unsure.indexOf(x); if (i >= 0) unsure.splice(i, 1); }); };
+    // tek eksik grup: kalan tutarın kendisi metinde olmalı (ya da sadece KDV'si)
+    for (const x of miss) {
+      const others = miss.filter(y => y !== x);
+      const gHit = amts.some(v => Math.abs(v - rest) < 0.06), kv = kOf(rest, x[3]);
+      if (kv != null && (gHit || others.length === 0)) {
+        set(x, rest, kv); others.forEach(([g, m, k]) => { d[g] = 0; d[m] = 0; d[k] = 0; [g, m, k].forEach(z => { const i = unsure.indexOf(z); if (i >= 0) unsure.splice(i, 1); }); });
+        notes.push(`%${x[3]} grubu genel toplamdan kalan tutar ve KDV'si ile doğrulandı.`); return;
+      }
+    }
+    // iki eksik grup: kalan = a + b, ikisinin de KDV'si metinde
+    if (miss.length >= 2) for (let i = 0; i < miss.length; i++) for (let j = i + 1; j < miss.length; j++)
+      for (const a of amts) { const b = r2(rest - a); if (a <= 0 || b < 0) continue;
+        if (!amts.some(v => Math.abs(v - b) < 0.06) && b !== 0) continue;
+        const ka = kOf(a, miss[i][3]), kb = b === 0 ? 0 : kOf(b, miss[j][3]);
+        if (ka != null && kb != null) { set(miss[i], a, ka); set(miss[j], b, kb); return; } }
+  }
+
   function parseZ(text) {
     const raw = String(text || '').split(/\r?\n/).map(normLine).filter(Boolean);
     const L = [];                    // {s, a, rate, cum}
@@ -179,6 +206,7 @@
       if (hit != null) d.genel = hit;
       else { const cnt = new Map(); genC.forEach(v => cnt.set(v, (cnt.get(v) || 0) + 1)); d.genel = [...cnt.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0]; }
     }
+    complete(d, allA, unsure, notes);
     // --- Tekel / poşet %20'nin içinde sayılmışsa ayır ---
     const sum = () => ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
     if (d.genel != null && d.g20 != null) {
@@ -201,7 +229,7 @@
     if (d.genel != null && Math.abs(grp - d.genel) >= 0.06)
       for (const x of ['tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'gp']) if (d[x]) unsure.push(x);
     const found = Object.keys(d).filter(k => d[k] != null).length;
-    return { d, unsure: [...new Set(unsure)], notes, found };
+    return { d, unsure: [...new Set(unsure)], notes, found, amts: allA };
   }
   // Bir okumanın iç tutarlılığı: birden fazla okuma arasında seçim için
   function consistency(res) {
@@ -243,6 +271,7 @@
       else { d[m] = r2(best.g / (1 + r / 100)); d[k] = r2(best.g - d[m]); unsure.push(g, m, k); }
     }
     const tk = cands('tekel'); if (tk.length) d.tekel = tk[0].v;
+    const amts = [...new Set(list.flatMap(r => r.amts || []))];
     for (const k of ['nakit', 'kart', 'diger']) { const c = cands(k); if (c.length) d[k] = c[0].v; }
     // Genel toplam: oy + gruplarla ve ödemelerle uyum
     const grp = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
@@ -250,15 +279,17 @@
     const GC = cands('genel');
     if (GC.length) { let b = null; for (const c of GC) { const sc = c.w + (near(c.v, grp) ? 3 : 0) + (near(c.v, pay) ? 3 : 0); if (!b || sc > b.sc) b = { sc, v: c.v }; } d.genel = b.v; }
     else if (grp > 0) { d.genel = r2(grp); unsure.push('genel'); }
-    if (!near(d.genel, grp)) for (const x of ['g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'tekel', 'gp']) if (d[x]) unsure.push(x);
+    complete(d, amts, unsure, notes);
+    const grpN = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
+    if (!near(d.genel, grpN)) for (const x of ['g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'tekel', 'gp']) if (d[x]) unsure.push(x);
     // Tek bir ödeme okunamadıysa: genel toplamdan hesapla (turuncu işaretli)
-    if (d.genel != null && near(d.genel, grp)) {
+    if (d.genel != null && near(d.genel, grpN)) {
       if (d.kart == null && d.nakit != null) { d.kart = r2(d.genel - d.nakit - (d.diger || 0)); unsure.push('kart'); notes.push('Kart tutarı okunamadı; genel toplam − nakit olarak hesaplandı.'); }
       else if (d.nakit == null && d.kart != null) { d.nakit = r2(d.genel - d.kart - (d.diger || 0)); unsure.push('nakit'); notes.push('Nakit tutarı okunamadı; genel toplam − kart olarak hesaplandı.'); }
     }
     const pay2 = ['nakit', 'kart', 'diger'].reduce((a, x) => a + (d[x] || 0), 0);
     if (!near(pay2, d.genel)) unsure.push('nakit', 'kart');
-    if (!near(d.genel, grp) && !near(d.genel, pay2)) unsure.push('genel');
+    if (!near(d.genel, grpN) && !near(d.genel, pay2)) unsure.push('genel');
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
