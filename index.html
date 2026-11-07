@@ -189,8 +189,9 @@ function normDate(s){
 function dateOk(s){const m=String(s||'').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);if(!m)return false;const d=new Date(+m[3],+m[2]-1,+m[1]);return d.getDate()===+m[1]&&d.getMonth()===+m[2]-1&&+m[3]>=2000&&d<=new Date(Date.now()+864e5)}
 const satis=d=>['tekel','g1','g10','g20','gp'].reduce((a,k)=>a+(d[k]||0),0);
 const kdvT=d=>['k1','k10','k20','kp'].reduce((a,k)=>a+(d[k]||0),0);
-let ACK='Z RAPORU {z}';
-try{ACK=localStorage.getItem('zrapor_ack')||ACK}catch(e){}
+let ACK='Z RAPORU';
+const normZ=z=>{z=String(z??'').trim();return /^\d+$/.test(z)?z.replace(/^0+(?=\d)/,''):z};
+try{const a=localStorage.getItem('zrapor_ack');if(a&&a!=='Z RAPORU {z}')ACK=a}catch(e){}
 const mkAck=d=>ACK.split('{z}').join(d.z_no||'').split('{tarih}').join(d.tarih||'').replace(/\s+/g,' ').trim();
 const NUMK=FIELDS.filter(f=>f.t!=='text').map(f=>f.k);
 const LS='zrapor_rows_v2';
@@ -234,7 +235,12 @@ async function loadImg(r){
 }
 const sortRows=()=>rows.sort((a,b)=>((a.status==='done')-(b.status==='done'))||((b.created||0)-(a.created||0)));
 async function load(){
-  try{const all=await IDB.all('rows');rows=all.map(r=>({...r,status:'done',auto:r.auto||[],open:false}));setStore('ok')}
+  try{const all=await IDB.all('rows');rows=all.map(r=>({...r,status:'done',auto:r.auto||[],open:false}));
+    for(const r of rows){const d=r.d||(r.d={});let ch=false;
+      const z=normZ(d.z_no);if(d.z_no!=null&&z!==d.z_no){d.z_no=z;ch=true}
+      if(!d.aciklama||d.aciklama===r._ack||/^Z RAPORU\s*\d*$/.test(d.aciklama)){const a=mkAck(d);if(a!==d.aciklama){d.aciklama=a;ch=true}r._ack=a}
+      if(ch)save(r)}
+    setStore('ok')}
   catch(e){setStore('err');notice('Bu tarayıcı veri saklamaya izin vermiyor (gizli sekme olabilir). Raporlar kaydedilmez; CSV’yi indirmeyi unutma.')}
   sortRows();render();
 }
@@ -326,6 +332,7 @@ document.addEventListener('change',e=>{
   if(!r||!f)return;
   r.d[f.k]=f.t==='text'?i.value.trim():pn(i.value);
   if(f.k==='tarih')r.d.tarih=normDate(r.d.tarih);
+  if(f.k==='z_no')r.d.z_no=normZ(r.d.z_no);
   if(f.t==='num'&&i.value.trim()!==''&&r.d[f.k]==null)toast('Sayı anlaşılamadı: '+i.value);
   if(r.unsure)r.unsure=r.unsure.filter(k=>k!==f.k);
   if(f.t==='num')refill(r,f.k);
@@ -447,7 +454,7 @@ async function prepImage(src,opt={}){
 }
 function setProg(r,txt){r.prog=txt;const el=document.querySelector(`#c_${r.id} .t2`);if(el)el.textContent=txt}
 function applyParse(r,text,pre){
-  const res=pre||ZParse.parseZ(text);const d=res.d;
+  const res=pre||ZParse.parseZ(text);const d=res.d;d.z_no=normZ(d.z_no);
   const keepAck=r.d&&r.d.aciklama&&r.d.aciklama!==r._ack?r.d.aciklama:null;
   d.not=res.notes.join(' · ');d.z_rapor_mu=res.found>=4?undefined:false;
   r.ocr=text;r.auto=fill(d);
@@ -486,7 +493,7 @@ async function extract(r){
     const j=JSON.parse(txt.slice(a,b+1));
     const d={};
     for(const f of FIELDS){const v=j[f.k];d[f.k]=f.t==='text'?(v==null?'':String(v).trim()):(f.t==='int'?(pn(v)==null?null:Math.round(pn(v))):pn(v))}
-    d.z_rapor_mu=j.z_rapor_mu;d.tarih=normDate(d.tarih);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
+    d.z_rapor_mu=j.z_rapor_mu;d.tarih=normDate(d.tarih);d.z_no=normZ(d.z_no);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
     r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];
     r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;
     save(r);saveImg(r,r._small);delete r._small;
@@ -552,7 +559,7 @@ $('#copy').onclick=async()=>{
   try{await navigator.clipboard.writeText(csvText().replace(/;/g,'\t'));toast('Kopyalandı — Excel’de A1 hücresine yapıştır')}catch(e){toast('Kopyalanamadı')}
 };
 $('#ack').value=ACK;
-$('#ack').addEventListener('change',e=>{ACK=e.target.value.trim()||'Z RAPORU {z}';e.target.value=ACK;try{localStorage.setItem('zrapor_ack',ACK)}catch(x){}toast('Varsayılan açıklama kaydedildi (yeni raporlara uygulanır)')});
+$('#ack').addEventListener('change',e=>{ACK=e.target.value.trim()||'Z RAPORU';e.target.value=ACK;try{localStorage.setItem('zrapor_ack',ACK)}catch(x){}toast('Varsayılan açıklama kaydedildi (yeni raporlara uygulanır)')});
 
 // ---- Ayar kontrolleri ----
 $('#key').value=S.key;$('#model').value=S.model;showUsage();
