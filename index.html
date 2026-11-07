@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Z Raporu → Luca</title>
+<meta name="theme-color" content="#1f6f5c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Z Raporu">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="parser.js"></script>
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#e4e2dc;--acc:#1f6f5c;--acc2:#e8f3ef;--warn:#b5621b;--warnbg:#fdf1e6;--err:#b3261e;--ok:#1f6f5c}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#efeee9;--mut:#a3a29c;--line:#34332f;--acc:#5fc2a6;--acc2:#1f2f2a;--warn:#f0a35e;--warnbg:#3a2a1c;--err:#ff8a80;--ok:#5fc2a6}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:640px;margin:0 auto;padding:18px 14px 110px}
+h1{font-size:21px;margin:4px 0 2px;letter-spacing:-.01em}
+.sub{color:var(--mut);font-size:13.5px;margin:0 0 16px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.btn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:13px 12px;font:inherit;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;text-align:center}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+@media (prefers-color-scheme:dark){.btn.primary{color:#0f1c18}}
+.btn.small{padding:8px 11px;font-size:13.5px;border-radius:10px;font-weight:500}
+.btn:disabled{opacity:.45}
+.btn.danger{color:var(--err)}
+.row-links{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.sync{font-size:12.5px;color:var(--mut);margin:-8px 0 12px}.sync.s-ok{color:var(--ok)}.sync.s-slow,.sync.s-err{color:var(--warn);font-weight:600}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.modal[hidden]{display:none}
+.mbox{background:var(--card);width:100%;max-width:640px;border-radius:16px 16px 0 0;padding:16px 14px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px}
+.mt{font-weight:700;font-size:16px}
+.mbox textarea,.ocr textarea{font:13px/1.4 ui-monospace,Menlo,monospace;width:100%;border:1px solid var(--line);border-radius:9px;padding:9px;background:var(--bg);color:var(--ink)}
+.ocr{margin-top:10px;font-size:13px;color:var(--mut)}.ocr summary{cursor:pointer}
+.ocr .set-row{margin-top:6px}
+.settings{margin:-6px 0 14px;font-size:13.5px;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.settings summary{cursor:pointer;font-weight:600;color:var(--ink)}
+.set-in{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.keyrow{display:flex;gap:8px}.keyrow input{flex:1;min-width:0}
+.set-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hint{font-size:12.5px;color:var(--mut)}
+.f select{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);width:100%}
+.notice{background:var(--warnbg);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13.5px;margin-bottom:12px;display:none}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:10px;overflow:hidden}
+.head{display:flex;gap:12px;align-items:center;padding:11px 12px;cursor:pointer}
+.thumb{width:46px;height:46px;border-radius:8px;object-fit:cover;background:var(--line);flex:none}
+.thumb.empty{display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:11px}
+.meta{flex:1;min-width:0}
+.t1{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t2{color:var(--mut);font-size:13px}
+.amt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.badge{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:99px;margin-left:6px;vertical-align:1px}
+.b-ok{background:var(--acc2);color:var(--ok)}
+.b-warn{background:var(--warnbg);color:var(--warn)}
+.body{border-top:1px solid var(--line);padding:12px;display:none}
+.card.open .body{display:block}
+.big{width:100%;max-height:340px;object-fit:contain;border-radius:8px;background:#000;margin-bottom:12px;cursor:zoom-in}
+.big.zoom{max-height:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 10px}
+.f{display:flex;flex-direction:column;gap:3px}
+.f.full{grid-column:1/-1}
+.f label{font-size:12px;color:var(--mut)}
+.f input{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font-variant-numeric:tabular-nums;width:100%}
+.f input.unsure{border-color:var(--warn);background:var(--warnbg)}
+.sec{grid-column:1/-1;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin-top:6px}
+.checks{margin:12px 0 4px;font-size:13px}
+.checks div{padding:3px 0}
+.c-ok{color:var(--ok)}.c-bad{color:var(--warn)}
+.cardfoot{display:flex;justify-content:space-between;gap:8px;margin-top:12px}
+.spin{width:18px;height:18px;border:2.5px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:s 0.8s linear infinite;flex:none}
+@keyframes s{to{transform:rotate(360deg)}}
+.empty-state{text-align:center;color:var(--mut);padding:34px 16px;border:1.5px dashed var(--line);border-radius:14px;font-size:14px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
+.bar .in{max-width:640px;margin:0 auto;display:flex;gap:10px;align-items:center}
+.bar .sum{flex:1;font-size:13px;color:var(--mut)}
+.bar .sum b{color:var(--ink);font-size:15px;font-variant-numeric:tabular-nums}
+.toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:10px;font-size:13.5px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center}
+.toast.show{opacity:1}
+input[type=file]{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Z Raporu → Luca</h1>
+  <p class="sub">Z raporunun fotoğrafını çek ya da metnini yapıştır; tarih, Z no, tekel, KDV grupları, poşet, kart ve nakit otomatik okunur. Kontrol et, sonra Luca şablonundaki CSV olarak indir.</p>
+
+  <div class="sync s-wait" id="sync">Bağlanıyor…</div>
+  <div class="notice" id="notice"></div>
+
+  <div class="actions">
+    <label class="btn primary" for="cam">📷 Fotoğraf çek</label>
+    <label class="btn" for="gal">🖼️ Galeriden seç</label>
+  </div>
+  <input type="file" id="cam" accept="image/*" capture="environment">
+  <input type="file" id="gal" accept="image/*" multiple>
+  <div class="row-links">
+    <button class="btn small" id="paste">📋 Metinden ekle</button>
+    <button class="btn small" id="manual">＋ Elle ekle</button>
+    <button class="btn small" id="copy">Tabloyu kopyala</button>
+    <button class="btn small danger" id="clear">Tümünü sil</button>
+  </div>
+  <details id="settings" class="settings"><summary>⚙️ Ayarlar</summary>
+    <div class="set-in">
+      <div class="f"><label>Okuma yöntemi</label>
+        <select id="mode"><option value="free">Ücretsiz — telefonda okuma</option><option value="api">Claude API — en isabetli (anahtar gerekir)</option></select>
+        <div class="hint" id="modehint"></div></div>
+      <div id="apiBox" class="set-in" style="margin-top:0">
+      <div class="f"><label>Anthropic API anahtarı</label>
+        <div class="keyrow"><input id="key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-..."><button class="btn small" id="keyshow" type="button">Göster</button></div>
+        <div class="hint">Anahtar sadece bu telefonda saklanır ve sadece Anthropic'e gönderilir.</div></div>
+      <div class="f"><label>Model</label>
+        <select id="model"><option value="claude-sonnet-5-5">Sonnet 5.5 — en isabetli (önerilen)</option><option value="claude-haiku-5-5">Haiku 5.5 — en ucuz</option></select></div>
+      <div class="set-row"><button class="btn small" id="test" type="button">Bağlantıyı test et</button><span id="testres" class="hint"></span></div>
+      <div class="hint" id="usage"></div>
+      </div>
+      <div class="f"><label>Varsayılan açıklama — {z} = Z no, {tarih} = tarih</label><input id="ack"></div>
+      <div class="set-row"><button class="btn small" id="bk" type="button">Yedek indir</button><label class="btn small" for="bkin">Yedekten yükle</label><input type="file" id="bkin" accept=".json,application/json"></div>
+      <div class="hint">Raporlar sadece bu telefonda saklanır. Telefon değiştirmeden ya da tarayıcı verilerini silmeden önce yedek indir.</div>
+    </div>
+  </details>
+
+  <div id="list"></div>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="sum" id="sum"></div>
+  <button class="btn" id="xlsx">Excel</button>
+  <button class="btn primary" id="csv">⬇ Luca CSV</button>
+</div></div>
+<div class="toast" id="toast"></div>
+<div class="modal" id="pm" hidden><div class="mbox">
+  <div class="mt">Z raporu metnini yapıştır</div>
+  <div class="hint">iPhone: Fotoğraflar’da fişi aç → yazıya uzun bas → “Tümünü Seç” → “Kopyala”.<br>Android: Google Lens ile fişi tara → “Metin” → “Tümünü seç” → “Kopyala”.</div>
+  <textarea id="pmt" rows="12" placeholder="Metni buraya yapıştır…"></textarea>
+  <div class="set-row" style="justify-content:flex-end"><button class="btn small" id="pmc">Vazgeç</button><button class="btn small primary" id="pmo">Oku ve ekle</button></div>
+</div></div>
+
+<script>
+const FIELDS=[
+  {k:'tarih',l:'Tarih',c:'TARİH',t:'text',sec:'Genel'},
+  {k:'z_no',l:'Z No',c:'Z NO',t:'text'},
+  {k:'aciklama',l:'Açıklama',c:'AÇIKLAMA',t:'text',full:true},
+  {k:'tekel',l:'Genel Toplam Tekel',c:'GENEL TOPLAM TEKEL',t:'num',sec:'Tekel',full:true},
+  {k:'g1',l:'Genel Toplam %1',c:'GENEL TOPLAM %1',t:'num',sec:'%1 KDV',full:true},
+  {k:'m1',l:'%1 Matrah',c:'%1 MATRAH',t:'num'},{k:'k1',l:'%1 KDV',c:'%1 KDV',t:'num'},
+  {k:'g10',l:'Genel Toplam %10',c:'GENEL TOPLAM %10',t:'num',sec:'%10 KDV',full:true},
+  {k:'m10',l:'%10 Matrah',c:'%10 MATRAH',t:'num'},{k:'k10',l:'%10 KDV',c:'%10 KDV',t:'num'},
+  {k:'g20',l:'Genel Toplam %20',c:'GENEL TOPLAM %20',t:'num',sec:'%20 KDV (poşet hariç)',full:true},
+  {k:'m20',l:'%20 Matrah',c:'%20 MATRAH',t:'num'},{k:'k20',l:'%20 KDV',c:'%20 KDV',t:'num'},
+  {k:'gp',l:'Genel Toplam Poşet',c:'GENEL TOPLAM POŞET',t:'num',sec:'Poşet (%20)',full:true},
+  {k:'mp',l:'%20 Poşet Matrah',c:'%20 POŞET MATRAH',t:'num'},{k:'kp',l:'%20 Poşet KDV',c:'%20 POŞET KDV',t:'num'},
+  {k:'kart',l:'Kredi Kartı',c:'KREDİ KARTI',t:'num',sec:'Ödeme'},
+  {k:'nakit',l:'Nakit',c:'NAKİT',t:'num'},
+  {k:'genel',l:'Fişteki Genel Toplam (sadece kontrol)',t:'num',sec:'Kontrol — Luca’ya aktarılmaz',full:true,x:true},
+  {k:'not',l:'Not (aktarılmaz)',t:'text',full:true,x:true}
+];
+const OUT=FIELDS.filter(f=>!f.x);
+const GROUPS=[['g1','m1','k1'],['g10','m10','k10'],['g20','m20','k20'],['gp','mp','kp']];
+const r2=n=>Math.round(n*100)/100;
+const RATE={g1:.01,g10:.10,g20:.20,gp:.20};
+function fillGroup(d,[g,m,k],auto){
+  const set=(key,v)=>{d[key]=r2(v);auto.push(key)};
+  if(d[g]!=null&&d[m]==null&&d[k]==null){set(m,d[g]/(1+RATE[g]));set(k,d[g]-d[m])}
+  else if(d[g]==null&&d[m]!=null&&d[k]!=null)set(g,d[m]+d[k]);
+  else if(d[m]==null&&d[g]!=null&&d[k]!=null)set(m,d[g]-d[k]);
+  else if(d[k]==null&&d[g]!=null&&d[m]!=null)set(k,d[g]-d[m]);
+  else if(d[g]==null&&d[m]!=null&&d[k]==null){set(k,d[m]*RATE[g]);set(g,d[m]+d[k])}
+}
+function fill(d,auto=[]){for(const G of GROUPS)fillGroup(d,G,auto);return auto}
+function refill(r,key){
+  r.auto=(r.auto||[]).filter(k=>k!==key);
+  const G=GROUPS.find(G=>G.includes(key));if(!G)return;
+  for(const k of G)if(r.auto.includes(k)){r.d[k]=null;r.auto=r.auto.filter(x=>x!==k)}
+  fillGroup(r.d,G,r.auto);
+}
+function normDate(s){
+  s=String(s||'').trim();let m;
+  if(m=s.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/))return `${m[3].padStart(2,'0')}.${m[2].padStart(2,'0')}.${m[1]}`;
+  if(m=s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/))return `${m[1].padStart(2,'0')}.${m[2].padStart(2,'0')}.${m[3].length===2?'20'+m[3]:m[3]}`;
+  return s;
+}
+function dateOk(s){const m=String(s||'').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);if(!m)return false;const d=new Date(+m[3],+m[2]-1,+m[1]);return d.getDate()===+m[1]&&d.getMonth()===+m[2]-1&&+m[3]>=2000&&d<=new Date(Date.now()+864e5)}
+const satis=d=>['tekel','g1','g10','g20','gp'].reduce((a,k)=>a+(d[k]||0),0);
+const kdvT=d=>['k1','k10','k20','kp'].reduce((a,k)=>a+(d[k]||0),0);
+let ACK='Z RAPORU {z}';
+try{ACK=localStorage.getItem('zrapor_ack')||ACK}catch(e){}
+const mkAck=d=>ACK.split('{z}').join(d.z_no||'').split('{tarih}').join(d.tarih||'').replace(/\s+/g,' ').trim();
+const NUMK=FIELDS.filter(f=>f.t!=='text').map(f=>f.k);
+const LS='zrapor_rows_v2';
+let rows=[];let queue=[],busy=false;
+const $=s=>document.querySelector(s);
+
+function pn(v){
+  if(v===null||v===undefined)return null;
+  if(typeof v==='number')return isFinite(v)?v:null;
+  let s=String(v).trim().replace(/\s|₺|TL|\*/gi,'');
+  if(!s)return null;
+  if(s.includes(',')) s=s.replace(/\./g,'').replace(',','.');
+  else if(/\.\d{3}$/.test(s)&&!/\.\d{3}\./.test(s)&&s.split('.').length>=2&&/^\d{1,3}(\.\d{3})+$/.test(s)) s=s.replace(/\./g,'');
+  const n=parseFloat(s);return isFinite(n)?n:null;
+}
+const fm=n=>n==null?'':n.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fv=(f,v)=>v==null?'':(f.t==='num'?fm(v):f.t==='int'?String(v):String(v));
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,10);
+
+// ---- Kalıcı saklama: bu telefonda (IndexedDB) ----
+const IDB=(()=>{let p;
+  const open=()=>p||(p=new Promise((res,rej)=>{const q=indexedDB.open('zrapor',1);q.onupgradeneeded=()=>{const d=q.result;d.createObjectStore('rows',{keyPath:'id'});d.createObjectStore('imgs')};q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)}));
+  const req=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+  const w=(st,fn)=>open().then(d=>new Promise((res,rej)=>{const t=d.transaction(st,'readwrite');fn(t.objectStore(st));t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)}));
+  return {put:(st,v,k)=>w(st,s=>k===undefined?s.put(v):s.put(v,k)),del:(st,k)=>w(st,s=>s.delete(k)),
+    all:st=>open().then(d=>req(d.transaction(st).objectStore(st).getAll())),get:(st,k)=>open().then(d=>req(d.transaction(st).objectStore(st).get(k)))};
+})();
+const ser=r=>({ocr:r.ocr??null,d:r.d||{},unsure:r.unsure||[],auto:r.auto||[],src:r.src||'',_ack:r._ack||'',hasImg:!!r.hasImg,created:r.created||Date.now()});
+function setStore(st){const el=$('#sync');if(!el)return;el.textContent={ok:'📱 Bu telefonda kayıtlı',err:'⚠ Kaydedilemedi — CSV’yi indirmeden kapatma',wait:'Yükleniyor…'}[st]||'';el.className='sync s-'+st}
+function save(r){if(!r||r.status!=='done')return;IDB.put('rows',{id:r.id,...ser(r)}).then(()=>setStore('ok')).catch(()=>{setStore('err');toast('Kaydedilemedi: telefon hafızası dolu olabilir.')})}
+async function removeRows(list){
+  const ids=new Set(list.map(x=>x.id));rows=rows.filter(x=>!ids.has(x.id));render();
+  try{for(const r of list){await IDB.del('rows',r.id);await IDB.del('imgs',r.id)}}catch(e){toast('Silinemedi, tekrar dene.')}
+}
+async function saveImg(r,src){if(!src)return;try{await IDB.put('imgs',src,r.id);r.hasImg=true;save(r)}catch(e){}}
+async function loadImg(r){
+  if(r.thumb||!r.hasImg||r._imgLoading)return;r._imgLoading=true;
+  try{const src=await IDB.get('imgs',r.id);if(src){r.thumb=src;if(r.open)render()}}catch(e){}
+  r._imgLoading=false;
+}
+const sortRows=()=>rows.sort((a,b)=>((a.status==='done')-(b.status==='done'))||((b.created||0)-(a.created||0)));
+async function load(){
+  try{const all=await IDB.all('rows');rows=all.map(r=>({...r,status:'done',auto:r.auto||[],open:false}));setStore('ok')}
+  catch(e){setStore('err');notice('Bu tarayıcı veri saklamaya izin vermiyor (gizli sekme olabilir). Raporlar kaydedilmez; CSV’yi indirmeyi unutma.')}
+  sortRows();render();
+}
+
+// ---- Ayarlar ----
+const S=(()=>{let o={};try{o=JSON.parse(localStorage.getItem('zr_settings')||'{}')}catch(e){}const x=Object.assign({key:'',model:'claude-sonnet-5-5',usage:{}},o);if(!x.mode)x.mode=x.key?'api':'free';return x})();
+const saveS=()=>{try{localStorage.setItem('zr_settings',JSON.stringify(S))}catch(e){}};
+const PRICE={'claude-sonnet-5-5':[2,10],'claude-haiku-5-5':[0.10,0.50]};
+function track(u,count=true){if(!u)return;const m=new Date().toISOString().slice(0,7);if(S.usage.m!==m)S.usage={m,n:0,cost:0};const p=PRICE[S.model]||[2,10];
+  if(count)S.usage.n++;S.usage.cost+=((u.input_tokens||0)+(u.cache_creation_input_tokens||0))*p[0]/1e6+(u.output_tokens||0)*p[1]/1e6;saveS();showUsage()}
+function showUsage(){const u=S.usage,m=new Date().toISOString().slice(0,7);$('#usage').textContent=u.m===m&&u.n?`Bu ay: ${u.n} okuma · tahmini maliyet ~$${u.cost.toFixed(2)} (kesin tutar Anthropic panelinde)`:'Bu ay henüz okuma yapılmadı.'}
+
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)}
+function notice(m){const n=$('#notice');n.style.display=m?'block':'none';n.textContent=m||''}
+
+function checks(r){
+  const d=r.d,out=[];
+  const names={g1:'%1',g10:'%10',g20:'%20',gp:'Poşet'};
+  if(!d.tarih)out.push({ok:false,m:'Tarih boş'});
+  else if(!dateOk(d.tarih))out.push({ok:false,m:`Tarih geçersiz veya GG.AA.YYYY biçiminde değil: “${d.tarih}”`});
+  if(!d.z_no)out.push({ok:false,m:'Z No boş'});
+  else if(rows.some(x=>x!==r&&x.status==='done'&&x.d.z_no&&String(x.d.z_no).replace(/^0+/,'')===String(d.z_no).replace(/^0+/,'')&&x.d.tarih===d.tarih))out.push({ok:false,m:'Aynı tarih ve Z No ile listede başka bir rapor var — iki kez eklenmiş olabilir'});
+  if(satis(d)===0)out.push({ok:false,m:'Hiç satış tutarı yok'});
+  for(const [g,m,k] of GROUPS){if(d[g]!=null&&d[m]!=null&&d[k]!=null){const df=Math.abs(d[m]+d[k]-d[g]);if(df>=0.06)out.push({ok:false,m:`${names[g]}: Matrah + KDV, genel toplamla tutmuyor (fark ${fm(df)})`})}}
+  const s=satis(d);
+  if(d.genel!=null&&s>0){const df=Math.abs(s-d.genel);out.push({ok:df<0.06,m:df<0.06?'Tekel + KDV grupları + poşet = fiş genel toplamı ✓':`Grupların toplamı (${fm(s)}) fiş genel toplamıyla (${fm(d.genel)}) tutmuyor, fark ${fm(df)}`})}
+  const pay=(d.kart||0)+(d.nakit||0);
+  if(pay>0&&s>0){const df=Math.abs(pay-s);out.push({ok:df<0.06,m:df<0.06?'Kredi kartı + Nakit = Satış toplamı ✓':`Kart + Nakit (${fm(pay)}) satış toplamıyla (${fm(s)}) tutmuyor, fark ${fm(df)}`})}
+  return out;
+}
+
+function render(){
+  const L=$('#list');
+  if(!rows.length){L.innerHTML='<div class="empty-state">Henüz Z raporu yok.<br>Yukarıdan fotoğraf çekerek başla.</div>'}
+  else L.innerHTML=rows.map(r=>{
+    if(r.status==='work'||r.status==='queued') return `<div class="card" id="c_${r.id}"><div class="head">${r.thumb?`<img class="thumb" src="${r.thumb}">`:'<div class="thumb empty"></div>'}<div class="meta"><div class="t1">${r.status==='work'?'Okunuyor…':'Sırada…'}</div><div class="t2">${esc(r.prog||'Z raporu inceleniyor')}</div></div><div class="spin"></div></div></div>`;
+    if(r.status==='error') return `<div class="card"><div class="head">${r.thumb?`<img class="thumb" src="${r.thumb}">`:'<div class="thumb empty"></div>'}<div class="meta"><div class="t1" style="color:var(--err)">Okunamadı</div><div class="t2">${esc(r.err)}</div></div><button class="btn small" data-retry="${r.id}" ${r.blob?'':'disabled'}>Tekrar</button><button class="btn small danger" data-del="${r.id}">Sil</button></div></div>`;
+    let g='';
+    for(const f of FIELDS){
+      if(f.sec)g+=`<div class="sec">${f.sec}</div>`;
+      g+=`<div class="f${f.full?' full':''}"><label>${f.l}</label><input data-id="${r.id}" data-k="${f.k}" ${f.t!=='text'?'inputmode="decimal"':''} class="${r.unsure&&r.unsure.includes(f.k)?'unsure':''}" value="${esc(fv(f,r.d[f.k]))}"></div>`;
+    }
+    return `<div class="card${r.open?' open':''}" id="c_${r.id}">
+      <div class="head" data-tog="${r.id}">${headHTML(r)}</div>
+      <div class="body">
+        ${r.thumb?`<img class="big" src="${r.thumb}" data-zoom>`:''}
+        ${r.d.z_rapor_mu===false?'<div class="notice" style="display:block">Bu görüntü bir Z raporuna benzemiyor, değerleri dikkatle kontrol et.</div>':''}
+        <div class="grid">${g}</div>
+        <div class="checks">${checksHTML(r)}</div>
+        ${r.ocr!=null?`<details class="ocr"><summary>Okunan metin (düzeltip yeniden okutabilirsin)</summary><textarea rows="10" data-ocr="${r.id}">${esc(r.ocr)}</textarea><div class="set-row"><button class="btn small" data-reparse="${r.id}">Metne göre yeniden oku</button></div></details>`:''}
+        <div class="cardfoot"><button class="btn small danger" data-del="${r.id}">Sil</button><button class="btn small" data-tog="${r.id}">Kapat</button></div>
+      </div></div>`;
+  }).join('');
+  renderSum();
+}
+const isBad=r=>checks(r).some(c=>!c.ok)||(r.unsure&&r.unsure.length>0)||r.d.z_rapor_mu===false;
+function headHTML(r){const bad=isBad(r);return `${r.thumb?`<img class="thumb" src="${r.thumb}">`:`<div class="thumb empty">${r.src==='foto'?'📷':r.src==='metin'?'📋':'elle'}</div>`}
+        <div class="meta"><div class="t1">${esc(r.d.tarih||'Tarih yok')} · Z ${esc(r.d.z_no||'—')}<span class="badge ${bad?'b-warn':'b-ok'}">${bad?'Kontrol et':'Tamam'}</span></div>
+        <div class="t2">KDV ${fm(kdvT(r.d))} · Kart ${fm(r.d.kart)||'—'} · Nakit ${fm(r.d.nakit)||'—'}</div></div>
+        <div class="amt">${fm(satis(r.d))||'—'}</div>`}
+function checksHTML(r){return checks(r).map(c=>`<div class="${c.ok?'c-ok':'c-bad'}">${c.ok?'':'⚠ '}${esc(c.m)}</div>`).join('')+(r.unsure&&r.unsure.length?`<div class="c-bad">⚠ Emin olunamayan alanlar turuncu işaretli.</div>`:'')}
+function renderSum(){
+  const done=rows.filter(r=>r.status==='done');
+  const tot=done.reduce((a,r)=>a+satis(r.d),0), kdv=done.reduce((a,r)=>a+kdvT(r.d),0);
+  $('#sum').innerHTML=`<b>${done.length}</b> rapor · Toplam <b>${fm(tot)}</b><br>KDV ${fm(kdv)}`;
+  $('#xlsx').disabled=!done.length;$('#csv').disabled=!done.length;$('#copy').disabled=!done.length;
+}
+function refreshCard(r){
+  const c=document.getElementById('c_'+r.id);if(!c){render();return}
+  c.querySelector('.head').innerHTML=headHTML(r);
+  c.querySelector('.checks').innerHTML=checksHTML(r);
+  c.querySelectorAll('input[data-k]').forEach(i=>{const f=FIELDS.find(x=>x.k===i.dataset.k);if(i!==document.activeElement)i.value=fv(f,r.d[f.k]);i.classList.toggle('unsure',!!(r.unsure&&r.unsure.includes(f.k)))});
+  renderSum();
+}
+
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse]');if(!t)return;
+  if(t.dataset.reparse){const r=rows.find(x=>x.id===t.dataset.reparse);const ta=document.querySelector(`[data-ocr="${r.id}"]`);applyParse(r,ta.value);r.open=true;save(r);render();toast('Metin yeniden okundu');return}
+  if(t.dataset.zoom!==undefined){t.classList.toggle('zoom');return}
+  if(t.dataset.tog){const r=rows.find(x=>x.id===t.dataset.tog);r.open=!r.open;if(r.open)loadImg(r);render();if(r.open)document.getElementById('c_'+r.id)?.scrollIntoView({behavior:'smooth',block:'start'});return}
+  if(t.dataset.del){
+    if(t.dataset.armed!=='1'){t.dataset.armed='1';t.textContent='Emin misin?';setTimeout(()=>{if(t.isConnected){t.dataset.armed='';t.textContent='Sil'}},3000);return}
+    removeRows(rows.filter(x=>x.id===t.dataset.del));return}
+  if(t.dataset.retry){const r=rows.find(x=>x.id===t.dataset.retry);r.status='queued';queue.push(r);render();pump()}
+});
+document.addEventListener('change',e=>{
+  const i=e.target;if(!i.dataset||!i.dataset.k)return;
+  const r=rows.find(x=>x.id===i.dataset.id);const f=FIELDS.find(x=>x.k===i.dataset.k);
+  if(!r||!f)return;
+  r.d[f.k]=f.t==='text'?i.value.trim():pn(i.value);
+  if(f.k==='tarih')r.d.tarih=normDate(r.d.tarih);
+  if(f.t==='num'&&i.value.trim()!==''&&r.d[f.k]==null)toast('Sayı anlaşılamadı: '+i.value);
+  if(r.unsure)r.unsure=r.unsure.filter(k=>k!==f.k);
+  if(f.t==='num')refill(r,f.k);
+  if((f.k==='z_no'||f.k==='tarih')&&(!r.d.aciklama||r.d.aciklama===r._ack)){r.d.aciklama=mkAck(r.d);r._ack=r.d.aciklama}
+  i.value=fv(f,r.d[f.k]);
+  save(r);
+  rows.forEach(x=>{if(x.status==='done')refreshCard(x)});
+});
+
+async function shrink(file){
+  const url=URL.createObjectURL(file);
+  const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('Görüntü açılamadı'));im.src=url});
+  const max=1568,sc=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+  const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*sc);c.height=Math.round(img.naturalHeight*sc);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.86));
+  const s2=Math.min(1,1100/Math.max(c.width,c.height)),c2=document.createElement('canvas');
+  c2.width=Math.round(c.width*s2);c2.height=Math.round(c.height*s2);c2.getContext('2d').drawImage(c,0,0,c2.width,c2.height);
+  let small='';for(const q of [0.6,0.45,0.32]){small=c2.toDataURL('image/jpeg',q);if(small.length<190000)break;small=''}
+  return {blob,thumb:URL.createObjectURL(blob),small};
+}
+
+const PROMPT=`Bu fotoğraf Türkiye'de kullanılan bir yazar kasa / ÖKC "Z RAPORU" fişidir. Fişi dikkatle oku ve YALNIZCA aşağıdaki JSON nesnesini döndür; başka hiçbir metin yazma.
+{
+ "z_rapor_mu": true veya false,
+ "tarih": "GG.AA.YYYY",
+ "z_no": "Z numarası, metin olarak (ör. \\"0123\\")",
+ "tekel": TEKEL / SİGARA / tütün mamulleri satışlarının KDV dahil toplamı,
+ "g1": %1 KDV'li satışların KDV dahil toplamı, "m1": %1 matrah, "k1": %1 KDV,
+ "g10": %10 KDV'li satışların KDV dahil toplamı, "m10": %10 matrah, "k10": %10 KDV,
+ "g20": %20 KDV'li satışların KDV dahil toplamı (TEKEL ve POŞET HARİÇ), "m20": %20 matrah (poşet ve tekel hariç), "k20": %20 KDV (poşet ve tekel hariç),
+ "gp": POŞET satışlarının KDV dahil toplamı, "mp": poşet matrahı, "kp": poşet KDV'si (%20),
+ "kart": kredi / banka kartı ile tahsilat toplamı,
+ "nakit": nakit tahsilat toplamı,
+ "genel": fişte yazan günlük GENEL TOPLAM / TOPLAM (KDV dahil),
+ "not": "kısa açıklama, yoksa boş metin",
+ "belirsiz": [okuyamadığın veya emin olmadığın alan adları]
+}
+Kurallar:
+- Tutarları nokta ondalık ayırıcılı JSON sayısı olarak yaz (1.234,56 → 1234.56). Para birimi koyma.
+- Fişte bulunmayan alan için null yaz, tahmin etme. Satır fişte var ama tutarı 0 ise 0 yaz.
+- Departman / kısım satırlarında POŞET veya TEKEL/SİGARA görünüyorsa ve bunlar %20 grubunun içinde sayılmışsa, poşeti ve tekeli %20'den düşerek ayrı alanlara yaz; ne yaptığını "not" alanına kısaca yaz.
+- Poşetin matrah/KDV'si fişte ayrıca yoksa: mp = gp / 1.20, kp = gp - mp (2 haneye yuvarla).
+- Bir oran için yalnızca KDV dahil tutar ve KDV yazıyorsa matrah = KDV dahil tutar − KDV.
+- "KÜMÜLATİF" / "KÜM." gibi birikmiş toplamları değil, bu Z raporunun GÜNLÜK değerlerini kullan.
+- Fişte başka KDV oranları (%0, %8, %18 gibi) varsa bunları "not" alanına oran ve tutarlarıyla yaz.
+- İptal / iade varsa net satışı kullan ve "not" alanında belirt.`;
+
+const b64=blob=>new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(String(f.result).split(',')[1]);f.onerror=()=>rej(f.error);f.readAsDataURL(blob)});
+async function callClaude(content,maxTokens,count=true){
+  if(!S.key)throw new Error('API anahtarı girilmemiş — ⚙️ Ayarlar');
+  let res;
+  try{res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'x-api-key':S.key,'anthropic-version':'2023-06-01','content-type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:S.model,max_tokens:maxTokens,messages:[{role:'user',content}]})})}
+  catch(e){throw new Error('İnternete bağlanılamadı. Bağlantını kontrol et.')}
+  let j=null;try{j=await res.json()}catch(e){}
+  if(!res.ok){const m=(j&&j.error&&j.error.message)||res.statusText||'';
+    throw new Error(res.status===401?'API anahtarı geçersiz. ⚙️ Ayarlar’dan kontrol et.':res.status===403?'Bu anahtarın yetkisi yok: '+m:res.status===429?'Çok sık istek; biraz bekleyip tekrar dene.':res.status===529||res.status>=500?'Anthropic şu an yoğun; birazdan tekrar dene.':/credit|balance|billing/i.test(m)?'Anthropic hesabında kredi kalmamış. Panelden kredi yükle.':/model/i.test(m)?'Model kullanılamıyor: '+m:'API hatası ('+res.status+'): '+m)}
+  track(j.usage,count);
+  return (j.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+}
+// ---- Ücretsiz okuma: telefonda yazı tanıma (Tesseract) + kural tabanlı ayrıştırıcı ----
+let ocrW=null,ocrLoading=null;
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Yazı tanıma aracı indirilemedi. İnternet bağlantını kontrol et.'));document.head.appendChild(s)})}
+async function getOCR(onProg){
+  if(ocrW)return ocrW;
+  if(!ocrLoading)ocrLoading=(async()=>{
+    if(!window.Tesseract)await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+    const w=await Tesseract.createWorker('tur',1,{logger:m=>onProg&&onProg(m)});
+    await w.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'});
+    ocrW=w;return w;
+  })().catch(e=>{ocrLoading=null;throw e});
+  return ocrLoading;
+}
+async function prepImage(blob){
+  // gri ton + otomatik eşikleme: termal fişlerde okumayı belirgin şekilde iyileştirir
+  const bmp=await createImageBitmap(blob);
+  const target=Math.min(1800,Math.max(1100,bmp.width)),sc=target/bmp.width;
+  const c=document.createElement('canvas');c.width=Math.round(bmp.width*sc);c.height=Math.round(bmp.height*sc);
+  const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(bmp,0,0,c.width,c.height);
+  const im=x.getImageData(0,0,c.width,c.height),p=im.data,hist=new Array(256).fill(0),g=new Uint8Array(c.width*c.height);
+  for(let i=0,j=0;i<p.length;i+=4,j++){const v=(p[i]*299+p[i+1]*587+p[i+2]*114)/1000|0;g[j]=v;hist[v]++}
+  let sum=0;for(let i=0;i<256;i++)sum+=i*hist[i];let sB=0,wB=0,max=0,th=128;const tot=g.length;
+  for(let t=0;t<256;t++){wB+=hist[t];if(!wB)continue;const wF=tot-wB;if(!wF)break;sB+=t*hist[t];const mB=sB/wB,mF=(sum-sB)/wF,b=wB*wF*(mB-mF)*(mB-mF);if(b>max){max=b;th=t}}
+  for(let i=0,j=0;i<p.length;i+=4,j++){const v=g[j]>th?255:0;p[i]=p[i+1]=p[i+2]=v}
+  x.putImageData(im,0,0);return c;
+}
+function setProg(r,txt){r.prog=txt;const el=document.querySelector(`#c_${r.id} .t2`);if(el)el.textContent=txt}
+function applyParse(r,text){
+  const res=ZParse.parseZ(text);const d=res.d;
+  const keepAck=r.d&&r.d.aciklama&&r.d.aciklama!==r._ack?r.d.aciklama:null;
+  d.not=res.notes.join(' · ');d.z_rapor_mu=res.found>=4?undefined:false;
+  r.ocr=text;r.auto=fill(d);
+  d.aciklama=keepAck||mkAck(d);if(!keepAck)r._ack=d.aciklama;
+  r.d=d;r.unsure=res.unsure.filter(k=>FIELDS.some(f=>f.k===k));
+}
+async function extractFree(r){
+  r.status='work';setProg(r,'Hazırlanıyor…');render();
+  try{
+    const w=await getOCR(m=>{if(m.status==='recognizing text')setProg(r,`Okunuyor… %${Math.round(m.progress*100)}`);else if(/load|init/i.test(m.status))setProg(r,'İlk kullanım: Türkçe dil dosyası indiriliyor (bir kez)…')});
+    const img=await prepImage(r.blob);
+    setProg(r,'Okunuyor…');
+    const {data}=await w.recognize(img);
+    applyParse(r,data.text||'');
+    r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.prog;
+    save(r);saveImg(r,r._small);delete r._small;
+  }catch(e){r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog}
+  render();
+}
+async function extract(r){
+  if(S.mode==='free')return extractFree(r);
+  r.status='work';render();
+  try{
+    const txt=await callClaude([{type:'image',source:{type:'base64',media_type:'image/jpeg',data:await b64(r.blob)}},{type:'text',text:PROMPT}],4000);const a=txt.indexOf('{'),b=txt.lastIndexOf('}');
+    if(a<0||b<a)throw new Error('Yanıt anlaşılamadı');
+    const j=JSON.parse(txt.slice(a,b+1));
+    const d={};
+    for(const f of FIELDS){const v=j[f.k];d[f.k]=f.t==='text'?(v==null?'':String(v).trim()):(f.t==='int'?(pn(v)==null?null:Math.round(pn(v))):pn(v))}
+    d.z_rapor_mu=j.z_rapor_mu;d.tarih=normDate(d.tarih);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
+    r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];
+    r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;
+    save(r);saveImg(r,r._small);delete r._small;
+  }catch(e){
+    r.status='error';
+    r.err=(e&&e.message)||'Bilinmeyen hata';
+  }
+  render();
+}
+async function pump(){if(busy)return;busy=true;while(queue.length){await extract(queue.shift())}busy=false}
+
+async function onFiles(list){
+  const files=[...list];if(!files.length)return;
+  const noKey=S.mode==='api'&&!S.key;
+  if(noKey){notice('Claude API ile okuma için ⚙️ Ayarlar’dan API anahtarını gir ya da yöntemi “Ücretsiz” yap. Şimdilik fotoğraflar eklendi; değerleri elle girebilirsin.');$('#settings').open=true}
+  for(const file of files){
+    const r={id:uid(),status:'queued',d:{},unsure:[],src:'foto',created:Date.now(),_local:true};rows.unshift(r);render();
+    try{const s=await shrink(file);r.blob=s.blob;r.thumb=s.thumb;r._small=s.small}catch(e){r.status='error';r.err=e.message;continue}
+    if(noKey){r.status='done';r.d={aciklama:mkAck({})};r._ack=r.d.aciklama;r.open=true;r.created=Date.now();r._local=true;save(r);saveImg(r,r._small);delete r._small;continue}
+    queue.push(r);
+  }
+  render();pump();
+}
+$('#cam').addEventListener('change',e=>{onFiles(e.target.files);e.target.value=''});
+$('#gal').addEventListener('change',e=>{onFiles(e.target.files);e.target.value=''});
+$('#manual').onclick=()=>{const d={};d.aciklama=mkAck(d);rows.forEach(x=>x.open=false);const nr={id:uid(),status:'done',d,unsure:[],auto:[],open:true,_ack:d.aciklama,created:Date.now(),_local:true};rows.unshift(nr);save(nr);render();window.scrollTo({top:document.getElementById('list').offsetTop-10,behavior:'smooth'})};
+$('#clear').onclick=e=>{const b=e.currentTarget;if(!rows.length)return;if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='Emin misin? Tekrar dokun';setTimeout(()=>{b.dataset.armed='';b.textContent='Tümünü sil'},3000);return}b.dataset.armed='';b.textContent='Tümünü sil';queue=[];removeRows(rows.slice())};
+
+function sorted(){return rows.filter(r=>r.status==='done').slice().sort((a,b)=>{const p=s=>{const m=String(s||'').match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);return m?(+(m[3].length===2?'20'+m[3]:m[3]))*10000+(+m[2])*100+(+m[1]):0};return p(a.d.tarih)-p(b.d.tarih)||String(a.d.z_no).localeCompare(String(b.d.z_no),'tr',{numeric:true})})}
+const cell=(f,v)=>v==null||v===''?'':f.t==='num'?(Math.round((v+Number.EPSILON*Math.sign(v||1))*100)/100+0).toFixed(2).replace('.',','):String(v).replace(/[;\r\n\t]/g,' ');
+function csvText(){return [OUT.map(f=>f.c).join(';'),...sorted().map(r=>OUT.map(f=>cell(f,r.d[f.k])).join(';'))].join('\r\n')}
+const W1254={'’':0x92,'‘':0x91,'“':0x93,'”':0x94,'–':0x96,'—':0x97,'€':0x80,'…':0x85,'é':0xE9,'É':0xC9,'à':0xE0,'á':0xE1,'è':0xE8,'í':0xED,'ó':0xF3,'ú':0xFA,'ñ':0xF1,'ä':0xE4,'Ä':0xC4,'ß':0xDF,'é':0xE9,'Ç':0xC7,'ç':0xE7,'Ğ':0xD0,'ğ':0xF0,'İ':0xDD,'ı':0xFD,'Ö':0xD6,'ö':0xF6,'Ş':0xDE,'ş':0xFE,'Ü':0xDC,'ü':0xFC,'Â':0xC2,'â':0xE2,'Î':0xCE,'î':0xEE,'Û':0xDB,'û':0xFB};
+function enc1254(s){s=s.replace(/₺/g,'TL');const out=[];for(const c of s){const n=c.codePointAt(0);out.push(n<128?n:(W1254[c]??0x3F))}return new Uint8Array(out)}
+function fname(ext){const d=new Date();return `Z_Raporlari_${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}.${ext}`}
+const MIME={csv:'text/csv',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',json:'application/json'};
+async function offer(name,data){
+  const blob=new Blob([data],{type:MIME[name.split('.').pop()]||'application/octet-stream'});
+  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(ios&&navigator.canShare){const file=new File([blob],name,{type:blob.type});if(navigator.canShare({files:[file]})){try{await navigator.share({files:[file]});return}catch(e){if(e&&e.name==='AbortError')return}}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},5000);toast('Dosya indirildi: '+name);
+}
+function guard(btn,label){
+  const bad=rows.filter(r=>r.status==='done'&&isBad(r)).length, pend=rows.filter(r=>r.status==='work'||r.status==='queued'||r.status==='error').length;
+  if(!bad&&!pend)return true;
+  if(btn.dataset.armed==='1'){btn.dataset.armed='';btn.textContent=label;return true}
+  btn.dataset.armed='1';btn.textContent='Yine de indir?';
+  toast([bad?`${bad} raporda uyarı var`:'',pend?`${pend} rapor henüz okunmadı / hatalı, dosyaya girmez`:''].filter(Boolean).join(' · '));
+  setTimeout(()=>{btn.dataset.armed='';btn.textContent=label},4000);return false;
+}
+$('#csv').onclick=e=>{if(!guard(e.currentTarget,'⬇ Luca CSV'))return;offer(fname('csv'),new Blob([enc1254(csvText()+'\r\n')]))};
+$('#xlsx').onclick=async e=>{if(!guard(e.currentTarget,'Excel'))return;
+  if(typeof XLSX==='undefined'){toast('Excel kütüphanesi yüklenemedi; CSV’yi kullan.');return}
+  const body=sorted().map(r=>OUT.map(f=>r.d[f.k]??(f.t==='text'?'':null)));
+  const ws=XLSX.utils.aoa_to_sheet([OUT.map(f=>f.c),...body]);
+  const ncols=OUT.map((f,i)=>f.t==='num'?i:-1).filter(i=>i>=0);
+  for(let r=1;r<=body.length;r++)for(const c of ncols){const a=XLSX.utils.encode_cell({r,c});if(ws[a])ws[a].z='#,##0.00'}
+  ws['!cols']=OUT.map(f=>({wch:f.k==='aciklama'?22:Math.max(11,f.c.length+1)}));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Z Raporları');
+  offer(fname('xlsx'),new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})]));
+};
+$('#copy').onclick=async()=>{
+  try{await navigator.clipboard.writeText(csvText().replace(/;/g,'\t'));toast('Kopyalandı — Excel’de A1 hücresine yapıştır')}catch(e){toast('Kopyalanamadı')}
+};
+$('#ack').value=ACK;
+$('#ack').addEventListener('change',e=>{ACK=e.target.value.trim()||'Z RAPORU {z}';e.target.value=ACK;try{localStorage.setItem('zrapor_ack',ACK)}catch(x){}toast('Varsayılan açıklama kaydedildi (yeni raporlara uygulanır)')});
+
+// ---- Ayar kontrolleri ----
+$('#key').value=S.key;$('#model').value=S.model;showUsage();
+function modeUI(){$('#mode').value=S.mode;$('#apiBox').style.display=S.mode==='api'?'':'none';
+  $('#modehint').textContent=S.mode==='api'?'Fiş Claude ile okunur; her okuma API hesabından ücretlendirilir.':'Fiş telefonda okunur, ücretsizdir. İsabet fişin netliğine ve yazar kasa modeline bağlıdır; her raporu kontrol et.'}
+modeUI();
+$('#mode').addEventListener('change',e=>{S.mode=e.target.value;saveS();modeUI();notice('')});
+const pm=$('#pm');
+$('#paste').onclick=()=>{pm.hidden=false;$('#pmt').value='';setTimeout(()=>$('#pmt').focus(),50)};
+$('#pmc').onclick=()=>{pm.hidden=true};
+pm.addEventListener('click',e=>{if(e.target===pm)pm.hidden=true});
+$('#pmo').onclick=()=>{const t=$('#pmt').value.trim();if(!t){toast('Önce metni yapıştır');return}
+  const r={id:uid(),status:'done',d:{},unsure:[],auto:[],src:'metin',created:Date.now(),open:true};applyParse(r,t);
+  rows.forEach(x=>x.open=false);rows.unshift(r);save(r);render();pm.hidden=true;toast('Rapor eklendi — kontrol et')};
+$('#key').addEventListener('change',e=>{S.key=e.target.value.trim();e.target.value=S.key;saveS();$('#testres').textContent='';if(S.key)notice('')});
+$('#keyshow').onclick=()=>{const k=$('#key');k.type=k.type==='password'?'text':'password';$('#keyshow').textContent=k.type==='password'?'Göster':'Gizle'};
+$('#model').addEventListener('change',e=>{S.model=e.target.value;saveS()});
+$('#test').onclick=async()=>{const t=$('#testres');t.textContent='Deneniyor…';
+  try{await callClaude([{type:'text',text:'Sadece "tamam" yaz.'}],200,false);t.textContent='✓ Bağlantı çalışıyor';t.style.color='var(--ok)'}
+  catch(e){t.textContent='✗ '+e.message;t.style.color='var(--err)'}};
+// ---- Yedek ----
+$('#bk').onclick=async()=>{
+  const out=[];for(const r of rows.filter(x=>x.status==='done')){let img=null;if(r.hasImg){try{img=await IDB.get('imgs',r.id)}catch(e){}}out.push({id:r.id,...ser(r),img})}
+  const d=new Date();offer(`Z_Rapor_Yedek_${d.toISOString().slice(0,10)}.json`,JSON.stringify({app:'zrapor',v:1,rows:out}));
+};
+$('#bkin').addEventListener('change',async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{const j=JSON.parse(await f.text());if(!j||j.app!=='zrapor'||!Array.isArray(j.rows))throw 0;
+    let n=0;for(const x of j.rows){if(!x||!x.id||!x.d)continue;if(rows.some(r=>r.id===x.id))continue;
+      const r={id:String(x.id),status:'done',open:false,d:x.d,unsure:x.unsure||[],auto:x.auto||[],src:x.src||'',_ack:x._ack||'',created:x.created||Date.now(),hasImg:false};
+      rows.push(r);save(r);if(x.img)await saveImg(r,x.img);n++}
+    sortRows();render();toast(n?`${n} rapor yedekten yüklendi`:'Yedekteki raporlar zaten listede');
+  }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
+});
+$('#ack').value=ACK;
+if(S.mode==='api'&&!S.key){$('#settings').open=true;notice('Claude API ile okuma için ⚙️ Ayarlar’a anahtarını gir ya da yöntemi “Ücretsiz” yap.')}
+setStore('wait');load();
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
