@@ -16,6 +16,8 @@
     s = s.replace(/(\d)[OÖ](?=[\d,.])/g, '$10').replace(/([\d,.])[OÖ](?=\d)/g, '$10');
     s = s.replace(/(\d)[İIL|](?=\d)/g, '$11');
     s = s.replace(/(\d)\s?[,.]\s(\d{2})(?!\d)/g, '$1,$2');   // "123, 45" → "123,45"
+    s = s.replace(/(\d{1,3}),(\d{3}),(\d{2})(?!\d)/g, '$1.$2,$3');          // "1,255,00" → "1.255,00"
+    s = s.replace(/\bK[O0ÖD]V\b/g, 'KDV');                                    // "KOV" → "KDV"
     s = s.replace(/^\+\s?(?=\d)/, '*').replace(/(\s)\+\s?(?=\d)/g, '$1*');   // "+8.654,00" → "*8.654,00"
     s = s.replace(/([*'"]\s?\d{1,3})\s(\d{3}[,.]\d{2})(?!\d)/g, '$1.$2'); // "*8 464,00" → "*8.464,00"
     s = s.replace(/([*'"]\s?\d+)\s(\d{2})(?![\d,.])/g, '$1,$2');           // "*187 47" → "*187,47"
@@ -27,6 +29,8 @@
     s = s.replace(/\s+/g, ' ').trim();
     // Satır başındaki kenar gölgesi çöpleri: "J TOPLAM", "© KDV", "| KDV", "3 TOPLAM"
     s = s.replace(/^(?:[^A-ZÇĞİÖŞÜ0-9*%\s]{1,2}\s|[A-ZÇĞİÖŞÜ0-9]\s(?=(?:TOPLAM|TOP|KDV|NAK|BANKA|KRED|YEMEK|KART|MATRAH)\b))+/, '');
+    s = s.replace(/^(?:\S{1,2}\s+)+(?=(?:TOPLAM|KDV|NAK[İI]T|BANKA|KRED[İI]|YEMEK|MATRAH|NET\s?C[İI]RO|BR[ÜU]T)\b)/, '');
+    s = s.replace(/(\S)\s+[—–-]\s+(?=[*'"“”»>]?\s?\d)/g, '$1 ');               // "“1 — *7.399,00" → "“1 *7.399,00"
     return s;
   }
   const stripDT = s => s
@@ -41,8 +45,9 @@
   function rateOf(s) {
     let m = s.match(/%\s?(\d{1,2})(?!\d)/) || s.match(/(?<![\d,.])(\d{1,2})\s?%/) || s.match(/\bKDV\s?(\d{1,2})\b(?![,.]\d)/) ||
       // "%" işareti başka karakter okunmuşsa: "TOPLAM v10 *1.255,00", "KDV »20 0,00"
-      s.match(/^(?:TOPLAM|TOP|KDV)\s*[^\sA-ZÇĞİÖŞÜ0-9]?[A-Z]?\s?(\d{1,2})\s+[*'"“”»«]?\s?\d/) ||
-      s.match(/^(?:TOPLAM|TOP|KDV)\s*[17](10|20|18)\s+[*'"“”»«]?\s?\d/) ||   // "%20" → "120"
+      s.match(/^(?:TOPLAM|TOP|KDV)\s*[^\sA-ZÇĞİÖŞÜ0-9]?[A-Z]?\s?(10|20|18|1|8)\s+[*'"“”»«>]?\s?\d/) ||
+      s.match(/^(?:TOPLAM|TOP|KDV)\s*[^\sA-ZÇĞİÖŞÜ0-9]?[14789](10|20|18)\s+[*'"“”»«>]?\s?\d/) ||   // "%20" → "120" / "420"
+      s.match(/^(?:TOPLAM|TOP|KDV)\s*[^\sA-ZÇĞİÖŞÜ0-9]?[479](1)\s+[*'"“”»«>]?\s?\d/) ||            // "%1" → "41"
       // departman satırı: "İÇECEK 1 MKTR"
       s.match(/(?:^|\s)\S?(\d{1,2})\s?MKTR\b/);
     if (!m) return null;
@@ -122,9 +127,11 @@
     // --- Z No ---
     m = all.match(/\bZ\s?(?:NO|NUMARASI|SIRA\s?NO|SAYISI)\s*[:.]?\s*(\d{1,6})\b/) ||
         all.match(/(?:^|\n)[^\n]{0,2}Z\s?N[OU0]\s*[:.]\s*(\d{1,6})\b/) ||
+        all.match(/(?:^|\n)[^\n]{0,2}2\s?N[OU0]\s*[:.]\s*(\d{3,6})\b(?=[^\n]*EK[ÜU])/) ||
         all.match(/\bZ\s?RAPOR[UI]?\s*(?:NO)?\s*[:.]\s*(\d{1,6})\b/) ||
         all.match(/(?:^|\n)\s*Z\s*[:.]?\s*(\d{2,6})\s*(?:\n|$)/);
     if (m) d.z_no = m[1]; else unsure.push('z_no');
+    if (d.z_no && d.z_no.length >= 4 && /^[689]/.test(d.z_no)) unsure.push('z_no');   // noktalı sıfır şüphesi
 
     // --- Toplamlar ve ödeme ---
     const EXG = /KDV|%|F[İI][ŞS]|ADET|SAYI|[İI]PTAL|[İI]ND[İI]R[İI]M|PO[ŞS]ET|TEKEL|NAK[İI]T|KRED[İI]|KART|ARA\s?TOP/;
@@ -257,7 +264,12 @@
       const e = [...m.entries()].sort((a, b) => b[1] - a[1]); return { v: e.length ? e[0][0] : null, uni: e.length === 1 }; };
     const d = {}, unsure = [], notes = [...new Set(list.flatMap(r => r.notes))];
     const t = vote('tarih'), z = vote('z_no'); d.tarih = t.v; d.z_no = z.v;
+    // Noktalı sıfır: "0760" bazen "6760" okunur, tersi pek olmaz → sadece 0↔6/8/9 farkı varsa sıfırlı olanı seç
+    const zs = [...new Set(list.map(r => r.d.z_no).filter(Boolean))];
+    const zeroOf = (a, b) => a.length === b.length && [...a].every((c, i) => c === b[i] || (c === '0' && /[689]/.test(b[i])));
+    if (zs.length > 1) { const zero = zs.find(a => zs.every(b => zeroOf(a, b))); if (zero) { d.z_no = zero; z.uni = true; } }
     if (!t.v || !t.uni) unsure.push('tarih'); if (!z.v || !z.uni) unsure.push('z_no');
+    if (d.z_no && d.z_no.length >= 4 && /^[689]/.test(d.z_no)) unsure.push('z_no');   // noktalı sıfır şüphesi
     // KDV grupları: (toplam, KDV) çiftini oy + oran uyumuyla seç
     for (const [g, m, k, r] of [['g1', 'm1', 'k1', 1], ['g10', 'm10', 'k10', 10], ['g20', 'm20', 'k20', 20], ['gp', 'mp', 'kp', 20]]) {
       const G = cands(g), K = cands(k); if (!G.length) continue;
