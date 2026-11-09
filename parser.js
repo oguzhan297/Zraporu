@@ -543,6 +543,7 @@
     if (d.genel != null && Math.abs(grp - d.genel) >= 0.006)
       { for (const x of ['tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'gp']) if (d[x]) unsure.push(x); if (!d.tekel) unsure.push('tekel'); }   // boş Tekel de şüpheli
     checkTk(d, unsure, notes);
+    if (ciroReport(L, d, unsure, notes)) { const u = [...new Set(unsure)]; return { d, unsure: u, notes: [...new Set(notes)], found: Object.keys(d).filter(k => d[k] != null).length, amts: allA }; }
     // zayıf kaynaklı genel toplam ödemelerle de tutmuyorsa gruplar dahil hiçbir şey "kesin" sayılmasın ("TOPLAM *724,00" genel sanıldı, diğer gruplar 0 yapıldı)
     if (d._genWeak && d.genel != null) { const pay = (d.nakit || 0) + (d.kart || 0) + (d.diger || 0); if (Math.abs(pay - d.genel) >= 0.006) unsure.push('genel', 'tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20'); }
     const found = Object.keys(d).filter(k => d[k] != null).length;
@@ -744,6 +745,158 @@
         for (const b of Object.values(groups)) if (b.sc >= 10) { if (b.r === 0) clear('tekel'); else clear(...KEY[b.r]); } }
     }
   }
+  // "FİŞ CİROSU" düzenli Z raporu (DEPARTMANLARA GÖRE / KDV ORANLARINA GÖRE FİŞ SATIŞ DÖKÜMLERİ, GÜNLÜK FİŞ CİROSU,
+  // FİŞ ÖDEME DÖKÜMLERİ: NAKİT ÖDEME TUTARI, KREDİ-01…, KREDİ ÖDEMELER TOPLAMI, ÖDEMELER TOPLAMI).
+  // Gruplar "KDV ORANLARINA GÖRE" bölümünden alınır (aynı oranlı departmanların toplamı); okunamayan oran departmanlardan toplanır.
+  // Genel toplam, ödemeler toplamı, nakit + kredi ve grupların toplamı birbirini doğrular. Uygulandıysa true döner.
+  function ciroReport(L, d, unsure, notes) {
+    const CIRO = /C[İI1][RP][O0Ö]S[UÜ]/, KTUT = /KDV\s?TUTAR/;
+    if (L.filter(l => CIRO.test(l.s)).length < 2) return false;
+    // tutar: satır sonundaki tutar ("*527 ,04" gibi boşluklu kuruş da), yoksa alttaki yalnız-tutar satırı
+    const amt = l => { const a = amounts(l.s.replace(/(\d)\s+([,.])\s*(\d{2})(?!\d)/g, '$1$2$3')); return a.length ? a[a.length - 1] : null; };
+    const val = i => { const v = amt(L[i]); if (v != null) return v;
+      const n = L[i + 1]; if (n && !hasLetters(n.s.replace(/\*/g, ''))) return amt(n); return null; };
+    // oran etiketi: "KDV ORANI %1", "KDV ORANI: %20"; "%" sık bozulur ("X0", "&1", "$10", "410", "40"), "KDV" de ("KDY", "KOY")
+    const labRate = t => { const m = t.match(/K\S{1,2}\s?ORAN\S*\s*[:;.,]?\s*[^\d\s]{0,2}\s?(\d{1,3})(?![\d,.])/) || t.match(/DEPARTMAN.*?[%X$&]\s?(\d{1,2})\s*\W*$/);
+      return m ? (RATES.includes(+m[1]) ? +m[1] : m[1].length > 1 && RATES.includes(+m[1].slice(1)) ? +m[1].slice(1) : null) : null; };
+    // oranı ciro / KDV oranından bul (etiket sık bozuk okunur): KDV 0 → %0; değilse KDV'nin ciroya oranına en yakın oran
+    const ratioRate = (g, k) => { if (g == null || k == null || g <= 0) return null; if (k === 0) return 0;
+      let b = null; for (const r of RATES) { if (!r) continue; const e = g * r / (100 + r), er = Math.abs(e - k) / Math.max(1, e); if (er < 0.015 && (!b || er < b.er)) b = { r, er }; } return b ? b.r : null; };
+    const blocks = [];   // {sec, lab, g, k}
+    let sec = null, blk = null, genel = null, topk = null, nakit = null, krTop = null, payTot = null;
+    const KR = [], OTH = [];
+    for (let i = 0; i < L.length; i++) {
+      const t = L[i].s;
+      if (/DEPARTMANLARA/.test(t)) { sec = 'dep'; blk = null; continue; }
+      if (/ORANLARINA/.test(t)) { sec = 'oran'; blk = null; continue; }
+      if (/G[ÜU]NL[ÜU]K/.test(t)) { sec = 'gun'; blk = null; }
+      else if (/D[EÉ]ME\s?D[ÖO]K/.test(t)) { sec = 'odeme'; continue; }
+      else if (/[İI1]ND[İI1]R[İI1]M\s?D[ÖO]K|[İI1]PTAL|BEKLEMEYE|SATI[ŞS]\s?F[İI1][ŞS][İI1]\s?ADED/.test(t) && sec !== 'dep' && sec !== 'oran') { sec = 'son'; continue; }
+      if (sec === 'dep' || sec === 'oran') {
+        if (/K\S{1,2}\s?ORAN|DEPARTMAN/.test(t) && !CIRO.test(t) && !/TUTAR/.test(t)) {
+          const lr = labRate(t);
+          if (blk && blk.g == null && blk.k == null) { if (lr != null) blk.lab = lr; }   // departman başlığı + "KDV ORANI" aynı blok
+          else blocks.push(blk = { sec, lab: lr, g: null, k: null });
+          continue;
+        }
+        if (!blk) continue;
+        const v = val(i); if (v == null) continue;
+        if (CIRO.test(t)) { if (blk.g == null) blk.g = v; }
+        else if (/TUTAR/.test(t)) { if (blk.k == null) blk.k = v; }
+      } else if (sec === 'gun') {
+        const v = val(i); if (v == null) continue;
+        if (KTUT.test(t) || (/TUTAR/.test(t) && !CIRO.test(t))) { if (topk == null) topk = v; } else if (CIRO.test(t) && genel == null) genel = v;
+      } else if (sec === 'odeme') {
+        const v = val(i); if (v == null) continue;
+        if (/D[EÉ]MELER\s?TOPLAM/.test(t) && !/KRED/.test(t)) payTot = v;
+        else if (/KRED\S*\s?\S?D[EÉ]ME/.test(t)) krTop = v;
+        else if (/N?AK[İI1]T/.test(t)) { if (nakit == null) nakit = v; }
+        else if (/KRED|KART|BANKA/.test(t)) KR.push(v);
+        else if (hasLetters(t)) OTH.push(v);
+      }
+    }
+    // her bloğun oranı: ciro/KDV oranından; bulunamazsa etiketten. Departmanlar orana göre toplanır.
+    const G = {}, K = {}, DG = {}, DK = {};
+    for (const b of blocks) {
+      if (b.g == null) continue;
+      const rr = ratioRate(b.g, b.k), r = rr ?? b.lab; if (r == null) continue;
+      const rate = (rr != null && b.lab != null && rr !== b.lab && b.g < 50) ? b.lab : r;   // küçük tutarda oran ayırt edilemez: etikete güven
+      if (b.sec === 'dep') { DG[rate] = r2((DG[rate] || 0) + b.g); if (b.k != null) DK[rate] = r2((DK[rate] || 0) + b.k); }
+      else if (G[rate] == null) { G[rate] = b.g; if (b.k != null) K[rate] = b.k; }
+    }
+    if (!Object.keys(G).length && !Object.keys(DG).length) return false;
+    const near = (a, b) => a != null && b != null && Math.abs(a - b) < 0.006;
+    const sumV = o => r2(Object.values(o).reduce((a, b) => a + b, 0));
+    const krSum = KR.length ? r2(KR.reduce((a, b) => a + b, 0)) : null;
+    // Genel toplam: en çok kaynağın tuttuğu değer (okuma hatası varyantları destek oyu)
+    const src = [['gun', genel], ['odeme', payTot], ['oran', Object.keys(G).length ? sumV(G) : null], ['dep', Object.keys(DG).length ? sumV(DG) : null],
+      ['nk', nakit != null && (krTop ?? krSum) != null ? r2(nakit + (krTop ?? krSum) + OTH.reduce((a, b) => a + b, 0)) : null]].filter(x => x[1] != null && x[1] > 0);
+    const C = new Map(); for (const [tag, v] of src) for (const w of [v, ...variants(v)]) { const s = C.get(w) || new Set(); s.add(tag); C.set(w, s); }
+    let gBest = null; for (const [tag, v] of src) { const n = C.get(v).size; if (!gBest || n > gBest.n) gBest = { v, n }; }
+    const gen = gBest ? gBest.v : null;
+    // Gruplar: her oran için KDV ORANLARINA GÖRE değeri ya da departman toplamı; genel toplamı tutturan birleşim
+    const rates = [...new Set([...Object.keys(G), ...Object.keys(DG)].map(Number))].sort((a, b) => a - b);
+    const opts = rates.map(r => { const o = []; if (G[r] != null) o.push({ g: G[r], k: K[r], src: 'oran' }); if (DG[r] != null && !near(DG[r], G[r])) o.push({ g: DG[r], k: DK[r], src: 'dep' }); return o; });
+    let pick = opts.map(o => o[0]);
+    if (gen != null && !near(pick.reduce((a, p) => a + p.g, 0), gen)) {
+      const rec = (i, acc, cur) => { if (i === opts.length) return near(acc, gen) ? [...cur] : null;
+        for (const p of opts[i]) { const x = rec(i + 1, acc + p.g, [...cur, p]); if (x) return x; } return null; };
+      const hit = rec(0, 0, []); if (hit) pick = hit;
+    }
+    const grp = {}; rates.forEach((r, i) => grp[r] = pick[i]);
+    const KEY = { 1: ['g1', 'm1', 'k1'], 10: ['g10', 'm10', 'k10'], 20: ['g20', 'm20', 'k20'] };
+    const all = ['tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'gp', 'mp', 'kp', 'genel', 'nakit', 'kart'];
+    for (const k of all) d[k] = null;
+    { const keep = unsure.filter(k => k === 'tarih' || k === 'z_no'); unsure.length = 0; unsure.push(...keep); notes.length = 0; }
+    if (gen != null && genel != null && !near(gen, genel)) notes.push(`Genel toplam: ${String(genel).replace('.', ',')} → ${gen.toFixed(2).replace('.', ',')} (diğer satırlarla doğrulandı)`);
+    for (const r of rates) {
+      const p = grp[r];
+      if (r === 0) { d.tekel = p.g; notes.push(`%0 satış Tekel sütununa yazıldı (${p.g.toFixed(2).replace('.', ',')}).`); continue; }
+      if (!KEY[r]) { notes.push(`%${r} grubu bulundu (${p.g.toFixed(2).replace('.', ',')}) — şablonda bu oran yok`); unsure.push('genel'); continue; }
+      const [gk, mk, kk] = KEY[r];
+      d[gk] = p.g;
+      const e = p.g * r / (100 + r);
+      let kv = p.k;
+      if (kv == null || Math.abs(kv - e) > Math.max(0.05, e * 0.003)) {   // KDV okunamadı / orana uymuyor: diğer kaynağı ya da varyantı dene
+        const alt = [K[r], DK[r], ...(kv != null ? variants(kv) : [])].find(v => v != null && Math.abs(v - e) <= Math.max(0.05, e * 0.003));
+        if (alt != null) kv = alt; else { kv = r2(e); unsure.push(kk, mk); notes.push(`%${r} KDV okunamadı; orandan hesaplandı, fişle kontrol et.`); }
+      }
+      d[kk] = kv; d[mk] = r2(p.g - kv);
+      if (p.src === 'dep') notes.push(`%${r} toplamı departmanlardan toplandı.`);
+    }
+    for (const r of [1, 10, 20]) if (!rates.includes(r)) { const [gk, mk, kk] = KEY[r]; d[gk] = d[mk] = d[kk] = 0; }
+    if (!rates.includes(0)) d.tekel = 0;
+    d.genel = gen;
+    // Ödemeler: nakit + kredi toplamı (+ diğer) = ödemeler toplamı = genel toplam
+    let kart = krTop ?? krSum;
+    if (kart != null && krSum != null && krTop != null && !near(krTop, krSum) && gen != null && nakit != null && near(nakit + krSum, gen)) kart = krSum;
+    const oth = r2(OTH.reduce((a, b) => a + b, 0));
+    if (gen != null && nakit != null && kart != null && !near(nakit + kart + oth, gen)) {
+      const nk = [nakit, ...variants(nakit)].flatMap(n => [kart, ...variants(kart)].map(k => [n, k])).find(([n, k]) => near(n + k + oth, gen));
+      if (nk) { notes.push('Ödeme tutarı okuma hatası genel toplamla düzeltildi.'); [nakit, kart] = nk; }
+    }
+    if (gen != null && nakit == null && kart != null) { nakit = r2(gen - kart - oth); unsure.push('nakit'); notes.push('Nakit okunamadı; genel toplam − kredi olarak hesaplandı.'); }
+    if (gen != null && kart == null && nakit != null) { kart = r2(gen - nakit - oth); unsure.push('kart'); notes.push('Kredi toplamı okunamadı; genel toplam − nakit olarak hesaplandı.'); }
+    d.nakit = nakit; d.kart = kart; d.diger = oth > 0 ? oth : null;
+    if (oth > 0) notes.push(`Nakit ve kredi dışında ödeme var (${oth.toFixed(2).replace('.', ',')}) — Luca şablonunda sütunu yok, kontrol et.`);
+    d.kasa = null; d._banks = KR.length ? KR : undefined; d._payCalc = undefined; d._genWeak = false; d.top_kdv = topk;
+    // Uygulamadaki çapraz kontroller: departman toplamları, oran dökümü, fişin KDV toplamı
+    if (Object.keys(DG).length) d._dp = Object.fromEntries(Object.entries(DG).map(([r, v]) => [r, v])); else delete d._dp;
+    if (topk != null) { d._tk = topk; d._topk = topk; } else { delete d._tk; delete d._topk; }
+    delete d._calc; delete d._mk; delete d._kTk; delete d._k20mk;
+    // KDV'ler fişteki GÜNLÜK FİŞ KDV TUTARI'nı vermiyorsa: departman KDV'leri, okuma hatası varyantları ya da toplamdan kalan ile düzelt
+    const ks = [[1, 'k1', 'm1', 'g1'], [10, 'k10', 'm10', 'g10'], [20, 'k20', 'm20', 'g20']].filter(x => d[x[3]] > 0);
+    const kSum = () => ['k1', 'k10', 'k20'].reduce((a, k) => a + (d[k] || 0), 0);
+    if (topk != null && !near(kSum(), topk) && ks.length) {
+      const fits = (r, g, k) => k != null && Math.abs(k - g * r / (100 + r)) <= Math.max(0.05, g * r / (100 + r) * 0.003);
+      const C = ks.map(([r, k, m, g]) => { const o = [d[k]]; for (const v of [K[r], DK[r], ...variants(d[k])]) if (v != null && !o.some(x => near(x, v)) && fits(r, d[g], v)) o.push(v); return o; });
+      let best = null;
+      const rec = (i, acc, ch, cur) => { if (i === C.length) { if (near(acc, topk) && (!best || ch < best.ch)) best = { ch, cur: [...cur] }; return; }
+        C[i].forEach((v, j) => { cur.push(v); rec(i + 1, acc + v, ch + (j ? 1 : 0), cur); cur.pop(); }); };
+      rec(0, 0, 0, []);
+      if (!best) for (let i = 0; i < ks.length; i++) {   // tek KDV: fişin KDV toplamı − diğerleri, oranına uyuyorsa
+        const [r, k, m, g] = ks[i], v = r2(topk - kSum() + d[k]);
+        if (fits(r, d[g], v)) { best = { ch: 1, cur: ks.map(([, kk], j) => j === i ? v : d[kk]) }; break; }
+      }
+      if (best) ks.forEach(([r, k, m, g], i) => { if (!near(d[k], best.cur[i])) { notes.push(`%${r} KDV: ${String(d[k]).replace('.', ',')} → ${best.cur[i].toFixed(2).replace('.', ',')} (fişin KDV toplamıyla doğrulandı)`); d[k] = best.cur[i]; d[m] = r2(d[g] - d[k]); } });
+    }
+    // oran dökümünde okunan değerler (KDV fişin KDV toplamıyla düzeltildiyse düzeltilmiş hâli)
+    const vd = {}; for (const r of [1, 10, 20]) if (G[r] != null && K[r] != null) { const kk = 'k' + r; vd[r] = [G[r], near(d['g' + r], G[r]) && notes.some(n => n.startsWith(`%${r} KDV:`)) ? d[kk] : K[r]]; }
+    if (Object.keys(vd).length) d._vd = vd; else delete d._vd;
+    // Şüpheli alanlar
+    const gsum = ['tekel', 'g1', 'g10', 'g20'].reduce((a, k) => a + (d[k] || 0), 0);
+    if (gen == null) unsure.push('genel');
+    else if (!near(gsum, gen)) unsure.push('tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20');
+    if (gen == null || !near((d.nakit || 0) + (d.kart || 0) + oth, gen)) unsure.push('nakit', 'kart');
+    if (gBest && gBest.n < 2) unsure.push('genel');
+    if (topk != null && !near(['k1', 'k10', 'k20'].reduce((a, k) => a + (d[k] || 0), 0), topk)) {
+      unsure.push('k1', 'k10', 'k20');
+      notes.push(`KDV'lerin toplamı fişteki GÜNLÜK FİŞ KDV TUTARI'nı (${topk.toFixed(2).replace('.', ',')}) tutmuyor; KDV'leri kontrol et.`);
+    }
+    if (!d.tarih) unsure.push('tarih');
+    if (!d.z_no) unsure.push('z_no');
+    return true;
+  }
   // Bölümlü raporda belge KDV TOPLAMI, grupların KDV'leri toplamını vermiyorsa bir grup eksik/yanlış okunmuştur
   function checkTk(d, unsure, notes) {
     if (d._tk == null) return;
@@ -898,5 +1051,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 42, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 43, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);

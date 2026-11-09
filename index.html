@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=42"></script>
+<script src="parser.js?v=43"></script>
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#e4e2dc;--acc:#1f6f5c;--acc2:#e8f3ef;--warn:#b5621b;--warnbg:#fdf1e6;--err:#b3261e;--ok:#1f6f5c}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#efeee9;--mut:#a3a29c;--line:#34332f;--acc:#5fc2a6;--acc2:#1f2f2a;--warn:#f0a35e;--warnbg:#3a2a1c;--err:#ff8a80;--ok:#5fc2a6}}
@@ -251,7 +251,9 @@ async function load(){
 }
 
 // ---- Ayarlar ----
-const S=(()=>{let o={};try{o=JSON.parse(localStorage.getItem('zr_settings')||'{}')}catch(e){}const x=Object.assign({key:'',model:'claude-sonnet-5-5',usage:{}},o);if(!x.mode)x.mode=x.key?'api':'free';return x})();
+const S=(()=>{let o={};try{o=JSON.parse(localStorage.getItem('zr_settings')||'{}')}catch(e){}const x=Object.assign({key:'',model:'claude-sonnet-5-5',usage:{}},o);if(!x.mode)x.mode=x.key?'api':'paddle';
+  // v43: ücretsiz okumada varsayılan PaddleOCR (Tesseract'tan çok daha isabetli). Bir kez geçilir; Tesseract'ı yeniden seçen kalır.
+  if(x.mode==='free'&&!x.mig43)x.mode='paddle';x.mig43=1;return x})();
 const saveS=()=>{try{localStorage.setItem('zr_settings',JSON.stringify(S))}catch(e){}};
 const PRICE={'claude-sonnet-5-5':[2,10],'claude-haiku-5-5':[0.10,0.50]};
 function track(u,count=true){if(!u)return;const m=new Date().toISOString().slice(0,7);if(S.usage.m!==m)S.usage={m,n:0,cost:0};const p=PRICE[S.model]||[2,10];
@@ -513,7 +515,13 @@ function guessZ(r){}   // yerini autoZ aldı
 function autoZ(){
   const done=rows.filter(r=>r.status==='done'&&dnum(r.d.tarih)!=null).sort((a,b)=>dnum(a.d.tarih)-dnum(b.d.tarih)||(a.created||0)-(b.created||0));
   const isNum=z=>/^\d+$/.test(String(z||''));
-  const sure=r=>isNum(r.d.z_no)&&!r._zAuto&&!(r.unsure||[]).includes('z_no');
+  const sure0=r=>isNum(r.d.z_no)&&!r._zAuto&&!(r.unsure||[]).includes('z_no');
+  // Kesin okunan Z'lerden en az bir başka kesin Z ile sırası tutanlar "dayanaklı"dır. Dayanaklı okuma varsa, hiçbiriyle tutmayan
+  // kesin okuma (ör. 3934 → "3954") dayanak sayılmaz; komşularından düzeltilebilir (yine de yalnızca tek hane farkı varsa).
+  const anch=new Set();
+  for(let i=0;i<done.length;i++)for(let j=i+1;j<done.length;j++){const a=done[i],b=done[j];if(!sure0(a)||!sure0(b))continue;
+    const dd=dnum(b.d.tarih)-dnum(a.d.tarih);if(dd>0&&dd<=10&&+b.d.z_no-+a.d.z_no===j-i){anch.add(a);anch.add(b)}}
+  const sure=r=>sure0(r)&&(!anch.size||anch.has(r));
   const like=(a,z)=>{a=String(a);z=String(z||'');if(!z||a===z)return true;if(a.length!==z.length)return a.endsWith(z)||a.startsWith(z)||z.endsWith(a)||z.startsWith(a);let n=0;for(let i=0;i<a.length;i++)if(a[i]!==z[i])n++;return n===1};
   let cur0;
   for(let i=0;i<done.length;i++){
@@ -529,7 +537,9 @@ function autoZ(){
     const cur=r.d.z_no;
     if(sure(r)&&(+cur===fp||+cur===fn))continue;      // okunan Z sırayla tutuyor
     // arada fotoğrafı eklenmemiş gün olabilir: kesin okunan Z'yi ancak günler de ardışıksa (gün farkı = sıra farkı) düzelt
-    if(sure(r)){const dp=fp!=null?t-dnum(done[p].d.tarih):null,dn=fn!=null?dnum(done[n].d.tarih)-t:null;
+    // iki kesin okuma çelişiyor ve hiçbiri başka bir okumayla desteklenmiyorsa hangisinin yanlış olduğu bilinemez: dokunma (kontrol uyarısı çıkar)
+    if(sure0(r)&&!anch.size)continue;
+    if(sure0(r)){const dp=fp!=null?t-dnum(done[p].d.tarih):null,dn=fn!=null?dnum(done[n].d.tarih)-t:null;
       const consec=(fp!=null&&dp===i-p)||(fn!=null&&dn===n-i);if(!consec)continue}
     if(isNum(cur)&&!r._zAuto&&!like(z,cur))continue;  // okunan Z bambaşka bir sayı: başka firmanın raporu olabilir
     const src=fp!=null?done[p]:done[n],both=fp!=null&&fn!=null;
@@ -558,8 +568,8 @@ async function extractFree(r){
   r.status='work';setProg(r,'Hazırlanıyor…');render();
   try{
     const w=await getOCR(m=>{if(m.status==='recognizing text'&&!/tekrar/.test(r.prog||''))setProg(r,`Okunuyor… %${Math.round(m.progress*100)}`);else if(/load|init/i.test(m.status))setProg(r,'İlk kullanım: Türkçe dil dosyası indiriliyor (bir kez)…')});
-    // Toplamlar tutana kadar farklı ayarlarla oku (tutunca durur): normal, küçük ölçek, renkli leke temizleyen, keskinleştirilmiş (bulanık fotoğraf), büyük ölçek + keskinleştirme, büyük ölçek
-    const passes=[{tw:1400,t:.15,win:1/16},{tw:1100,t:.20,win:1/8},{tw:1400,t:.18,win:1/12,gray:'max'},{tw:1400,t:.15,win:1/16,sharp:2},{tw:1700,t:.12,win:1/16,sharp:1.5},{tw:1700,t:.20,win:1/16}];
+    // Toplamlar tutana kadar farklı ayarlarla oku (tutunca durur): normal, kırpılmamış (fiş beyaz zemindeyse kırpma fişi kesebilir), küçük ölçek, renkli leke temizleyen, keskinleştirilmiş (bulanık fotoğraf), büyük ölçek + keskinleştirme, büyük ölçek
+    const passes=[{tw:1400,t:.15,win:1/16},{full:1,tw:2000,t:.15,win:1/24},{tw:1100,t:.20,win:1/8},{tw:1400,t:.18,win:1/12,gray:'max'},{tw:1400,t:.15,win:1/16,sharp:2},{tw:1700,t:.12,win:1/16,sharp:1.5},{tw:1700,t:.20,win:1/16}];
     let best=null;const all=[],texts=[];
     for(let n=0;n<passes.length;n++){
       setProg(r,n?`Toplamlar tutmadı, tekrar okunuyor (${n+1}/${passes.length})…`:'Okunuyor…');
@@ -573,8 +583,9 @@ async function extractFree(r){
       // birleştirilmiş sonuçta şüpheli alan kalmadıysa daha fazla okuma (pil) harcama
       if(all.length>=2){const mm=ZParse.merge(all);if(!mm.unsure.some(k=>k!=='z_no'&&k!=='diger'&&FIELDS.some(f=>f.k===k)))break}
     }
-    const merged=all.length>1?ZParse.merge(all):best.res;
-    applyParse(r,all.length>1?texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'):best.text,merged);
+    // toplamları tam tutan bir okuma varsa onu al; yoksa okumaları alan alan birleştir
+    const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
+    applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
     r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;delete r.prog;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog}
@@ -649,9 +660,10 @@ async function extractPaddle(r){
     toast('PaddleOCR bu tarayıcıda çalışmadı, Tesseract ile okunuyor');return extractFree(r);
   }
   try{
-    // Toplamlar tutana kadar farklı görüntülerle oku (tutunca durur): normal, renkli leke temizleyen, keskin + hassas algılama, kırpılmamış
-    const passes=[{raw:1,tw:1280,maxSide:4000},{raw:1,tw:1280,maxSide:4000,gray:'max',sharp:1.5},
-      {raw:1,tw:1600,maxSide:4000,sharp:1,p:{textDetThresh:.2,textDetBoxThresh:.45,textDetUnclipRatio:1.8}},{raw:1,full:1,tw:1400,maxSide:4000}];
+    // Toplamlar tutana kadar farklı görüntülerle oku (tutunca durur). PaddleOCR arka planı kendisi ayıklar; fiş beyaz zemin
+    // üstündeyken kırpma fişi kesebildiği için önce fotoğrafın tamamı okunur: tam, kırpılmış, renkli leke temizleyen + keskin, hassas algılama
+    const passes=[{raw:1,full:1,tw:1600,maxSide:4000},{raw:1,tw:1280,maxSide:4000},{raw:1,full:1,tw:1800,maxSide:4000,gray:'max',sharp:1.5},
+      {raw:1,full:1,tw:2000,maxSide:4000,sharp:1,p:{textDetThresh:.2,textDetBoxThresh:.45,textDetUnclipRatio:1.8}}];
     let best=null;const all=[],texts=[];
     for(let n=0;n<passes.length;n++){
       setProg(r,n?`Toplamlar tutmadı, tekrar okunuyor (${n+1}/${passes.length})…`:'Okunuyor (PaddleOCR)…');
@@ -665,8 +677,9 @@ async function extractPaddle(r){
       if(sc>=6)break;
       if(all.length>=2){const mm=ZParse.merge(all);if(!mm.unsure.some(k=>k!=='z_no'&&k!=='diger'&&FIELDS.some(f=>f.k===k)))break}
     }
-    const merged=all.length>1?ZParse.merge(all):best.res;
-    applyParse(r,all.length>1?texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'):best.text,merged);
+    // toplamları tam tutan bir okuma varsa onu al; yoksa okumaları alan alan birleştir
+    const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
+    applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
     r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;delete r.prog;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog}
@@ -806,7 +819,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=42;
+const APP_VER=43;
 function showVer(){const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;$('#ver').style.color=pv===APP_VER?'':'var(--warn)';if(pv!==APP_VER)$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç';return pv===APP_VER}
 // Okuyucu yüklenemediyse (ör. GitHub güncellemesi yayılırken) kendiliğinden yeniden dene
 (function retryParser(n){if(showVer()||n>6)return;const sc=document.createElement('script');sc.src=`parser.js?v=${APP_VER}&r=${Date.now()}`;sc.onload=()=>{showVer();if(window.ZParse&&rows.length)render()};sc.onerror=()=>{};document.head.appendChild(sc);setTimeout(()=>retryParser(n+1),n<2?3000:15000)})(0);
