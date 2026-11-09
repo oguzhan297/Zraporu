@@ -120,7 +120,11 @@
 
   // Onarım: toplamlar tutmuyorsa tipik okuma hatalarını dene ("1,0g"→"1,00", "*2,00"→"12,00") — sadece toplamı TAM tutturursa uygula
   function repair(d, notes, unsure, amts = []) {
-    if (d.genel == null) return;
+    if (d.genel == null) {
+      const sG = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, k) => a + (d[k] || 0), 0), sP = ['nakit', 'kart', 'diger'].reduce((a, k) => a + (d[k] || 0), 0);
+      if (sG > 0 && Math.abs(sG - sP) < 0.006) { d.genel = r2(sG); notes.push('Genel toplam okunamadı; gruplar ve ödemeler birbirini tuttuğu için onlardan alındı.'); }
+      else return;
+    }
     const alts = v => v == null ? [v] : [v, ...variants(v)];
     const fix = (keys, target, label) => {
       const cur = keys.reduce((a, k) => a + (d[k] || 0), 0);
@@ -141,6 +145,7 @@
     if (Math.abs(sumG - d.genel) >= 0.006 && Math.abs(sumP - d.genel) >= 0.006) {
       const gv = variants(d.genel).find(v => Math.abs(v - sumG) < 0.006 || Math.abs(v - sumP) < 0.006);
       if (gv != null) { notes.push(`Genel toplam: ${String(d.genel).replace('.', ',')} → ${gv.toFixed(2).replace('.', ',')} (okuma hatası düzeltildi)`); d.genel = gv; }
+      else if (sumG > 0 && Math.abs(sumG - sumP) < 0.006) { notes.push(`Genel toplam: ${String(d.genel).replace('.', ',')} → ${sumG.toFixed(2).replace('.', ',')} (gruplar ve ödemeler birbirini tutuyor)`); d.genel = r2(sumG); }
     }
     if (fix(G, d.genel, 'Grup tutarı') === 'fixed') {
       for (const x of ['tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'gp']) { let i; while (d[x] != null && (i = unsure.indexOf(x)) >= 0) unsure.splice(i, 1); }
@@ -230,8 +235,8 @@
 
     // --- Toplamlar ve ödeme ---
     const EXG = /KDV|%|F[İI][ŞS]|ADET|SAYI|[İI]PTAL|[İI]ND[İI]R[İI]M|PO[ŞS]ET|TEKEL|NAK[İI]T|KRED[İI]|KART|ARA\s?TOP/;
-    const GEN = /\bGENEL\s?TOPLAM\b|\bTOPLAM\s?SATI[ŞS]|SATI[ŞS]\s?TOPLAMI|NET\s?SATI[ŞS]|NET\s?C[İI]RO|\bTOPLAM\b|\bTOP\b/;
-    const STRONG = /\bGENEL\s?TOPLAM\b|\bTOPLAM\s?SATI[ŞS]|SATI[ŞS]\s?TOPLAMI|NET\s?SATI[ŞS]|NET\s?C[İI]RO/;
+    const GEN = /\bGENEL\s?TOPLAM\b|\bTOPLAM\s?SATI[ŞS]|SATI[ŞS]\s?TOPLAMI|NET\s?SATI[ŞS]|NET\s?S[A-ZÇĞİÖŞÜ]{3,5}\b|NET\s?C[İI]RO|\bTOPLAM\b|\bTOP\b/;
+    const STRONG = /\bGENEL\s?TOPLAM\b|\bTOPLAM\s?SATI[ŞS]|SATI[ŞS]\s?TOPLAMI|NET\s?SATI[ŞS]|NET\s?S[A-ZÇĞİÖŞÜ]{3,5}\b|NET\s?C[İI]RO/;
     const genS = [], genW = [];
     for (let i = 0; i < L.length; i++) { const l = L[i]; if (l.cum || l.rate != null || !GEN.test(l.s) || EXG.test(l.s)) continue; const v = amtAt(i); if (v != null) (STRONG.test(l.s) ? genS : genW).push(v); }
     const genC = genS.length ? genS : genW;
@@ -427,8 +432,29 @@
     // Genel toplam: oy + gruplarla ve ödemelerle uyum
     const grp = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
     const pay = ['nakit', 'kart', 'diger'].reduce((a, x) => a + (d[x] || 0), 0);
+    // Tekel ve genel toplamı birlikte seç: Tekel + KDV grupları = genel toplam = nakit + kart (+ diğer)
+    const candsV = k => { const m = new Map(); for (const c of cands(k)) m.set(c.v, (m.get(c.v) || 0) + c.w);
+      for (const c of cands(k)) for (const v of variants(c.v)) if (!m.has(v)) m.set(v, 0.3); return [...m.entries()].map(([v, w]) => ({ v, w })); };
+    const gsum = ['g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
+    const T = candsV('genel').map(c => ({ ...c, src: 'g' }));
+    for (const n of cands('nakit')) for (const k of cands('kart')) T.push({ v: r2(n.v + k.v), w: (n.w + k.w) / 2, src: 'p' });
+    const TK = candsV('tekel');
+    let joint = null;
+    for (const tk of TK.length ? TK : [{ v: 0, w: 0 }]) for (const t of T) {
+      if (!near(tk.v + gsum, t.v)) continue;
+      const alsoPay = T.some(u => u.src === 'p' && near(u.v, t.v)), alsoGen = T.some(u => u.src === 'g' && near(u.v, t.v));
+      const sc = tk.w + t.w + (alsoPay ? 2 : 0) + (alsoGen ? 1 : 0);
+      if (!joint || sc > joint.sc) joint = { sc, tk: tk.v, t: t.v, alsoPay };
+    }
+    let jointGenel = null;
+    if (joint && (joint.alsoPay || joint.sc >= 2)) {
+      if (TK.length) { if (d.tekel !== joint.tk) notes.push(`Tekel: ${String(d.tekel).replace('.', ',')} → ${joint.tk.toFixed(2).replace('.', ',')} (toplamlarla doğrulandı)`); d.tekel = joint.tk; }
+      jointGenel = joint.t;
+      const i = notes.findIndex(n => /Tekel sütununa yazıldı/.test(n)); if (i >= 0) notes.splice(i, 1);
+    }
     const GC = cands('genel');
-    if (GC.length) { let b = null; for (const c of GC) { const sc = c.w + (near(c.v, grp) ? 3 : 0) + (near(c.v, pay) ? 3 : 0); if (!b || sc > b.sc) b = { sc, v: c.v }; } d.genel = b.v; }
+    if (jointGenel != null) d.genel = jointGenel;
+    else if (GC.length) { let b = null; for (const c of GC) { const sc = c.w + (near(c.v, grp) ? 3 : 0) + (near(c.v, pay) ? 3 : 0); if (!b || sc > b.sc) b = { sc, v: c.v }; } d.genel = b.v; }
     else if (grp > 0) { d.genel = r2(grp); unsure.push('genel'); }
     complete(d, amts, unsure, notes);
     repair(d, notes, unsure, amts);
@@ -463,5 +489,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 18, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 19, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
