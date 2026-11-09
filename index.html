@@ -123,6 +123,7 @@ input[type=file]{display:none}
       <div class="f"><label>Varsayılan açıklama — {z} = Z no, {tarih} = tarih</label><input id="ack"></div>
       <div class="set-row"><button class="btn small" id="bk" type="button">Yedek indir</button><label class="btn small" for="bkin">Yedekten yükle</label><input type="file" id="bkin" accept=".json,application/json"></div>
       <div class="hint">Raporlar sadece bu telefonda saklanır. Telefon değiştirmeden ya da tarayıcı verilerini silmeden önce yedek indir.</div>
+      <div class="hint" id="ver"></div>
     </div>
   </details>
 
@@ -290,7 +291,7 @@ function render(){
         ${r.d.z_rapor_mu===false?'<div class="notice" style="display:block">Bu görüntü bir Z raporuna benzemiyor, değerleri dikkatle kontrol et.</div>':''}
         <div class="grid">${g}</div>
         <div class="checks">${checksHTML(r)}</div>
-        ${r.ocr!=null?`<details class="ocr"><summary>Okunan metin (düzeltip yeniden okutabilirsin)</summary><textarea rows="10" data-ocr="${r.id}">${esc(r.ocr)}</textarea><div class="set-row"><button class="btn small" data-reparse="${r.id}">Metne göre yeniden oku</button></div></details>`:''}
+        ${r.ocr!=null?`<details class="ocr"><summary>Okunan metin (düzeltip yeniden okutabilirsin)</summary><textarea rows="10" data-ocr="${r.id}">${esc(r.ocr)}</textarea><div class="set-row"><button class="btn small" data-copyocr="${r.id}">📋 Kopyala</button><button class="btn small" data-reparse="${r.id}">Metne göre yeniden oku</button></div></details>`:''}
         <div class="cardfoot"><button class="btn small danger" data-del="${r.id}">Sil</button><button class="btn small" data-tog="${r.id}">Kapat</button></div>
       </div></div>`;
   }).join('');
@@ -317,7 +318,9 @@ function refreshCard(r){
 }
 
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse]');if(!t)return;
+  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr]');if(!t)return;
+  if(t.dataset.copyocr){const ta=document.querySelector(`[data-ocr="${t.dataset.copyocr}"]`);const txt=ta?ta.value:'';
+    (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Okunan metin kopyalandı')).catch(()=>{try{ta.focus();ta.select();ta.setSelectionRange(0,txt.length);const ok=document.execCommand('copy');toast(ok?'Okunan metin kopyalandı':'Kopyalanamadı — metne uzun basıp “Tümünü Seç”')}catch(x){toast('Kopyalanamadı')}});return}
   if(t.dataset.reparse){const r=rows.find(x=>x.id===t.dataset.reparse);const ta=document.querySelector(`[data-ocr="${r.id}"]`);applyParse(r,ta.value);r.open=true;save(r);render();toast('Metin yeniden okundu');return}
   if(t.dataset.zoom!==undefined){t.classList.toggle('zoom');return}
   if(t.dataset.tog){const r=rows.find(x=>x.id===t.dataset.tog);r.open=!r.open;if(r.open)loadImg(r);render();if(r.open)document.getElementById('c_'+r.id)?.scrollIntoView({behavior:'smooth',block:'start'});return}
@@ -595,6 +598,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
+const APP_VER=13;$('#ver').textContent=`Sürüm: ${APP_VER}`;
 if(S.mode==='api'&&!S.key){$('#settings').open=true;notice('Claude API ile okuma için ⚙️ Ayarlar’a anahtarını gir ya da yöntemi “Ücretsiz” yap.')}
 setStore('wait');load();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
