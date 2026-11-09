@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=41"></script>
+<script src="parser.js?v=42"></script>
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#e4e2dc;--acc:#1f6f5c;--acc2:#e8f3ef;--warn:#b5621b;--warnbg:#fdf1e6;--err:#b3261e;--ok:#1f6f5c}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#efeee9;--mut:#a3a29c;--line:#34332f;--acc:#5fc2a6;--acc2:#1f2f2a;--warn:#f0a35e;--warnbg:#3a2a1c;--err:#ff8a80;--ok:#5fc2a6}}
@@ -110,7 +110,7 @@ body.dropping{outline:3px dashed var(--acc,#6cc3a5);outline-offset:-8px}
   <details id="settings" class="settings"><summary>⚙️ Ayarlar</summary>
     <div class="set-in">
       <div class="f"><label>Okuma yöntemi</label>
-        <select id="mode"><option value="free">Ücretsiz — telefonda okuma</option><option value="api">Claude API — en isabetli (anahtar gerekir)</option></select>
+        <select id="mode"><option value="paddle">Ücretsiz — PaddleOCR (telefonda, daha isabetli)</option><option value="free">Ücretsiz — Tesseract (telefonda, hafif)</option><option value="api">Claude API — en isabetli (anahtar gerekir)</option></select>
         <div class="hint" id="modehint"></div></div>
       <div id="apiBox" class="set-in" style="margin-top:0">
       <div class="f"><label>Anthropic API anahtarı</label>
@@ -482,17 +482,20 @@ function unsharp(g,w,h,a,r){
 async function prepImage(src,opt={}){
   // 1) fişi kırp  2) genişliği 1400 px'e getir  3) bölgesel eşikleme (gölge ve gri zemine dayanıklı)
   // aynı fotoğrafın 2.–4. okumasında çözme ve kırpma tekrarlanmasın
+  // opt.raw: eşikleme yapma, gri tonlu görüntüyü ver (PaddleOCR doğal görüntüde daha iyi okur) · opt.full: kırpma · opt.maxSide: uzun kenar sınırı
   let C=prepCache.get(src);if(!C){const im=await openImage(src);C={im,box:cropBox(im),gray:{}};prepCache.set(src,C)}
-  const im=C.im,[cx,cy,cw,ch]=C.box;
+  const im=C.im,[cx,cy,cw,ch]=opt.full?[0,0,im.naturalWidth,im.naturalHeight]:C.box;
   let tw=opt.tw||1400,th=Math.round(ch*tw/cw);if(tw*th>12e6){const k=Math.sqrt(12e6/(tw*th));tw=Math.round(tw*k);th=Math.round(th*k)}
+  if(opt.maxSide&&Math.max(tw,th)>opt.maxSide){const k=opt.maxSide/Math.max(tw,th);tw=Math.round(tw*k);th=Math.round(th*k)}
   // fişi kendi çözünürlüğünde al (en fazla 16 MP), sonra Lanczos ile hedef boyuta getir
   let nw=Math.round(cw),nh=Math.round(ch);if(nw*nh>16e6){const k=Math.sqrt(16e6/(nw*nh));nw=Math.round(nw*k);nh=Math.round(nh*k)}
-  const gk=(opt.gray||'lum');let G0=C.gray[gk];
+  const gk=(opt.gray||'lum')+(opt.full?'|full':'');let G0=C.gray[gk];
   if(!G0){const c0=document.createElement('canvas');c0.width=nw;c0.height=nh;const x0=c0.getContext('2d',{willReadFrequently:true});x0.drawImage(im,cx,cy,cw,ch,0,0,nw,nh);
     G0=C.gray[gk]=grayOf(x0,nw,nh,opt.gray);c0.width=c0.height=1}
   let g=lanczos(G0,nw,nh,tw,th);
   if(opt.sharp)g=unsharp(g,tw,th,opt.sharp,Math.max(1,Math.round(tw/700)));   // bulanık fotoğraf: kenarları keskinleştir
   const c=document.createElement('canvas');c.width=tw;c.height=th;const x=c.getContext('2d',{willReadFrequently:true});
+  if(opt.raw){const img=x.createImageData(tw,th),o=img.data;for(let i=0,k=0;i<g.length;i++,k+=4){o[k]=o[k+1]=o[k+2]=g[i];o[k+3]=255}x.putImageData(img,0,0);return c}
   const W1=tw+1,I=new Uint32Array(W1*(th+1));
   for(let y=1;y<=th;y++){let row=0;for(let xx=1;xx<=tw;xx++){row+=g[(y-1)*tw+xx-1];I[y*W1+xx]=I[(y-1)*W1+xx]+row}}
   const S=Math.max(15,(tw*(opt.win||1/16))|0)|1,r=S>>1,T=opt.t||.15,img=x.createImageData(tw,th),o=img.data;
@@ -577,8 +580,101 @@ async function extractFree(r){
   }catch(e){r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog}
   render();
 }
+// ---- Ücretsiz okuma 2: PaddleOCR (PP-OCRv6, WASM) — telefonda çalışır, Tesseract'tan isabetli ----
+// paddle.js = PaddleOCR.js + ONNX Runtime paketi (paddle/ klasöründen derlenir). Modeller ve çalışma zamanı ilk kullanımda
+// bir kez indirilir ve önbellekte (zrapor-ocr-*) saklanır; uygulama sürümü değişince silinmez.
+const PADDLE={js:'paddle.js?p=1',det:'PP-OCRv6_small_det',rec:'PP-OCRv6_small_rec',
+  base:'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/',mb:{det:9.9,rec:21.3,wasm:14.8}};
+const OCR_CACHE='zrapor-ocr-1';
+async function fetchBig(url,onBytes){
+  let cache=null;
+  try{cache=await caches.open(OCR_CACHE);const m=await cache.match(url);if(m){const b=await m.arrayBuffer();onBytes(b.byteLength,b.byteLength);return b}}catch(e){}
+  let res;try{res=await fetch(url,{mode:'cors'})}catch(e){throw new Error('PaddleOCR dosyaları indirilemedi. İnternet bağlantını kontrol et.')}
+  if(!res.ok)throw new Error(`PaddleOCR dosyası indirilemedi (${res.status}). Biraz sonra tekrar dene.`);
+  const total=+res.headers.get('content-length')||0;let buf;
+  if(res.body&&res.body.getReader){const rd=res.body.getReader(),parts=[];let n=0;
+    for(;;){const {done,value}=await rd.read();if(done)break;parts.push(value);n+=value.length;onBytes(n,total)}
+    buf=await new Blob(parts).arrayBuffer()}
+  else{buf=await res.arrayBuffer();onBytes(buf.byteLength,buf.byteLength)}
+  if(cache)try{await cache.put(url,new Response(new Blob([buf])))}catch(e){}
+  return buf;
+}
+let pdl=null,pdlLoading=null,pdlProg=null;
+async function getPaddle(onProg){
+  pdlProg=onProg;   // ilerleme her zaman o an okunan karta yazılsın
+  if(pdl)return pdl;
+  if(!pdlLoading)pdlLoading=(async()=>{
+    pdlProg&&pdlProg('İlk kullanım: PaddleOCR indiriliyor (bir kez)…');
+    if(!window.PaddleOCRLib)await loadScript(PADDLE.js);
+    const L=window.PaddleOCRLib;if(!L||!L.PaddleOCR)throw new Error('PaddleOCR yüklenemedi');
+    const wasmDir=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${L.ortVersion}/dist/`;
+    const urls={det:PADDLE.base+PADDLE.det+'_onnx_infer.tar',rec:PADDLE.base+PADDLE.rec+'_onnx_infer.tar',wasm:wasmDir+'ort-wasm-simd-threaded.wasm'};
+    const got={det:0,rec:0,wasm:0},tot={det:PADDLE.mb.det*1e6,rec:PADDLE.mb.rec*1e6,wasm:PADDLE.mb.wasm*1e6};
+    let last=-1;
+    const tick=()=>{const a=Object.values(got).reduce((x,y)=>x+y,0),b=Object.values(tot).reduce((x,y)=>x+y,0),p=Math.min(100,Math.round(a*100/b));
+      if(p!==last){last=p;pdlProg&&pdlProg(p>=100?'Okuyucu hazırlanıyor…':`İlk kullanım: okuyucu indiriliyor %${p} (bir kez)`)}};
+    const [det,rec,wasm]=await Promise.all(['det','rec','wasm'].map(k=>fetchBig(urls[k],(n,t)=>{if(t)tot[k]=t;got[k]=n;tick()})));
+    pdlProg&&pdlProg('Okuyucu hazırlanıyor…');
+    L.ort.env.wasm.wasmBinary=wasm;   // çalışma zamanını önbellekten ver, ORT kendisi indirmesin
+    const du=b=>URL.createObjectURL(new Blob([b])),dU=du(det),rU=du(rec);
+    try{
+      pdl=await L.PaddleOCR.create({textDetectionModelName:PADDLE.det,textDetectionModelAsset:{url:dU},textRecognitionModelName:PADDLE.rec,textRecognitionModelAsset:{url:rU},
+        ortOptions:{backend:'wasm',wasmPaths:wasmDir,numThreads:self.crossOriginIsolated?Math.min(4,navigator.hardwareConcurrency||2):1}});
+    }finally{URL.revokeObjectURL(dU);URL.revokeObjectURL(rU)}
+    return pdl;
+  })().catch(e=>{pdlLoading=null;throw e});
+  return pdlLoading;
+}
+// PaddleOCR kutularını satırlara diz: eğikliği düzelt, aynı yükseklikteki kutuları soldan sağa birleştir
+function paddleLines(items){
+  const N=s=>String(s).normalize('NFKC').replace(/[ÍÌ]/g,'İ').replace(/[íì]/g,'i').trim();
+  const it=(items||[]).map(i=>{const [a,b,c,d]=i.poly||[];if(!d)return null;
+    const w=Math.hypot(b[0]-a[0],b[1]-a[1]),h=(Math.hypot(d[0]-a[0],d[1]-a[1])+Math.hypot(c[0]-b[0],c[1]-b[1]))/2;
+    return {t:N(i.text||''),cx:(a[0]+b[0]+c[0]+d[0])/4,cy:(a[1]+b[1]+c[1]+d[1])/4,w,h:Math.max(1,h),ang:Math.atan2(b[1]-a[1],b[0]-a[0])}}).filter(i=>i&&i.t);
+  const angs=it.filter(i=>i.w>2*i.h).map(i=>i.ang).sort((a,b)=>a-b),sk=angs.length?angs[angs.length>>1]:0,cs=Math.cos(sk),sn=Math.sin(sk);
+  for(const i of it){i.x=i.cx*cs+i.cy*sn;i.y=-i.cx*sn+i.cy*cs}
+  it.sort((a,b)=>a.y-b.y);
+  const lines=[];
+  for(const i of it){const L=lines.slice(-3).find(l=>Math.abs(l.y-i.y)<0.5*Math.min(l.h,i.h));
+    if(L){L.items.push(i);L.y+=(i.y-L.y)/L.items.length;L.h=Math.max(L.h,i.h)}else lines.push({y:i.y,h:i.h,items:[i]})}
+  return lines.map(l=>l.items.sort((a,b)=>a.x-b.x).map(i=>i.t).join(' ')).join('\n');
+}
+async function extractPaddle(r){
+  r.status='work';setProg(r,'Hazırlanıyor…');render();
+  let ocr;
+  try{ocr=await getPaddle(t=>setProg(r,t))}
+  catch(e){
+    // indirme hatası: kart "Okunamadı" olur, Tekrar ile denenir. Tarayıcı PaddleOCR'ı çalıştıramıyorsa Tesseract ile oku.
+    if(navigator.onLine===false||/indirilemedi/.test(e&&e.message||'')){r.status='error';r.err=e.message;delete r.prog;render();return}
+    toast('PaddleOCR bu tarayıcıda çalışmadı, Tesseract ile okunuyor');return extractFree(r);
+  }
+  try{
+    // Toplamlar tutana kadar farklı görüntülerle oku (tutunca durur): normal, renkli leke temizleyen, keskin + hassas algılama, kırpılmamış
+    const passes=[{raw:1,tw:1280,maxSide:4000},{raw:1,tw:1280,maxSide:4000,gray:'max',sharp:1.5},
+      {raw:1,tw:1600,maxSide:4000,sharp:1,p:{textDetThresh:.2,textDetBoxThresh:.45,textDetUnclipRatio:1.8}},{raw:1,full:1,tw:1400,maxSide:4000}];
+    let best=null;const all=[],texts=[];
+    for(let n=0;n<passes.length;n++){
+      setProg(r,n?`Toplamlar tutmadı, tekrar okunuyor (${n+1}/${passes.length})…`:'Okunuyor (PaddleOCR)…');
+      await new Promise(res=>setTimeout(res,30));   // okuma ana iş parçacığında: önce yazı ekrana çıksın
+      const img=await prepImage(r.file||r.blob,passes[n]);
+      const [out]=await ocr.predict(img,passes[n].p||{});img.width=img.height=1;
+      const text=paddleLines(out&&out.items);
+      const res=ZParse.parseZ(text),sc=ZParse.consistency(res);
+      all.push(res);texts.push(text);
+      if(!best||sc>best.sc)best={res,sc,text};
+      if(sc>=6)break;
+      if(all.length>=2){const mm=ZParse.merge(all);if(!mm.unsure.some(k=>k!=='z_no'&&k!=='diger'&&FIELDS.some(f=>f.k===k)))break}
+    }
+    const merged=all.length>1?ZParse.merge(all):best.res;
+    applyParse(r,all.length>1?texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'):best.text,merged);
+    r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;delete r.prog;
+    save(r);autoZ();saveImg(r,r._small);delete r._small;
+  }catch(e){r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog}
+  render();
+}
 async function extract(r){
   if(S.mode==='free')return extractFree(r);
+  if(S.mode==='paddle')return extractPaddle(r);
   r.status='work';render();
   try{
     const txt=await callClaude([{type:'image',source:{type:'base64',media_type:'image/jpeg',data:await b64(r.blob)}},{type:'text',text:PROMPT}],4000);const a=txt.indexOf('{'),b=txt.lastIndexOf('}');
@@ -668,7 +764,7 @@ $('#ack').addEventListener('change',e=>{ACK=e.target.value.trim()||'Z RAPORU';e.
 // ---- Ayar kontrolleri ----
 $('#key').value=S.key;$('#model').value=S.model;showUsage();
 function modeUI(){$('#mode').value=S.mode;$('#apiBox').style.display=S.mode==='api'?'':'none';
-  $('#modehint').textContent=S.mode==='api'?'Fiş Claude ile okunur; her okuma API hesabından ücretlendirilir.':'Fiş telefonda okunur, ücretsizdir. İsabet fişin netliğine ve yazar kasa modeline bağlıdır; her raporu kontrol et.'}
+  $('#modehint').textContent=S.mode==='api'?'Fiş Claude ile okunur; her okuma API hesabından ücretlendirilir.':S.mode==='paddle'?'Fiş telefonda PaddleOCR ile okunur, ücretsizdir. İlk kullanımda okuyucu bir kez indirilir (~56 MB, Wi-Fi önerilir); sonra internetsiz de çalışır. Her raporu kontrol et.':'Fiş telefonda Tesseract ile okunur, ücretsizdir. İsabet fişin netliğine ve yazar kasa modeline bağlıdır; her raporu kontrol et.'}
 modeUI();
 $('#mode').addEventListener('change',e=>{S.mode=e.target.value;saveS();modeUI();notice('')});
 const pm=$('#pm');
@@ -710,7 +806,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=41;
+const APP_VER=42;
 function showVer(){const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;$('#ver').style.color=pv===APP_VER?'':'var(--warn)';if(pv!==APP_VER)$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç';return pv===APP_VER}
 // Okuyucu yüklenemediyse (ör. GitHub güncellemesi yayılırken) kendiliğinden yeniden dene
 (function retryParser(n){if(showVer()||n>6)return;const sc=document.createElement('script');sc.src=`parser.js?v=${APP_VER}&r=${Date.now()}`;sc.onload=()=>{showVer();if(window.ZParse&&rows.length)render()};sc.onerror=()=>{};document.head.appendChild(sc);setTimeout(()=>retryParser(n+1),n<2?3000:15000)})(0);
