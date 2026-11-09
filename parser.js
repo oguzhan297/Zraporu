@@ -18,7 +18,9 @@
     s = s.replace(/(\d)[OÖ](?=[\d,.])/g, '$10').replace(/([\d,.])[OÖ](?=\d)/g, '$10');
     s = s.replace(/(\d)[İIL|](?=\d)/g, '$11');
     s = s.replace(/(\d)\s?[,.]\s(\d{2})(?!\d)/g, '$1,$2');   // "123, 45" → "123,45"
-    s = s.replace(/(\d{1,3}),(\d{3}),(\d{2})(?!\d)/g, '$1.$2,$3');
+    s = s.replace(/\s+[|¦!:;]+\s*$/, '');                                        // satır sonu "|" çöpü
+    s = s.replace(/(\d)\.,\s?(\d)/g, '$1.$2');                                      // "*24.,997,50" / "*8., 360,08"
+    s = s.replace(/(\d{1,3}),(\d{3}),(\d{2})(?!\d)/g, '$1.$2,$3');               // "1,255,00" → "1.255,00"
     s = s.replace(/(\d{1,3})\.\s(\d{3}[,.]\d{2})(?!\d)/g, '$1.$2');                // "*29. 255,50" → "*29.255,50"
     s = s.replace(/([*'"“”«»])\s?(\d{1,6}):(\d[\dĞG])(?!\d)/g, '$1$2,$3');            // "*1:0ğ" → "*1,0ğ"                       // "*1/00" → "*1,00"          // "1,255,00" → "1.255,00"
     s = s.replace(/\bK[O0ÖD]V\b/g, 'KDV');                                    // "KOV" → "KDV"
@@ -27,9 +29,19 @@
     {
       const kw = /TOPLAM|TOP\s?K[DO]V|\bKDV\b|NAK[İI]T|KART|KRED[İI]|SATI[ŞS]|C[İI]RO|BANKA|YEMEK/.test(s);
       const onlyAmt = !/[A-ZÇĞİÖŞÜ]{2}/.test(s.replace(/\s[A-ZÇĞİÖŞÜ]{1,3}\W*$/g, ''));
-      if (kw || onlyAmt) s = s.replace(/([*'"“”«»]\s?\d{1,3}(?:\.\d{3})*)\s(\d{2})(?![\d,.])/g, '$1,$2');
+      if (kw || onlyAmt) {
+        // "M1.433 36" / "A4 54": tutarın önüne yapışmış tek harf = "*"
+        if (/TOP\s?K[DO]V|\bKDV\b|TOPLAM/.test(s)) s = s.replace(/(\s)[A-ZÇĞİÖŞÜ](?=\d{1,3}(?:[.,]\d{3})*[ ,.]\s?\d{2}\s*$)/, '$1*');
+        // "417.467, S0" → "417.467,50" (kuruşta harf)
+        s = s.replace(/(\d)([,.])\s?([0-9OÖDQSBGĞ]{2})(?![\dA-ZÇĞİÖŞÜ])/g, (m, a, sep, dd) => (/\d/.test(dd) || /^[OÖDQ]{2}$/.test(dd)) ? a + sep + fixAmt(dd) : m);
+        // "18.600.009" / "17.467.506" → "18.600,00" / "17.467,50" (kuruş ayırıcısı nokta + fazladan rakam)
+        s = s.replace(/(\d{1,3}(?:\.\d{3})+)\.(\d{2})\d?(?![\d,.])/g, '$1,$2');
+        s = s.replace(/([*'"“”«»]\s?\d{1,3}(?:\.\d{3})*)\s(\d{2})(?![\d,.])/g, '$1,$2');
+        s = s.replace(/([*'"“”«»]\s?\d{1,3})\s(\d{3}[,.]\d{2})(?!\d)/g, '$1.$2');   // "*8 600,00" → "*8.600,00"
+      }
     }
     if (/TOPLAM|TOP\s?K[DO]V|\bKDV\b/.test(s)) s = s.replace(/(\s\d{1,3}(?:\.\d{3})*|\s\d{1,6})\s(\d{2})\s*$/, '$1,$2');
+    s = s.replace(/([*'"“”«»]\s?\d{1,3})\s(\d{3}[,.]\d{2})(?!\d)/g, '$1.$2');          // ikinci geçiş: "*8 600,00" → "*8.600,00"
     // KDV satırında virgülü tamamen kaybolmuş tutar: "TOPKDV *409" → "*4,09"
     if (/^(?:\S{0,3}\s)?TOP\s?K[DO]V\b|^(?:\S{0,3}\s)?KDV\b/.test(s) && !/\d[,.]\d{2}/.test(s)) s = s.replace(/([*'"“”«»])\s?(\d{1,4})(\d{2})\s*$/, '$1$2,$3');   // "TOPKDV 10 01" → "10,01"           // "*187 47" → "*187,47"
     // "*B.654,00" / "*8.4H4,00" gibi: harf karışmış tutarları düzelt
@@ -421,7 +433,13 @@
     complete(d, amts, unsure, notes);
     repair(d, notes, unsure, amts);
     const grpN = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
-    if (!near(d.genel, grpN)) for (const x of ['g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'tekel', 'gp']) if (d[x]) unsure.push(x);
+    if (!near(d.genel, grpN)) { for (const x of ['g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'tekel', 'gp']) if (d[x]) unsure.push(x); }
+    else { for (const x of ['tekel', 'g1', 'g10', 'g20', 'gp']) { let i; while ((i = unsure.indexOf(x)) >= 0) unsure.splice(i, 1); } }
+    // yanıltıcı notları temizle: "%0 satış" (Tekel alanında zaten var) ve başka bir gruba ait çıkan "%8/%18 grubu bulundu"
+    for (let i = notes.length - 1; i >= 0; i--) {
+      if (/^%0 satış/.test(notes[i])) notes.splice(i, 1);
+      else if (/^%(8|18) grubu bulundu \(([\d,]+)/.test(notes[i])) { const v = +RegExp.$2.replace(',', '.'); if (['g1', 'g10', 'g20'].some(g => near(d[g], v))) notes.splice(i, 1); }
+    }
     // Ödemeler: adaylar arasından toplamı genel toplamı veren birleşimi seç
     if (d.genel != null) {
       const NC = cands('nakit'), KC = cands('kart'), DC = cands('diger');
@@ -445,5 +463,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 17, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 18, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
