@@ -177,19 +177,24 @@
 
     // --- Tarih ---
     const all = L.map(l => l.s).join('\n');
-    let m = all.match(/\b(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})\b/);
-    if (m) d.tarih = `${m[1].padStart(2, '0')}.${m[2].padStart(2, '0')}.${m[3].length === 2 ? '20' + m[3] : m[3]}`;
+    let m;
+    const dates = [...all.matchAll(/\b(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})\b/g)].map(x => {
+      const dd = +x[1], mm = +x[2], yy = x[3].length === 2 ? 2000 + +x[3] : +x[3];
+      return dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && yy >= 2000 && yy <= 2099 ? `${String(dd).padStart(2, '0')}.${String(mm).padStart(2, '0')}.${yy}` : null; }).filter(Boolean);
+    if (dates.length) { const c = {}; dates.forEach(x => c[x] = (c[x] || 0) + 1); d.tarih = dates.slice().sort((a, b) => c[b] - c[a])[0]; }
     else unsure.push('tarih');
 
     // --- Z No ---
     m = all.match(/\bZ\s?(?:NO|NUMARASI|SIRA\s?NO|SAYISI|SAYA[ÇC])\s*[:.]?\s*(\d{1,6})\b/) ||
         all.match(/(?:^|\n)[^\n]{0,3}[Z2]\s?SAYA[ÇC]\s*[:.]?\s*(\d{1,6})\b/) ||
+        (x => x && [x[0], x[1].replace(/[OCDQGÖ]/g, '0')])(all.match(/(?:^|\n)[^\n]{0,3}[Z2]\s?(?:SAYA[ÇC]|NO)\s*[:.]?\s*([0-9OCDQGÖ]{3,6})\b/)) ||
         all.match(/(?:^|\n)[^\n]{0,2}Z\s?N[OU0]\s*[:.]\s*(\d{1,6})\b/) ||
         all.match(/(?:^|\n)[^\n]{0,2}2\s?N[OU0]\s*[:.]\s*(\d{3,6})\b(?=[^\n]*EK[ÜU])/) ||
         all.match(/\bZ\s?RAPOR[UI]?\s*(?:NO)?\s*[:.]\s*(\d{1,6})\b/) ||
         all.match(/(?:^|\n)\s*Z\s*[:.]?\s*(\d{2,6})\s*(?:\n|$)/);
     if (m) d.z_no = m[1]; else unsure.push('z_no');
     if (d.z_no && d.z_no.length >= 4 && /^[689]/.test(d.z_no)) unsure.push('z_no');   // noktalı sıfır şüphesi
+    if (d.z_no && d.z_no.length > 4) unsure.push('z_no');                                // fazladan rakam şüphesi ("20002")
 
     // --- Toplamlar ve ödeme ---
     const EXG = /KDV|%|F[İI][ŞS]|ADET|SAYI|[İI]PTAL|[İI]ND[İI]R[İI]M|PO[ŞS]ET|TEKEL|NAK[İI]T|KRED[İI]|KART|ARA\s?TOP/;
@@ -367,8 +372,10 @@
     const zs = [...new Set(list.map(r => r.d.z_no).filter(Boolean))];
     const zeroOf = (a, b) => a.length === b.length && [...a].every((c, i) => c === b[i] || (c === '0' && /[689]/.test(b[i])));
     if (zs.length > 1) { const zero = zs.find(a => zs.every(b => zeroOf(a, b))); if (zero) { d.z_no = zero; z.uni = true; } }
+    if (zs.length > 1) { const suf = zs.find(a => a.length <= 4 && zs.every(b => b === a || b.endsWith(a) || zeroOf(a, b.slice(-a.length)))); if (suf) { d.z_no = suf; z.uni = true; } }
     if (!t.v || !t.uni) unsure.push('tarih'); if (!z.v || !z.uni) unsure.push('z_no');
     if (d.z_no && d.z_no.length >= 4 && /^[689]/.test(d.z_no)) unsure.push('z_no');   // noktalı sıfır şüphesi
+    if (d.z_no && d.z_no.length > 4) unsure.push('z_no');                                // fazladan rakam şüphesi ("20002")
     // KDV grupları: (toplam, KDV) çiftini oy + oran uyumuyla seç
     for (const [g, m, k, r] of [['g1', 'm1', 'k1', 1], ['g10', 'm10', 'k10', 10], ['g20', 'm20', 'k20', 20], ['gp', 'mp', 'kp', 20]]) {
       const G = cands(g), K = cands(k); if (!G.length) continue;
@@ -405,5 +412,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 15, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
