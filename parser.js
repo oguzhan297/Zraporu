@@ -230,6 +230,17 @@
       else if (n === 2) { for (const a of C[0].values()) { const b = r2(rest - a.v); const c = C[1].get(b); if (c) score([{ ...a, x: open[0] }, { ...c, x: open[1] }]); } }
       else { for (const a of C[0].values()) for (const b of C[1].values()) { const c3 = r2(rest - a.v - b.v); if (c3 < 0) continue; const c = C[2].get(c3); if (c) score([{ ...a, x: open[0] }, { ...b, x: open[1] }, { ...c, x: open[2] }]); } }
     }
+    // Tek grup eksik ve KDV'si okunamadı: toplam = genel − diğerleri metinde geçiyorsa, KDV = fişin KDV toplamı − diğer KDV'ler orana uyuyorsa al
+    if (!best && open.length === 1 && d._tk != null) {
+      const [g, m, k, r] = open[0], rest = r2(d.genel - (d.tekel || 0) - otherSum), e = rest * r / (100 + r);
+      const ok = R.filter(isOk).reduce((a, x) => a + (d[x[2]] || 0), 0) + (d.kp || 0);
+      const kt = [d._tk, ...variants(d._tk)].map(v => r2(v - ok)).find(v => v > 0 && Math.abs(v - e) <= Math.max(0.03, e * 0.003));
+      if (rest > 0 && kt != null && amts.some(v => Math.abs(v - rest) < 0.006)) {
+        notes.push(`%${r} toplamı genel toplamdan, KDV'si fişin KDV toplamından bulundu (${rest.toFixed(2).replace('.', ',')} / ${kt.toFixed(2).replace('.', ',')}).`);
+        d[g] = rest; d[k] = kt; d[m] = r2(rest - kt); (d._kTk = d._kTk || []).push(k); for (const x of [g, m, k, 'tekel']) { let j; while ((j = unsure.indexOf(x)) >= 0) unsure.splice(j, 1); }
+        return true;
+      }
+    }
     if (!best) return false;
     if (!best.tk.orig) { notes.push(`Tekel: ${String(d.tekel).replace('.', ',')} → ${best.tk.v.toFixed(2).replace('.', ',')} (okuma hatası; genel toplamla doğrulandı)`); d.tekel = best.tk.v; }
     best.parts.forEach((p, i) => { const [g, m, k, r] = p.x;
@@ -777,6 +788,7 @@
     else if (grp > 0) { d.genel = r2(grp); unsure.push('genel'); }
     { const vd = {}; for (const r of list) for (const [rt, p] of Object.entries(r.d._vd || {})) { const k = rt + '|' + p.join('|'); (vd[rt] = vd[rt] || {})[k] = ((vd[rt] || {})[k] || 0) + 1; }
       for (const rt in vd) { const best = Object.entries(vd[rt]).sort((a, b) => b[1] - a[1])[0][0].split('|'); (d._vd = d._vd || {})[rt] = [+best[1], +best[2]]; } }
+    { const c = cands('_tk').filter(x => x.w >= 0.6); if (c.length) d._tk = c[0].v; }
     complete(d, amts, unsure, notes);
     solveGroups(d, amts, unsure, notes);
     repair(d, notes, unsure, amts);
@@ -788,7 +800,7 @@
     // Hiçbir okumada gerçekten okunmamış (hepsinde orandan hesaplanmış) KDV turuncu kalır
     for (const k of ['k1', 'k10', 'k20']) {
       if (d[k] == null) continue;
-      const read = list.some(r => r.d[k] != null && near(r.d[k], d[k]) && !(r.d._calc || []).includes(k)) || (k === 'k20' && d._k20mk);
+      const read = list.some(r => r.d[k] != null && near(r.d[k], d[k]) && !(r.d._calc || []).includes(k)) || (k === 'k20' && d._k20mk) || (d._kTk || []).includes(k);
       if (!read) { unsure.push(k, 'm' + k.slice(1)); if (!notes.some(n => n.startsWith(`%${k.slice(1)} KDV okunamadı`))) notes.push(`%${k.slice(1)} KDV okunamadı; orandan hesaplandı, fişle kontrol et.`); }
       else for (let i = notes.length - 1; i >= 0; i--) if (notes[i].startsWith(`%${k.slice(1)} KDV okunamadı`)) notes.splice(i, 1);
     }
@@ -829,5 +841,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 36, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 37, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
