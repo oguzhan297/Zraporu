@@ -286,7 +286,7 @@
     };
     for (const x of all.matchAll(/\b(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})\b/g)) addDate(x[1], x[2], x[3], 1);
     // "TARİH" satırı (TARİM/TARİN okunabilir): ayırıcı boşluk da olabilir ("11 10 2026", "11-18 2026")
-    for (const l of L) { const x = l.s.match(/TAR[İI1]\S?\W*(\d{1,2})\s*[./\-\s]\s*(\d{1,2})\s*[./\-\s]\s*(\d{4})\b/); if (x) addDate(x[1], x[2], x[3], /\d[./-]\d{1,2}[./-]\d/.test(x[0]) ? 0 : 0.8); }
+    for (const l of L) { const x = l.s.match(/TAR[İI1]\S{0,2}\W*(\d{1,2})\s*[./\-\s:]\s*(\d{1,2})\s*[./\-\s:]\s*(\d{4})\b/); if (x) addDate(x[1], x[2], x[3], /\d[./-]\d{1,2}[./-]\d/.test(x[0]) ? 0 : 0.8); }
     const dk = Object.keys(c);
     if (dk.length) { dk.sort((a, b) => c[b] - c[a]); d.tarih = dk[0]; if (c[dk[0]] < 1 || (dk[1] && c[dk[1]] >= c[dk[0]] * 0.8)) unsure.push('tarih'); }
     if (!d.tarih) unsure.push('tarih');
@@ -386,17 +386,22 @@
       const hdr = [L[i - 1], L[i - 2]].some(x => x && /MAL[İI]\s?VER[İI]|GENEL\s?TOPLAM/.test(x.s));
       if (hdr || a.cum || b.cum || !/TOPLAM/.test(a.s) || /F[İI][ŞS]|ADET|SATI[ŞS]|C[İI]RO|KDV/.test(a.s) || !/KDV/.test(b.s) || /TOPLAM/.test(b.s)) continue;
       const G = tok(a.s), K = tok(b.s); if (!G.length || !K.length) continue;
+      // fazladan rakam ayırarak üretilen adaylar ("22.861" → 22,86) gerçek tutarların gerisinde kalsın
+      const GA = new Set(amounts(a.s)), KA = new Set(amounts(b.s)), xp = (v, S) => S.has(v) ? 0 : 500;
       let best = null;
       for (const g0 of G) for (const g of [g0, ...variants(g0)]) for (const k0 of K) for (const k of [k0, ...variants(k0)]) for (const r of [1, 10, 20]) {
         if (g < 0.5 || k <= 0) continue;
         const e = Math.abs(g * r / (100 + r) - k), t = (g !== g0 || k !== k0) ? Math.max(0.01, k * 0.002) : Math.max(0.025, k * 0.001);
         if (e > t) continue;
         const vp = g0 < 20 ? 0.012 : 1000;   // küçük tutarlarda tolerans görece büyük: tam tutan varyant, zorlama tutan orijinali geçebilsin
-        const sc = e + (g !== g0 ? vp : 0) + (k !== k0 ? vp : 0) + (a.rate != null && a.rate !== r ? 0.01 : 0);
+        const sc = e + (g !== g0 ? vp : 0) + (k !== k0 ? vp : 0) + xp(g0, GA) + xp(k0, KA) + (a.rate != null && a.rate !== r ? 0.01 : 0);
         if (!best || sc < best.sc) best = { sc, g, k, r };
       }
       if (best && (!pairHits[best.r] || best.sc < pairHits[best.r].sc)) pairHits[best.r] = best;
     }
+    // Vergi dökümünde okunan (toplam, KDV) çiftleri: uygulama gruplarla karşılaştırır
+    d._vd = {}; for (const r of [1, 10, 20]) { const h = pairHits[r]; if (h && h.sc < 1001) d._vd[r] = [h.g, h.k]; }   // en çok bir tarafı okuma hatası düzeltilmiş
+    if (!Object.keys(d._vd).length) delete d._vd;
     for (const r of [1, 10, 20]) {
       const h = pairHits[r]; if (!h) continue;
       const [gk, mk, kk] = GK[r];
@@ -562,6 +567,8 @@
     if (jointGenel != null) d.genel = jointGenel;
     else if (GC.length) { let b = null; for (const c of GC) { const sc = c.w + (near(c.v, grp) ? 3 : 0) + (near(c.v, pay) ? 3 : 0); if (!b || sc > b.sc) b = { sc, v: c.v }; } d.genel = b.v; }
     else if (grp > 0) { d.genel = r2(grp); unsure.push('genel'); }
+    { const vd = {}; for (const r of list) for (const [rt, p] of Object.entries(r.d._vd || {})) { const k = rt + '|' + p.join('|'); (vd[rt] = vd[rt] || {})[k] = ((vd[rt] || {})[k] || 0) + 1; }
+      for (const rt in vd) { const best = Object.entries(vd[rt]).sort((a, b) => b[1] - a[1])[0][0].split('|'); (d._vd = d._vd || {})[rt] = [+best[1], +best[2]]; } }
     complete(d, amts, unsure, notes);
     solveGroups(d, amts, unsure, notes);
     repair(d, notes, unsure, amts);
@@ -606,5 +613,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 24, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 25, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);

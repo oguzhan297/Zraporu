@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=24"></script>
+<script src="parser.js?v=25"></script>
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#e4e2dc;--acc:#1f6f5c;--acc2:#e8f3ef;--warn:#b5621b;--warnbg:#fdf1e6;--err:#b3261e;--ok:#1f6f5c}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#efeee9;--mut:#a3a29c;--line:#34332f;--acc:#5fc2a6;--acc2:#1f2f2a;--warn:#f0a35e;--warnbg:#3a2a1c;--err:#ff8a80;--ok:#5fc2a6}}
@@ -268,6 +268,13 @@ function checks(r){
   for(const [g,m,k] of GROUPS){if(d[g]!=null&&d[m]!=null&&d[k]!=null){const df=Math.abs(d[m]+d[k]-d[g]);if(df>=0.006)out.push({ok:false,m:`${names[g]}: Matrah + KDV, genel toplamla tutmuyor (fark ${fm(df)})`})}}
   const s=satis(d);
   if(d.genel!=null&&s>0){const df=Math.abs(s-d.genel);out.push({ok:df<0.006,m:df<0.006?'Tekel + KDV grupları + poşet = fiş genel toplamı ✓':`Grupların toplamı (${fm(s)}) fiş genel toplamıyla (${fm(d.genel)}) tutmuyor, fark ${fm(df)}`})}
+  // Vergi dökümü (fişin altındaki TOPLAM/TOPKDV satırları) ile karşılaştır
+  if(d._vd&&typeof d._vd==='object'){const ok=[],bad=[];
+    for(const [rt,p] of Object.entries(d._vd)){const g='g'+rt,k='k'+rt;if(!Array.isArray(p)||d[g]==null)continue;
+      if(Math.abs(d[g]-p[0])<0.006&&(d[k]==null||Math.abs(d[k]-p[1])<0.006))ok.push('%'+rt);
+      else bad.push(`%${rt}: vergi dökümünde ${fm(p[0])} / KDV ${fm(p[1])}, burada ${fm(d[g])} / KDV ${d[k]==null?'—':fm(d[k])}`)}
+    if(ok.length)out.push({ok:true,m:`Vergi dökümüyle aynı (${ok.join(', ')}) ✓`});
+    for(const b of bad)out.push({ok:false,m:b})}
   const pay=(d.kart||0)+(d.nakit||0);
   if(pay>0&&s>0){const df=Math.abs(pay-s);out.push({ok:df<0.006,m:df<0.006?'Kredi kartı + Nakit = Satış toplamı ✓':`Kart + Nakit (${fm(pay)}) satış toplamıyla (${fm(s)}) tutmuyor, fark ${fm(df)}`})}
   return out;
@@ -614,7 +621,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=24;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
+const APP_VER=25;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
 if(S.mode==='api'&&!S.key){$('#settings').open=true;notice('Claude API ile okuma için ⚙️ Ayarlar’a anahtarını gir ya da yöntemi “Ücretsiz” yap.')}
 setStore('wait');load();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
