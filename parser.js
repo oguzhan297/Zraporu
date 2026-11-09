@@ -24,6 +24,7 @@
     s = s.replace(/(\d{1,3})\.\s(\d{3}[,.]\d{2})(?!\d)/g, '$1.$2');                // "*29. 255,50" → "*29.255,50"
     s = s.replace(/([*'"“”«»])\s?(\d{1,6}):(\d[\dĞG])(?!\d)/g, '$1$2,$3');            // "*1:0ğ" → "*1,0ğ"                       // "*1/00" → "*1,00"          // "1,255,00" → "1.255,00"
     s = s.replace(/\bK[O0ÖD][VU]\b/g, 'KDV').replace(/\bTOPK[DO0Ö][VU]\b/g, 'TOPKDV');
+    s = s.replace(/(^|\s)[ÇC(\[{]OPK[DO0Ö][VU]\b/g, '$1TOPKDV').replace(/\bTOPLA[NH]\b/g, 'TOPLAM');   // "ÇOPKDV", "(OPKDV", "TOPLAN"
     if (/TOPLAM|TOPKDV|\bKDV\b/.test(s)) {
       s = s.replace(/(\d)(?:\s+[^\s\d]{1,3})+\s*$/, '$1');                                // "48.235 09 İL" → "48.235 09"
       s = s.replace(/(\s[*'"“”«»]?\d{1,6})\s([0-9][0-9GĞOSBZ]|[GĞOSBZ][0-9])\s*$/, (m, a, b) => a + ',' + fixAmt(b));   // "43 G4" → "43,64"
@@ -506,6 +507,10 @@
       const e = [...m.entries()].sort((a, b) => b[1] - a[1]); return { v: e.length ? e[0][0] : null, uni: e.length === 1 }; };
     const d = {}, unsure = [], notes = [...new Set(list.flatMap(r => r.notes))];
     const t = vote('tarih'), z = vote('z_no'); d.tarih = t.v; d.z_no = z.v;
+    // Tarih: kendi okumasında şüpheli (turuncu) olan farklı tarih, kesin okunan çoğunluğu bozmasın
+    { const w = new Map(); for (const r of list) { const v = r.d.tarih; if (v) w.set(v, (w.get(v) || 0) + (r.unsure.includes('tarih') ? 0.3 : 1)); }
+      const e = [...w.entries()].sort((a, b) => b[1] - a[1]);
+      if (e.length) { d.tarih = e[0][0]; const rest = e.slice(1).reduce((a, x) => a + x[1], 0); t.uni = e[0][1] >= 1 && rest < 0.5 && e[0][1] >= 2 * rest; } }
     // Noktalı sıfır: "0760" bazen "6760" okunur, tersi pek olmaz → sadece 0↔6/8/9 farkı varsa sıfırlı olanı seç
     const zs = [...new Set(list.map(r => r.d.z_no).filter(Boolean))];
     const zeroOf = (a, b) => a.length === b.length && [...a].every((c, i) => c === b[i] || (c === '0' && /[689]/.test(b[i])));
@@ -601,5 +606,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 23, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 24, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
