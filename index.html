@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=40"></script>
+<script src="parser.js?v=41"></script>
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#e4e2dc;--acc:#1f6f5c;--acc2:#e8f3ef;--warn:#b5621b;--warnbg:#fdf1e6;--err:#b3261e;--ok:#1f6f5c}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#efeee9;--mut:#a3a29c;--line:#34332f;--acc:#5fc2a6;--acc2:#1f2f2a;--warn:#f0a35e;--warnbg:#3a2a1c;--err:#ff8a80;--ok:#5fc2a6}}
@@ -710,7 +710,10 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=40;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
+const APP_VER=41;
+function showVer(){const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;$('#ver').style.color=pv===APP_VER?'':'var(--warn)';if(pv!==APP_VER)$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç';return pv===APP_VER}
+// Okuyucu yüklenemediyse (ör. GitHub güncellemesi yayılırken) kendiliğinden yeniden dene
+(function retryParser(n){if(showVer()||n>6)return;const sc=document.createElement('script');sc.src=`parser.js?v=${APP_VER}&r=${Date.now()}`;sc.onload=()=>{showVer();if(window.ZParse&&rows.length)render()};sc.onerror=()=>{};document.head.appendChild(sc);setTimeout(()=>retryParser(n+1),n<2?3000:15000)})(0);
 if(S.mode==='api'&&!S.key){$('#settings').open=true;notice('Claude API ile okuma için ⚙️ Ayarlar’a anahtarını gir ya da yöntemi “Ücretsiz” yap.')}
 setStore('wait');load();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
