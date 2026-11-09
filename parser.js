@@ -19,12 +19,19 @@
     s = s.replace(/(\d)[İIL|](?=\d)/g, '$11');
     s = s.replace(/(\d)\s?[,.]\s(\d{2})(?!\d)/g, '$1,$2');   // "123, 45" → "123,45"
     s = s.replace(/(\d{1,3}),(\d{3}),(\d{2})(?!\d)/g, '$1.$2,$3');
+    s = s.replace(/(\d{1,3})\.\s(\d{3}[,.]\d{2})(?!\d)/g, '$1.$2');                // "*29. 255,50" → "*29.255,50"
     s = s.replace(/([*'"“”«»])\s?(\d{1,6}):(\d[\dĞG])(?!\d)/g, '$1$2,$3');            // "*1:0ğ" → "*1,0ğ"                       // "*1/00" → "*1,00"          // "1,255,00" → "1.255,00"
     s = s.replace(/\bK[O0ÖD]V\b/g, 'KDV');                                    // "KOV" → "KDV"
     s = s.replace(/^\+\s?(?=\d)/, '*').replace(/(\s)\+\s?(?=\d)/g, '$1*');   // "+8.654,00" → "*8.654,00"
     s = s.replace(/([*'"]\s?\d{1,3})\s(\d{3}[,.]\d{2})(?!\d)/g, '$1.$2'); // "*8 464,00" → "*8.464,00"
-    s = s.replace(/([*'"“”«»]\s?\d+)\s(\d{2})(?![\d,.])/g, '$1,$2');
-    if (/TOPLAM|TOP\s?K[DO]V|\bKDV\b/.test(s)) s = s.replace(/(\s\d{1,6})\s(\d{2})\s*$/, '$1,$2');   // "TOPKDV 10 01" → "10,01"           // "*187 47" → "*187,47"
+    {
+      const kw = /TOPLAM|TOP\s?K[DO]V|\bKDV\b|NAK[İI]T|KART|KRED[İI]|SATI[ŞS]|C[İI]RO|BANKA|YEMEK/.test(s);
+      const onlyAmt = !/[A-ZÇĞİÖŞÜ]{2}/.test(s.replace(/\s[A-ZÇĞİÖŞÜ]{1,3}\W*$/g, ''));
+      if (kw || onlyAmt) s = s.replace(/([*'"“”«»]\s?\d{1,3}(?:\.\d{3})*)\s(\d{2})(?![\d,.])/g, '$1,$2');
+    }
+    if (/TOPLAM|TOP\s?K[DO]V|\bKDV\b/.test(s)) s = s.replace(/(\s\d{1,3}(?:\.\d{3})*|\s\d{1,6})\s(\d{2})\s*$/, '$1,$2');
+    // KDV satırında virgülü tamamen kaybolmuş tutar: "TOPKDV *409" → "*4,09"
+    if (/^(?:\S{0,3}\s)?TOP\s?K[DO]V\b|^(?:\S{0,3}\s)?KDV\b/.test(s) && !/\d[,.]\d{2}/.test(s)) s = s.replace(/([*'"“”«»])\s?(\d{1,4})(\d{2})\s*$/, '$1$2,$3');   // "TOPKDV 10 01" → "10,01"           // "*187 47" → "*187,47"
     // "*B.654,00" / "*8.4H4,00" gibi: harf karışmış tutarları düzelt
     s = s.replace(/([*'"]?)([0-9BSOÖDQLIİ|ZGHATY]{1,3}(?:[.'][0-9BSOÖDQLIİ|ZGHATY]{3})*[,.][0-9OÖDQYGĞ]{2})(?![\dA-ZÇĞİÖŞÜ])/g,
       (m, p, t) => (/\d/.test(t) && (p || /^\d/.test(t))) ? p + fixAmt(t) : m);
@@ -32,6 +39,7 @@
     s = s.replace(/\bM[İI]?KTR\.?\s*[\d.,]*|\bM[İI]KTAR\s*[\d.,]*/g, ' MKTR ');
     s = s.replace(/\s+/g, ' ').trim();
     // Satır başındaki kenar gölgesi çöpleri: "J TOPLAM", "© KDV", "| KDV", "3 TOPLAM"
+    while (/\d[,.]\d{2}/.test(s) && /\d[,.]\d{2}\s+(?:[^\s\d]{1,3}\s*)+$/.test(s)) s = s.replace(/\s+[^\s\d]{1,3}\s*$/, '');
     normLine.pre = s;
     s = s.replace(/^(?:[^A-ZÇĞİÖŞÜ0-9*%\s]{1,2}\s|[A-ZÇĞİÖŞÜ0-9]\s(?=(?:TOPLAM|TOP|KDV|NAK|BANKA|KRED|YEMEK|KART|MATRAH)\b))+/, '');
     s = s.replace(/^(?:\S{1,2}\s+)+(?=(?:TOPLAM|KDV|NAK[İI]T|BANKA|KRED[İI]|YEMEK|MATRAH|NET\s?C[İI]RO|BR[ÜU]T)\b)/, '');
@@ -437,5 +445,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 16, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 17, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
