@@ -6,8 +6,8 @@
   const RATES = [0, 1, 8, 10, 18, 20];
   const CUM = /K[ÜU]M[ÜU]LAT[İI]F|\bK[ÜU]M(?:\b|\.|SATI|KDV|TOP|\s?TOPLAM)|M\.?\s?HAF[İI]ZA|MAL[İI]\s?HAF[İI]ZA|GENEL\s?K[ÜU]M/;
   // Tutar içinde yanlış okunan harfler → rakam (sadece tutara benzeyen parçalarda)
-  const FIX = { B: '8', S: '5', O: '0', Ö: '0', D: '0', Q: '0', L: '1', I: '1', İ: '1', '|': '1', Z: '2', G: '6', H: '6', A: '4', T: '7', Y: '9', Ğ: '0' };
-  const fixAmt = tok => tok.replace(/[BSOÖDQLIİ|ZGHATYĞ]/g, c => FIX[c] || c);
+  const FIX = { B: '8', S: '5', O: '0', Ö: '0', D: '0', Q: '0', L: '1', I: '1', İ: '1', '|': '1', Z: '2', G: '6', H: '6', A: '4', T: '7', Y: '9', Ğ: '0', V: '0', U: '0' };
+  const fixAmt = tok => tok.replace(/[BSOÖDQLIİ|ZGHATYĞVU]/g, c => FIX[c] || c);
 
   function normLine(l) {
     let s = TRU(l).replace(/[‘’`´]/g, "'").replace(/[ \t]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -38,7 +38,7 @@
         // "M1.433 36" / "A4 54": tutarın önüne yapışmış tek harf = "*"
         if (/TOP\s?K[DO]V|\bKDV\b|TOPLAM/.test(s)) s = s.replace(/(\s)[A-ZÇĞİÖŞÜ](?=\d{1,3}(?:[.,]\d{3})*[ ,.]\s?\d{2}\s*$)/, '$1*');
         // "417.467, S0" → "417.467,50" (kuruşta harf)
-        s = s.replace(/(\d)([,.])\s?([0-9OÖDQSBGĞ]{2})(?![\dA-ZÇĞİÖŞÜ])/g, (m, a, sep, dd) => (/\d/.test(dd) || /^[OÖDQ]{2}$/.test(dd)) ? a + sep + fixAmt(dd) : m);
+        s = s.replace(/(\d)([,.])\s?([0-9OÖDQSBGĞVU]{2})(?![\dA-ZÇĞİÖŞÜ])/g, (m, a, sep, dd) => (/\d/.test(dd) || /^[OÖDQ]{2}$/.test(dd)) ? a + sep + fixAmt(dd) : m);
         // "18.600.009" / "17.467.506" → "18.600,00" / "17.467,50" (kuruş ayırıcısı nokta + fazladan rakam)
         s = s.replace(/(\d{1,3}(?:\.\d{3})+)\.(\d{2})\d?(?![\d,.])/g, '$1,$2');
         s = s.replace(/([*'"“”«»]\s?\d{1,3}(?:\.\d{3})*)\s(\d{2})(?![\d,.])/g, '$1,$2');
@@ -168,7 +168,7 @@
         if (changed.includes(g)) {
           const e = d[g] * r / (100 + r), t = Math.max(0.03, e * 0.004);
           const kv = d[g] === 0 ? 0 : amts.filter(v => Math.abs(v - e) <= t).sort((a, b) => Math.abs(a - e) - Math.abs(b - e))[0];
-          if (kv != null) d[k] = kv; else { d[k] = r2(e); unsure.push(k); }
+          if (kv != null) d[k] = kv; else { d[k] = r2(e); unsure.push(k); (d._calc = d._calc || []).push(k); }
         }
         if (d[k] != null) d[m] = r2(d[g] - d[k]);
       }
@@ -314,8 +314,8 @@
 
     // --- Toplamlar ve ödeme ---
     const EXG = /KDV|%|F[İI][ŞS]|ADET|SAYI|[İI]PTAL|[İI]ND[İI]R[İI]M|PO[ŞS]ET|TEKEL|NAK[İI]T|KRED[İI]|KART|ARA\s?TOP/;
-    const GEN = /\bGENEL\s?TOPLAM\b|\bTOPLAM\s?SATI[ŞS]|SATI[ŞS]\s?TOPLAMI|NET\s?SATI[ŞS]|NET\s?S[A-ZÇĞİÖŞÜ]{3,5}\b|NET\s?C[İI]RO|\bTOPLAM\b|\bTOP\b/;
-    const STRONG = /\bGENEL\s?TOPLAM\b|\bTOPLAM\s?SATI[ŞS]|SATI[ŞS]\s?TOPLAMI|NET\s?SATI[ŞS]|NET\s?S[A-ZÇĞİÖŞÜ]{3,5}\b|NET\s?C[İI]RO/;
+    const GEN = /\bGENEL\s?TOPLAM\b|\bTOPLAM\s?SATI[ŞS]|SATI[ŞS]\s?TOPLAMI|NET\s?SAT[IİÎ1]?[ŞS]|NET\s?S[A-ZÇĞİÖŞÜ]{3,5}(?![A-ZÇĞİÖŞÜ])|NET\s?C[İI]RO|\bTOPLAM\b|\bTOP\b/;
+    const STRONG = /\bGENEL\s?TOPLAM\b|\bTOPLAM\s?SATI[ŞS]|SATI[ŞS]\s?TOPLAMI|NET\s?SAT[IİÎ1]?[ŞS]|NET\s?S[A-ZÇĞİÖŞÜ]{3,5}(?![A-ZÇĞİÖŞÜ])|NET\s?C[İI]RO/;
     const genS = [], genW = [];
     for (let i = 0; i < L.length; i++) { const l = L[i]; if (l.cum || l.rate != null || !GEN.test(l.s) || EXG.test(l.s)) continue; const v = amtAt(i); if (v != null) (STRONG.test(l.s) ? genS : genW).push(v); }
     const genC = genS.length ? genS : genW;
@@ -404,9 +404,9 @@
         if (e > t) continue;
         const vp = g0 < 20 ? 0.012 : 1000;   // küçük tutarlarda tolerans görece büyük: tam tutan varyant, zorlama tutan orijinali geçebilsin
         const sc = e + (g !== g0 ? vp : 0) + (k !== k0 ? vp : 0) + xp(g0, GA) + xp(k0, KA) + (a.rate != null && a.rate !== r ? 0.01 : 0);
-        if (!best || sc < best.sc) best = { sc, g, k, r };
+        if (!best || sc < best.sc) best = { sc, g, k, r, alt: xp(g0, GA) + xp(k0, KA) > 0 };
       }
-      if (best && (!pairHits[best.r] || best.sc < pairHits[best.r].sc)) pairHits[best.r] = best;
+      if (best && !best.alt && (!pairHits[best.r] || best.sc < pairHits[best.r].sc)) pairHits[best.r] = best;   // bölünmüş-rakam adayları ("2.479" → 2,47) grup sayılmaz
     }
     // Vergi dökümünde okunan (toplam, KDV) çiftleri: uygulama gruplarla karşılaştırır
     d._vd = {}; for (const r of [1, 10, 20]) { const h = pairHits[r]; if (h && h.sc < 1001) d._vd[r] = [h.g, h.k]; }   // en çok bir tarafı okuma hatası düzeltilmiş
@@ -419,6 +419,7 @@
       if (validated && d[gk] >= 100) continue;          // büyük tutarlarda mevcut doğrulanmış sonucu koru
       d[gk] = h.g; d[kk] = h.k; d[mk] = r2(h.g - h.k);
       for (const x of [gk, mk, kk]) { const j = unsure.indexOf(x); if (j >= 0) unsure.splice(j, 1); }
+      if (h.sc >= 1) unsure.push(gk, mk, kk);   // okuma hatası düzeltilerek eşleşti: genel toplamla yeniden doğrulansın
     }
     // --- KDV'si eşleşmeyen gruplar: metindeki tüm tutarlar arasında orana uyan KDV'yi ara ---
     const allA = []; L.forEach(l => { if (!l.cum) l.a.forEach(v => allA.push(v)); });
@@ -463,12 +464,19 @@
     // Poşetin matrah/KDV'si
     if (d.gp != null) { d.mp = r2(d.gp / 1.2); d.kp = r2(d.gp - d.mp); }
 
+    // Genel toplam bozuk okunduysa ("313.971,00" — baştaki '*' → 3): varyantı nakit + kart ile birebir tutuyorsa onu al
+    if (d.genel != null && d.kart != null) {
+      const NC = [d.nakit, d.kasa].filter(v => v != null).flatMap(v => [v, ...variants(v)]), KC = [d.kart, ...variants(d.kart)];
+      const payOk = v => NC.some(n => KC.some(k => Math.abs(n + k - v) < 0.006));
+      if (!payOk(d.genel)) { const gv = variants(d.genel).filter(payOk); if (gv.length === 1) { notes.push(`Genel toplam: ${String(d.genel).replace('.', ',')} → ${gv[0].toFixed(2).replace('.', ',')} (nakit + kartla doğrulandı)`); d.genel = gv[0]; } }
+    }
     solveGroups(d, allA, unsure, notes);
     // Nakit tutmuyorsa "KASA NAKİT" satırını dene
     if (d.genel != null && d.kasa != null && d.kart != null && Math.abs((d.nakit || 0) + d.kart + (d.diger || 0) - d.genel) >= 0.006 && Math.abs(d.kasa + d.kart + (d.diger || 0) - d.genel) < 0.006) {
       notes.push(`Nakit: ${String(d.nakit).replace('.', ',')} → ${d.kasa.toFixed(2).replace('.', ',')} ("KASA NAKİT" satırından)`); d.nakit = d.kasa; }
     repair(d, notes, unsure, allA);
     fixTopKdv(d, unsure, notes);
+    maliKdv(d, L, unsure, notes);
     for (const kf of ['genel', 'nakit', 'kart']) if (d[kf] == null) unsure.push(kf);
     // Toplamlar tutmuyorsa KDV gruplarının hiçbiri "emin" sayılmasın
     const grp = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
@@ -491,6 +499,29 @@
       else { d[k] = r2(e); d[m] = r2(d[g] - d[k]); unsure.push(k, m); }
     }
   }
+  // "MALİ VERİ" altındaki TOPKDV = tüm KDV'lerin toplamı. %20 KDV en çok bozulan alan: okunamadı/şüpheliyse buradan bul,
+  // okunduysa bununla doğrula
+  function maliKdv(d, L, unsure, notes) {
+    let cands = d._mk || [];
+    if (L) { const mi = L.findIndex(l => /MAL[İI1]\s?VER/.test(l.s)); if (mi < 0) return;
+      // etiket çoğu zaman bozuk okunuyor ("TOPKOWL", "MAĞ"): penceredeki tüm tutarlar aday; yalnızca KDV toplamını TAM tutturan kullanılır
+      for (let j = mi + 1; j < Math.min(L.length, mi + 6); j++) { if (L[j].cum || /K[ÜU]M/.test(L[j].s)) break; cands = cands.concat(L[j].a); }
+      if (cands.length) d._mk = cands; }
+    if (!cands.length) return;
+    const C = [...new Set(cands.flatMap(v => [v, ...variants(v)]))];
+    const ks = ['k1', 'k10', 'k20', 'kp'], sumK = () => ks.reduce((a, k) => a + (d[k] || 0), 0);
+    const hit = C.find(v => Math.abs(v - sumK()) < 0.006);
+    if (hit != null) { d._topk = hit; return; }
+    // %20 KDV şüpheliyse: toplam KDV − diğer KDV'ler, %20 toplamının oranına tam uyuyorsa onu al
+    if (d.g20 > 0 && (d.k20 == null || unsure.includes('k20'))) {
+      const others = sumK() - (d.k20 || 0), e = d.g20 * 20 / 120;
+      const f = C.map(v => r2(v - others)).filter(k => k > 0 && Math.abs(k - e) <= Math.max(0.03, e * 0.0005));
+      if (f.length === 1) { notes.push(`%20 KDV: ${d.k20 == null ? '—' : String(d.k20).replace('.', ',')} → ${f[0].toFixed(2).replace('.', ',')} (MALİ VERİ toplam KDV'sinden doğrulandı)`);
+        d.k20 = f[0]; d.m20 = r2(d.g20 - f[0]); d._topk = r2(others + f[0]);
+        for (const x of ['k20', 'm20']) { let j; while ((j = unsure.indexOf(x)) >= 0) unsure.splice(j, 1); }
+        if (d._calc) d._calc = d._calc.filter(x => x !== 'k20'); }
+    }
+  }
   // Bir okumanın iç tutarlılığı: birden fazla okuma arasında seçim için
   function consistency(res) {
     const d = res.d; let s = 0;
@@ -510,7 +541,7 @@
       for (let x = 0; x < 2; x++) if (/[689]/.test(dd[x])) out.push(+(i + '.' + dd.slice(0, x) + '0' + dd.slice(x + 1))); return out; };
     const cands = k => {
       const m = new Map(), za = new Map();
-      for (const r of list) { const v = r.d[k]; if (v == null || typeof v !== 'number') continue;
+      for (const r of list) { const v = r.d[k]; if (v == null || typeof v !== 'number' || (r.d._calc || []).includes(k)) continue;   // orandan hesaplanan KDV oy vermez
         const base = r.unsure && r.unsure.includes(k) ? 0.6 : 1;   // kendi okumasında şüpheli olan değer daha az oy alır
         m.set(v.toFixed(2), (m.get(v.toFixed(2)) || 0) + base);
         for (const z of zalt(v)) za.set(z.toFixed(2), (za.get(z.toFixed(2)) || 0) + 0.4 * base); }
@@ -581,6 +612,7 @@
     complete(d, amts, unsure, notes);
     solveGroups(d, amts, unsure, notes);
     repair(d, notes, unsure, amts);
+    d._mk = [...new Set(list.flatMap(r => r.d._mk || []))]; if (!d._mk.length) delete d._mk; else maliKdv(d, null, unsure, notes);
     { const tk = list.map(r => r.d.top_kdv).filter(v => v > 0); if (tk.length) { d.top_kdv = tk.sort((a, b) => tk.filter(v => v === b).length - tk.filter(v => v === a).length)[0]; fixTopKdv(d, unsure, notes); } }
     const grpN = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
     if (!near(d.genel, grpN)) { for (const [g, m, k] of [['g1', 'm1', 'k1'], ['g10', 'm10', 'k10'], ['g20', 'm20', 'k20']]) if (d[g]) unsure.push(g, m, k); for (const x of ['tekel', 'gp']) if (d[x]) unsure.push(x); }
@@ -622,5 +654,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 26, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 27, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
