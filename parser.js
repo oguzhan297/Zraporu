@@ -45,6 +45,11 @@
         s = s.replace(/([*'"“”«»]\s?\d{1,3})\s(\d{3}[,.]\d{2})(?!\d)/g, '$1.$2');   // "*8 600,00" → "*8.600,00"
       }
     }
+    // binlik noktası boşluk olmuş ve önünde yıldız yok: "TOPLAM 142 163,80", "TOPLAM X42 163,80", "*) 822,00" (")" = "1.")
+    if (/TOPLAM|TOP\s?K[DO]V|\bKDV\b|N?AK[İI1]T|KRED/.test(s)) {
+      s = s.replace(/([*'"“”«»]\s?)\)\s?(\d{3}[,.]\d{2})(?!\d)/g, '$11.$2');
+      s = s.replace(/(\s[*'"“”«»xX#$]?)(\d{1,3})\s(\d{3}[,.]\d{2})(?!\d)/g, '$1$2.$3');
+    }
     if (/TOPLAM|TOP\s?K[DO]V|\bKDV\b/.test(s)) s = s.replace(/(\s\d{1,3}(?:\.\d{3})*|\s\d{1,6})\s(\d{2})\s*$/, '$1,$2');
     s = s.replace(/([*'"“”«»]\s?\d{1,3})\s(\d{3}[,.]\d{2})(?!\d)/g, '$1.$2');          // ikinci geçiş: "*8 600,00" → "*8.600,00"
     // KDV satırında virgülü tamamen kaybolmuş tutar: "TOPKDV *409" → "*4,09"
@@ -549,11 +554,13 @@
     const hit = C.find(v => Math.abs(v - sumK()) < 0.006);
     if (hit != null) { d._topk = hit; return; }
     // %20 KDV şüpheliyse: toplam KDV − diğer KDV'ler, %20 toplamının oranına tam uyuyorsa onu al
-    if (d.g20 > 0 && (d.k20 == null || unsure.includes('k20'))) {
+    if (d.g20 > 0) {
       const others = sumK() - (d.k20 || 0), e = d.g20 * 20 / 120;
       const f = C.map(v => r2(v - others)).filter(k => k > 0 && Math.abs(k - e) <= Math.max(0.03, e * 0.0005));
+      // okunan %20 KDV kesin sayılsa bile: toplam KDV'den bulunan değer orana belirgin şekilde daha iyi uyuyorsa onu al ("303,61" → 303,67)
+      if (!(d.k20 == null || unsure.includes('k20')) && !(f.length === 1 && Math.abs(d.k20 - e) > Math.abs(f[0] - e) + 0.02)) return;
       if (f.length === 1) { notes.push(`%20 KDV: ${d.k20 == null ? '—' : String(d.k20).replace('.', ',')} → ${f[0].toFixed(2).replace('.', ',')} (MALİ VERİ toplam KDV'sinden doğrulandı)`);
-        d.k20 = f[0]; d.m20 = r2(d.g20 - f[0]); d._topk = r2(others + f[0]);
+        d.k20 = f[0]; d.m20 = r2(d.g20 - f[0]); d._topk = r2(others + f[0]); d._k20mk = 1;
         for (const x of ['k20', 'm20']) { let j; while ((j = unsure.indexOf(x)) >= 0) unsure.splice(j, 1); }
         if (d._calc) d._calc = d._calc.filter(x => x !== 'k20'); }
     }
@@ -579,13 +586,15 @@
     for (const v of extraN) Array.isArray(v) ? addN(v[0], v[1]) : addN(v, 1);   // [değer, kaç okumada görüldü]
     if (d._payN != null) addN(d._payN, 2);
     const KR = [d.kart, ...extraK].filter(v => v != null);
-    for (const v of [d._payK, ...extraPK]) if (v != null) bankSums.add(v);
-    for (const kv of KR) for (const w of [kv, ...variants(kv)]) for (const dg of new Set([diger, 0])) addN(r2(d.genel - dg - w), w === kv ? 1.5 : 0.5);
-    let best = null, second = null;
+    // kart tarafındaki kanıttan türetilen nakit adayı yalnızca ADAY olur, nakit kanıtı sayılmaz (ağırlık 0)
+    for (const v of [d._payK, ...extraPK]) if (v != null) for (const w of [v, ...variants(v)]) { bankSums.add(w); for (const dg of new Set([diger, 0])) addN(r2(d.genel - dg - w), 0); }
+    for (const kv of KR) for (const w of [kv, ...variants(kv)]) for (const dg of new Set([diger, 0])) addN(r2(d.genel - dg - w), 0);
+    let best = null, second = null; const all = [];
     // "Yemek çeki" vb. diğer ödeme çoğunlukla 0'dır; okunan küçük tutar okuma hatası olabilir → 0 da denenir
     const DG = [...new Set([diger, 0])];
+    const digerOk = diger === 0 || !variants(diger).includes(0);   // "*0,00" → "10,00"/"40,00" okunmuş olabilir
     for (const dg of DG) for (const [n, wn0] of NC) {
-      const wn = wn0 + (dg === diger ? 0.3 : 0);
+      const wn = wn0 + (dg === diger && digerOk ? 0.3 : 0) - (dg === diger && !digerOk ? 0.5 : 0);
       const k = r2(d.genel - dg - n); if (k < 0) continue;
       let wk = 0;
       if (KR.some(v => near(v, k))) wk += 3; else if (KR.some(kv => variants(kv).some(v => near(v, k)))) wk += 1;
@@ -593,15 +602,18 @@
       if (k > 0 && bankSums.has(k)) wk += 3;
       if (k === 0 && d.kart == null) wk += 0.5;
       const sc = wn + wk, cand = { n, k, dg, sc, wn, wk };
-      if (!best || sc > best.sc) { second = best; best = cand; } else if (!second || sc > second.sc) second = cand;
+      all.push(cand);
     }
+    // iki tarafın da kendi kanıtı olan adaylar öncelikli (yalnız bir okumadan türetilen çift kendini doğrulamasın)
+    const both = all.filter(c => c.wn > 0 && c.wk > 0), pool = (both.length ? both : all).sort((a, b) => b.sc - a.sc);
+    best = pool[0] || null; second = pool[1] || null;
     if (!best) return;
     const changed = !near(best.n, d.nakit) || !near(best.k, d.kart);
     const strong = best.wn >= 2 && best.wk >= 3 && (!second || best.sc - second.sc >= 2);
     if (changed) notes.push(`Ödemeler: nakit ${best.n.toFixed(2).replace('.', ',')} + kart ${best.k.toFixed(2).replace('.', ',')} = genel toplam${strong ? ' (okunan tutarlar / banka dökümüyle doğrulandı)' : ' — fişle kontrol et'}`);
     if (!strong && changed) {
       // iki taraf da desteklenmiyorsa okunanları bırak; destekleniyorsa en iyi aday yazılır ama turuncu kalır ve birleştirmede oy vermez
-      if (!(best.wn >= 2 && best.wk >= 3)) { notes.pop(); notes.push(`Ödemeler tutmuyor; olası: nakit ${best.n.toFixed(2).replace('.', ',')} + kart ${best.k.toFixed(2).replace('.', ',')} — fişle kontrol et`); unsure.push('nakit', 'kart'); return; }
+      if (!(best.wn > 0 && best.wk >= 3)) { notes.pop(); notes.push(`Ödemeler tutmuyor; olası: nakit ${best.n.toFixed(2).replace('.', ',')} + kart ${best.k.toFixed(2).replace('.', ',')} — fişle kontrol et`); unsure.push('nakit', 'kart'); return; }
       d._payCalc = 1;
     }
     d.nakit = best.n; d.kart = best.k; if (best.dg !== diger) { notes.push(`Diğer ödeme: ${String(diger).replace('.', ',')} → 0,00 (okuma hatası)`); d.diger = 0; }
@@ -621,7 +633,8 @@
       let best = null;
       for (const g of [g0, ...variants(g0)]) for (const k of [k0, ...variants(k0)]) for (const r of [0, 1, 10, 20]) {
         if (g <= 0) continue;
-        const e = Math.abs(g * r / (100 + r) - k), t = r === 0 ? 0.001 : (g === g0 && k === k0 ? Math.max(0.025, k * 0.001) : Math.max(0.01, k * 0.002));
+        // yazar kasa KDV'yi satır satır yuvarlayabilir (42.163,80 → 417,52; oranla 417,46): oran tespiti için göreli tolerans
+        const e = Math.abs(g * r / (100 + r) - k), t = r === 0 ? 0.001 : (g === g0 && k === k0 ? Math.max(0.03, k * 0.003) : Math.max(0.01, k * 0.002));
         if (e > t) continue;
         const sc = e + (g !== g0 ? 10 : 0) + (k !== k0 ? 10 : 0); if (!best || sc < best.sc) best = { sc, g, k, r };
       }
@@ -638,7 +651,12 @@
     // BELGE TİPLERİ (İPTAL'e kadar): satış toplamı, KDV toplamı, nakit, kredi, diğer
     const B = L.filter(l => l.sec === 'belge');
     const pick = re => { for (const l of B) if (re.test(l.s) && l.a.length) return l.a[l.a.length - 1]; return null; };
-    const gen = pick(/SATI[ŞS]\s?T[OU]PLA/), tk = pick(/KDV\s?T[OU]PLA/), nk = pick(/(?:^|\W)N?AK[İI1]T/), kr = pick(/KRED[İI1]|KART/), dg = pick(/D[İI1][ĞG]ER/);
+    // etiketler bozuk okunabiliyor ("-GATIŞ TOPLARI", "-MAKİT", "HAKİ", "KAEDI"); sıra hep: KDV TOPLAMI, SATIŞ TOPLAMI, NAKİT, KREDİ, DİĞER
+    let gen = pick(/[SG5]AT[IİI1][ŞS]\s?T[OU]PLA/), tk = pick(/KDV\s?T[OU]PLA/), nk = pick(/(?:^|\W)[NMH]?AK[İI1]/), kr = pick(/K[RA]ED[İI1J]|KART/), dg = pick(/D[İI1][ĞGC]ER/);
+    { const BA = B.filter(l => l.a.length && !/F[İI1][ŞS]LER|B[İI1]LG|T[İI1]PLER/.test(l.s));   // tutarlı belge satırları sırayla
+      const si = BA.findIndex(l => /[SG5]AT[IİI1][ŞS]/.test(l.s));
+      if (si >= 0) { const at = j => BA[si + j] ? BA[si + j].a[BA[si + j].a.length - 1] : null;
+        if (gen == null) gen = at(0); if (nk == null) nk = at(1); if (kr == null) kr = at(2); if (dg == null) dg = at(3); } }
     if (gen != null) { d.genel = gen; clear('genel'); }
     if (nk != null) { d.nakit = nk; d.kasa = null; }
     if (kr != null) d.kart = kr;
@@ -711,6 +729,7 @@
     if (zs.length > 1) { const zero = zs.find(a => zs.every(b => zeroOf(a, b))); if (zero) { d.z_no = zero; z.uni = true; } }
     if (zs.length > 1) { const suf = zs.find(a => a.length <= 4 && zs.every(b => b === a || b.endsWith(a) || zeroOf(a, b.slice(-a.length)))); if (suf) { d.z_no = suf; z.uni = true; } }
     if (!t.v || !t.uni) unsure.push('tarih'); if (!z.v || !z.uni) unsure.push('z_no');
+    if (list.length >= 3 && list.filter(r => r.d.z_no).length === 1) unsure.push('z_no');   // tek okumada çıkan Z (kenarı kesik olabilir: 1374 → 374)
     if (d.z_no && d.z_no.length >= 4 && /^[689]/.test(d.z_no)) unsure.push('z_no');   // noktalı sıfır şüphesi
     if (d.z_no && d.z_no.length > 4) unsure.push('z_no');                                // fazladan rakam şüphesi ("20002")
     // KDV grupları: (toplam, KDV) çiftini oy + oran uyumuyla seç
@@ -769,7 +788,7 @@
     // Hiçbir okumada gerçekten okunmamış (hepsinde orandan hesaplanmış) KDV turuncu kalır
     for (const k of ['k1', 'k10', 'k20']) {
       if (d[k] == null) continue;
-      const read = list.some(r => r.d[k] != null && near(r.d[k], d[k]) && !(r.d._calc || []).includes(k));
+      const read = list.some(r => r.d[k] != null && near(r.d[k], d[k]) && !(r.d._calc || []).includes(k)) || (k === 'k20' && d._k20mk);
       if (!read) { unsure.push(k, 'm' + k.slice(1)); if (!notes.some(n => n.startsWith(`%${k.slice(1)} KDV okunamadı`))) notes.push(`%${k.slice(1)} KDV okunamadı; orandan hesaplandı, fişle kontrol et.`); }
       else for (let i = notes.length - 1; i >= 0; i--) if (notes[i].startsWith(`%${k.slice(1)} KDV okunamadı`)) notes.splice(i, 1);
     }
@@ -810,5 +829,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 33, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 34, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
