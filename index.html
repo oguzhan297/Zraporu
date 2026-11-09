@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=34"></script>
+<script src="parser.js?v=35"></script>
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#e4e2dc;--acc:#1f6f5c;--acc2:#e8f3ef;--warn:#b5621b;--warnbg:#fdf1e6;--err:#b3261e;--ok:#1f6f5c}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#efeee9;--mut:#a3a29c;--line:#34332f;--acc:#5fc2a6;--acc2:#1f2f2a;--warn:#f0a35e;--warnbg:#3a2a1c;--err:#ff8a80;--ok:#5fc2a6}}
@@ -225,7 +225,7 @@ const IDB=(()=>{let p;
   return {put:(st,v,k)=>w(st,s=>k===undefined?s.put(v):s.put(v,k)),del:(st,k)=>w(st,s=>s.delete(k)),
     all:st=>open().then(d=>req(d.transaction(st).objectStore(st).getAll())),get:(st,k)=>open().then(d=>req(d.transaction(st).objectStore(st).get(k)))};
 })();
-const ser=r=>({ocr:r.ocr??null,d:r.d||{},unsure:r.unsure||[],auto:r.auto||[],src:r.src||'',_ack:r._ack||'',hasImg:!!r.hasImg,created:r.created||Date.now()});
+const ser=r=>({ocr:r.ocr??null,d:r.d||{},unsure:r.unsure||[],auto:r.auto||[],src:r.src||'',_ack:r._ack||'',hasImg:!!r.hasImg,created:r.created||Date.now(),_zAuto:!!r._zAuto,_zManual:!!r._zManual,_zRead:r._zRead||''});
 function setStore(st){const el=$('#sync');if(!el)return;el.textContent={ok:'📱 Bu telefonda kayıtlı',err:'⚠ Kaydedilemedi — CSV’yi indirmeden kapatma',wait:'Yükleniyor…'}[st]||'';el.className='sync s-'+st}
 function save(r){if(!r||r.status!=='done')return;IDB.put('rows',{id:r.id,...ser(r)}).then(()=>setStore('ok')).catch(()=>{setStore('err');toast('Kaydedilemedi: telefon hafızası dolu olabilir.')})}
 async function removeRows(list){
@@ -245,7 +245,7 @@ async function load(){
       const z=normZ(d.z_no);if(d.z_no!=null&&z!==d.z_no){d.z_no=z;ch=true}
       if(!d.aciklama||d.aciklama===r._ack||/^Z RAPORU\s*\d*$/.test(d.aciklama)){const a=mkAck(d);if(a!==d.aciklama){d.aciklama=a;ch=true}r._ack=a}
       if(ch)save(r)}
-    setStore('ok')}
+    setStore('ok');autoZ()}
   catch(e){setStore('err');notice('Bu tarayıcı veri saklamaya izin vermiyor (gizli sekme olabilir). Raporlar kaydedilmez; CSV’yi indirmeyi unutma.')}
   sortRows();render();
 }
@@ -339,7 +339,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr]');if(!t)return;
   if(t.dataset.copyocr){const ta=document.querySelector(`[data-ocr="${t.dataset.copyocr}"]`);const txt=ta?ta.value:'';
     (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Okunan metin kopyalandı')).catch(()=>{try{ta.focus();ta.select();ta.setSelectionRange(0,txt.length);const ok=document.execCommand('copy');toast(ok?'Okunan metin kopyalandı':'Kopyalanamadı — metne uzun basıp “Tümünü Seç”')}catch(x){toast('Kopyalanamadı')}});return}
-  if(t.dataset.reparse){const r=rows.find(x=>x.id===t.dataset.reparse);const ta=document.querySelector(`[data-ocr="${r.id}"]`);applyParse(r,ta.value);r.open=true;save(r);render();toast('Metin yeniden okundu');return}
+  if(t.dataset.reparse){const r=rows.find(x=>x.id===t.dataset.reparse);const ta=document.querySelector(`[data-ocr="${r.id}"]`);r._zAuto=false;applyParse(r,ta.value);r.open=true;save(r);autoZ();render();toast('Metin yeniden okundu');return}
   if(t.dataset.zoom!==undefined){t.classList.toggle('zoom');return}
   if(t.dataset.tog){const r=rows.find(x=>x.id===t.dataset.tog);r.open=!r.open;if(r.open)loadImg(r);render();if(r.open)document.getElementById('c_'+r.id)?.scrollIntoView({behavior:'smooth',block:'start'});return}
   if(t.dataset.del){
@@ -353,13 +353,14 @@ document.addEventListener('change',e=>{
   if(!r||!f)return;
   r.d[f.k]=f.t==='text'?i.value.trim():pn(i.value);
   if(f.k==='tarih')r.d.tarih=normDate(r.d.tarih);
-  if(f.k==='z_no')r.d.z_no=normZ(r.d.z_no);
+  if(f.k==='z_no'){r.d.z_no=normZ(r.d.z_no);r._zAuto=false;r._zManual=!!r.d.z_no}
   if(f.t==='num'&&i.value.trim()!==''&&r.d[f.k]==null)toast('Sayı anlaşılamadı: '+i.value);
   if(r.unsure)r.unsure=r.unsure.filter(k=>k!==f.k);
   if(f.t==='num')refill(r,f.k);
   if((f.k==='z_no'||f.k==='tarih')&&(!r.d.aciklama||r.d.aciklama===r._ack)){r.d.aciklama=mkAck(r.d);r._ack=r.d.aciklama}
   i.value=fv(f,r.d[f.k]);
   save(r);
+  if(f.k==='z_no'||f.k==='tarih')autoZ();
   rows.forEach(x=>{if(x.status==='done')refreshCard(x)});
 });
 
@@ -482,17 +483,45 @@ async function prepImage(src,opt={}){
 function setProg(r,txt){r.prog=txt;const el=document.querySelector(`#c_${r.id} .t2`);if(el)el.textContent=txt}
 // Z No okunamadıysa: listedeki yakın tarihli raporlardan sırayla tahmin et (Z her gün bir artar) — turuncu kalır
 const dnum=s=>{const m=String(s||'').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);return m?Math.round(Date.UTC(+m[3],+m[2]-1,+m[1])/864e5):null};
-function guessZ(r){
-  const d=r.d,t=dnum(d.tarih);if(d.z_no||t==null)return;
-  const nb=rows.filter(x=>x!==r&&x.status==='done'&&/^\d+$/.test(String(x.d.z_no||''))&&dnum(x.d.tarih)!=null&&!(x.unsure||[]).includes('z_no'))
-    .map(x=>({z:+x.d.z_no,dt:dnum(x.d.tarih)-t,tar:x.d.tarih})).filter(x=>x.dt!==0&&Math.abs(x.dt)<=3).sort((a,b)=>Math.abs(a.dt)-Math.abs(b.dt));
-  if(!nb.length)return;const b=nb[0],z=b.z-b.dt;if(z<1)return;
-  // iki yandan da komşu varsa birbirini tutmalı (farklı firmaların raporları karışmasın)
-  if(nb.some(x=>x.z-x.dt!==z))return;
-  d.z_no=String(z);r.unsure=[...new Set([...(r.unsure||[]),'z_no'])];
-  d.not=[d.not,`Z No okunamadı; ${b.tar} tarihli Z ${b.z} raporuna göre ${z} tahmin edildi — fişle kontrol et.`].filter(Boolean).join(' · ');
+function guessZ(r){}   // yerini autoZ aldı
+// Z No: listedeki raporlar tarihe göre sıralanır; Z'si okunamayan / şüpheli olan rapora bir önceki kesin raporun Z'si + sıra farkı yazılır.
+// Sonraki kesin rapor da varsa ikisi birbirini tutmalı (tutarsa kesin, tek taraftan ise turuncu). Elle yazılan Z'ye dokunulmaz.
+function autoZ(){
+  const done=rows.filter(r=>r.status==='done'&&dnum(r.d.tarih)!=null).sort((a,b)=>dnum(a.d.tarih)-dnum(b.d.tarih)||(a.created||0)-(b.created||0));
+  const isNum=z=>/^\d+$/.test(String(z||''));
+  const sure=r=>isNum(r.d.z_no)&&!r._zAuto&&!(r.unsure||[]).includes('z_no');
+  const like=(a,z)=>{a=String(a);z=String(z||'');if(!z||a===z)return true;if(a.length!==z.length)return a.endsWith(z)||a.startsWith(z)||z.endsWith(a)||z.startsWith(a);let n=0;for(let i=0;i<a.length;i++)if(a[i]!==z[i])n++;return n===1};
+  let cur0;
+  for(let i=0;i<done.length;i++){
+    const r=done[i];if(r._zManual)continue;
+    let p=null,n=null;
+    for(let j=i-1;j>=0;j--)if(sure(done[j])){p=j;break}
+    for(let j=i+1;j<done.length;j++)if(sure(done[j])){n=j;break}
+    const t=dnum(r.d.tarih);
+    const fp=p!=null&&t-dnum(done[p].d.tarih)<=10&&t-dnum(done[p].d.tarih)>=0?+done[p].d.z_no+(i-p):null;
+    const fn=n!=null&&dnum(done[n].d.tarih)-t<=10&&dnum(done[n].d.tarih)-t>=0?+done[n].d.z_no-(n-i):null;
+    if(fp!=null&&fn!=null&&fp!==fn)continue;          // komşular tutmuyor (araya rapor eksik / farklı firma): dokunma
+    const z=fp??fn;if(z==null||z<1)continue;
+    const cur=r.d.z_no;
+    if(sure(r)&&(+cur===fp||+cur===fn))continue;      // okunan Z sırayla tutuyor
+    // arada fotoğrafı eklenmemiş gün olabilir: kesin okunan Z'yi ancak günler de ardışıksa (gün farkı = sıra farkı) düzelt
+    if(sure(r)){const dp=fp!=null?t-dnum(done[p].d.tarih):null,dn=fn!=null?dnum(done[n].d.tarih)-t:null;
+      const consec=(fp!=null&&dp===i-p)||(fn!=null&&dn===n-i);if(!consec)continue}
+    if(isNum(cur)&&!r._zAuto&&!like(z,cur))continue;  // okunan Z bambaşka bir sayı: başka firmanın raporu olabilir
+    const src=fp!=null?done[p]:done[n],both=fp!=null&&fn!=null;
+    const ack=r.d.aciklama===r._ack;
+    {
+      if(!r._zAuto)r._zRead=cur||'';
+      r.d.z_no=String(z);r._zAuto=true;cur0=r._zRead;
+      r.d.not=[(r.d.not||'').split(' · ').filter(x=>!/^Z No (okunamadı|sıradan)/.test(x)).join(' · '),`Z No sıradan hesaplandı: ${src.d.tarih} tarihli Z ${src.d.z_no} raporuna göre ${z}${cur0&&String(cur0)!==String(z)?` (fişte okunan: ${cur0})`:''}${both?' — önceki ve sonraki raporla doğrulandı':' — fişle kontrol et'}`].filter(Boolean).join(' · ');
+      if(ack){r.d.aciklama=mkAck(r.d);r._ack=r.d.aciklama}
+    }
+    r.unsure=(r.unsure||[]).filter(k=>k!=='z_no');if(!both)r.unsure.push('z_no');
+    save(r);
+  }
 }
 function applyParse(r,text,pre){
+  r._zAuto=false;r._zManual=false;
   const res=pre||ZParse.parseZ(text);const d=res.d;d.z_no=normZ(d.z_no);
   const keepAck=r.d&&r.d.aciklama&&r.d.aciklama!==r._ack?r.d.aciklama:null;
   d.not=res.notes.join(' · ');d.z_rapor_mu=res.found>=4?undefined:false;
@@ -521,7 +550,7 @@ async function extractFree(r){
     const merged=all.length>1?ZParse.merge(all):best.res;
     applyParse(r,all.length>1?texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'):best.text,merged);
     r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;delete r.prog;
-    save(r);saveImg(r,r._small);delete r._small;
+    save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog}
   render();
 }
@@ -537,7 +566,7 @@ async function extract(r){
     d.z_rapor_mu=j.z_rapor_mu;d.tarih=normDate(d.tarih);d.z_no=normZ(d.z_no);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
     r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];guessZ(r);
     r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;
-    save(r);saveImg(r,r._small);delete r._small;
+    save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     r.status='error';
     r.err=(e&&e.message)||'Bilinmeyen hata';
@@ -618,7 +647,7 @@ $('#pmc').onclick=()=>{pm.hidden=true};
 pm.addEventListener('click',e=>{if(e.target===pm)pm.hidden=true});
 $('#pmo').onclick=()=>{const t=$('#pmt').value.trim();if(!t){toast('Önce metni yapıştır');return}
   const r={id:uid(),status:'done',d:{},unsure:[],auto:[],src:'metin',created:Date.now(),open:true};applyParse(r,t);
-  rows.forEach(x=>x.open=false);rows.unshift(r);save(r);render();pm.hidden=true;toast('Rapor eklendi — kontrol et')};
+  rows.forEach(x=>x.open=false);rows.unshift(r);save(r);autoZ();render();pm.hidden=true;toast('Rapor eklendi — kontrol et')};
 $('#key').addEventListener('change',e=>{S.key=e.target.value.trim();e.target.value=S.key;saveS();$('#testres').textContent='';if(S.key)notice('')});
 $('#keyshow').onclick=()=>{const k=$('#key');k.type=k.type==='password'?'text':'password';$('#keyshow').textContent=k.type==='password'?'Göster':'Gizle'};
 $('#model').addEventListener('change',e=>{S.model=e.target.value;saveS()});
@@ -640,7 +669,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=34;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
+const APP_VER=35;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
 if(S.mode==='api'&&!S.key){$('#settings').open=true;notice('Claude API ile okuma için ⚙️ Ayarlar’a anahtarını gir ya da yöntemi “Ücretsiz” yap.')}
 setStore('wait');load();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
