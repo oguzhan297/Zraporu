@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=20"></script>
+<script src="parser.js?v=21"></script>
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#e4e2dc;--acc:#1f6f5c;--acc2:#e8f3ef;--warn:#b5621b;--warnbg:#fdf1e6;--err:#b3261e;--ok:#1f6f5c}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#efeee9;--mut:#a3a29c;--line:#34332f;--acc:#5fc2a6;--acc2:#1f2f2a;--warn:#f0a35e;--warnbg:#3a2a1c;--err:#ff8a80;--ok:#5fc2a6}}
@@ -265,11 +265,11 @@ function checks(r){
   if(!d.z_no)out.push({ok:false,m:'Z No boş'});
   else if(rows.some(x=>x!==r&&x.status==='done'&&x.d.z_no&&String(x.d.z_no).replace(/^0+/,'')===String(d.z_no).replace(/^0+/,'')&&x.d.tarih===d.tarih))out.push({ok:false,m:'Aynı tarih ve Z No ile listede başka bir rapor var — iki kez eklenmiş olabilir'});
   if(satis(d)===0)out.push({ok:false,m:'Hiç satış tutarı yok'});
-  for(const [g,m,k] of GROUPS){if(d[g]!=null&&d[m]!=null&&d[k]!=null){const df=Math.abs(d[m]+d[k]-d[g]);if(df>=0.06)out.push({ok:false,m:`${names[g]}: Matrah + KDV, genel toplamla tutmuyor (fark ${fm(df)})`})}}
+  for(const [g,m,k] of GROUPS){if(d[g]!=null&&d[m]!=null&&d[k]!=null){const df=Math.abs(d[m]+d[k]-d[g]);if(df>=0.006)out.push({ok:false,m:`${names[g]}: Matrah + KDV, genel toplamla tutmuyor (fark ${fm(df)})`})}}
   const s=satis(d);
-  if(d.genel!=null&&s>0){const df=Math.abs(s-d.genel);out.push({ok:df<0.06,m:df<0.06?'Tekel + KDV grupları + poşet = fiş genel toplamı ✓':`Grupların toplamı (${fm(s)}) fiş genel toplamıyla (${fm(d.genel)}) tutmuyor, fark ${fm(df)}`})}
+  if(d.genel!=null&&s>0){const df=Math.abs(s-d.genel);out.push({ok:df<0.006,m:df<0.006?'Tekel + KDV grupları + poşet = fiş genel toplamı ✓':`Grupların toplamı (${fm(s)}) fiş genel toplamıyla (${fm(d.genel)}) tutmuyor, fark ${fm(df)}`})}
   const pay=(d.kart||0)+(d.nakit||0);
-  if(pay>0&&s>0){const df=Math.abs(pay-s);out.push({ok:df<0.06,m:df<0.06?'Kredi kartı + Nakit = Satış toplamı ✓':`Kart + Nakit (${fm(pay)}) satış toplamıyla (${fm(s)}) tutmuyor, fark ${fm(df)}`})}
+  if(pay>0&&s>0){const df=Math.abs(pay-s);out.push({ok:df<0.006,m:df<0.006?'Kredi kartı + Nakit = Satış toplamı ✓':`Kart + Nakit (${fm(pay)}) satış toplamıyla (${fm(s)}) tutmuyor, fark ${fm(df)}`})}
   return out;
 }
 
@@ -456,6 +456,18 @@ async function prepImage(src,opt={}){
   x.putImageData(img,0,0);return c;
 }
 function setProg(r,txt){r.prog=txt;const el=document.querySelector(`#c_${r.id} .t2`);if(el)el.textContent=txt}
+// Z No okunamadıysa: listedeki yakın tarihli raporlardan sırayla tahmin et (Z her gün bir artar) — turuncu kalır
+const dnum=s=>{const m=String(s||'').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);return m?Math.round(Date.UTC(+m[3],+m[2]-1,+m[1])/864e5):null};
+function guessZ(r){
+  const d=r.d,t=dnum(d.tarih);if(d.z_no||t==null)return;
+  const nb=rows.filter(x=>x!==r&&x.status==='done'&&/^\d+$/.test(String(x.d.z_no||''))&&dnum(x.d.tarih)!=null&&!(x.unsure||[]).includes('z_no'))
+    .map(x=>({z:+x.d.z_no,dt:dnum(x.d.tarih)-t,tar:x.d.tarih})).filter(x=>x.dt!==0&&Math.abs(x.dt)<=3).sort((a,b)=>Math.abs(a.dt)-Math.abs(b.dt));
+  if(!nb.length)return;const b=nb[0],z=b.z-b.dt;if(z<1)return;
+  // iki yandan da komşu varsa birbirini tutmalı (farklı firmaların raporları karışmasın)
+  if(nb.some(x=>x.z-x.dt!==z))return;
+  d.z_no=String(z);r.unsure=[...new Set([...(r.unsure||[]),'z_no'])];
+  d.not=[d.not,`Z No okunamadı; ${b.tar} tarihli Z ${b.z} raporuna göre ${z} tahmin edildi — fişle kontrol et.`].filter(Boolean).join(' · ');
+}
 function applyParse(r,text,pre){
   const res=pre||ZParse.parseZ(text);const d=res.d;d.z_no=normZ(d.z_no);
   const keepAck=r.d&&r.d.aciklama&&r.d.aciklama!==r._ack?r.d.aciklama:null;
@@ -463,6 +475,7 @@ function applyParse(r,text,pre){
   r.ocr=text;r.auto=fill(d);
   d.aciklama=keepAck||mkAck(d);if(!keepAck)r._ack=d.aciklama;
   r.d=d;r.unsure=res.unsure.filter(k=>FIELDS.some(f=>f.k===k));
+  guessZ(r);
 }
 async function extractFree(r){
   r.status='work';setProg(r,'Hazırlanıyor…');render();
@@ -497,7 +510,7 @@ async function extract(r){
     const d={};
     for(const f of FIELDS){const v=j[f.k];d[f.k]=f.t==='text'?(v==null?'':String(v).trim()):(f.t==='int'?(pn(v)==null?null:Math.round(pn(v))):pn(v))}
     d.z_rapor_mu=j.z_rapor_mu;d.tarih=normDate(d.tarih);d.z_no=normZ(d.z_no);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
-    r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];
+    r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];guessZ(r);
     r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;
     save(r);saveImg(r,r._small);delete r._small;
   }catch(e){
@@ -598,7 +611,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=20;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
+const APP_VER=21;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
 if(S.mode==='api'&&!S.key){$('#settings').open=true;notice('Claude API ile okuma için ⚙️ Ayarlar’a anahtarını gir ya da yöntemi “Ücretsiz” yap.')}
 setStore('wait');load();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}

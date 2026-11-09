@@ -100,7 +100,7 @@
     const okG = x => d[x[0]] != null && !unsure.includes(x[0]);
     const known = ['tekel', 'gp'].reduce((a, x) => a + (d[x] || 0), 0) + R.filter(okG).reduce((a, x) => a + d[x[0]], 0);
     const rest = r2(d.genel - known), miss = R.filter(x => !okG(x));
-    if (!miss.length || rest < 0.06) { if (miss.length && Math.abs(rest) < 0.06) miss.forEach(([g, m, k]) => { if (d[g] == null || d[g] === 0) { d[g] = 0; d[m] = 0; d[k] = 0; [g, m, k].forEach(x => { const i = unsure.indexOf(x); if (i >= 0) unsure.splice(i, 1); }); } }); return; }
+    if (!miss.length || rest < 0.006) { if (miss.length && Math.abs(rest) < 0.006) miss.forEach(([g, m, k]) => { if (d[g] == null || d[g] === 0) { d[g] = 0; d[m] = 0; d[k] = 0; [g, m, k].forEach(x => { const i = unsure.indexOf(x); if (i >= 0) unsure.splice(i, 1); }); } }); return; }
     const known2 = [d.genel, d.top_kdv, d.tekel, d.nakit, d.kart].filter(v => v != null);
     const kOf = (g, r) => { const e = g * r / (100 + r), t = Math.max(0.03, e * 0.004); return amts.filter(v => !known2.some(x => Math.abs(x - v) < 0.006) && Math.abs(v - e) <= t).sort((a, b) => Math.abs(a - e) - Math.abs(b - e))[0]; };
     const set = ([g, m, k, r], gv, kv) => { d[g] = gv; d[k] = kv; d[m] = r2(gv - kv); [g, m, k].forEach(x => { const i = unsure.indexOf(x); if (i >= 0) unsure.splice(i, 1); }); };
@@ -116,7 +116,7 @@
     // iki eksik grup: kalan = a + b, ikisinin de KDV'si metinde
     if (miss.length >= 2) for (let i = 0; i < miss.length; i++) for (let j = i + 1; j < miss.length; j++)
       for (const a of amts) { const b = r2(rest - a); if (a <= 0 || b < 0) continue;
-        if (!amts.some(v => Math.abs(v - b) < 0.06) && b !== 0) continue;
+        if (!amts.some(v => Math.abs(v - b) < 0.006) && b !== 0) continue;
         if (a < 100 || (b > 0 && b < 100)) continue;
         const ka = kOf(a, miss[i][3]), kb = b === 0 ? 0 : kOf(b, miss[j][3]);
         if (ka != null && kb != null) { set(miss[i], a, ka); set(miss[j], b, kb); return; } }
@@ -130,16 +130,23 @@
       else return;
     }
     const alts = v => v == null ? [v] : [v, ...variants(v)];
+    const RATE = { g1: 1, g10: 10, g20: 20 };
     const fix = (keys, target, label) => {
       const cur = keys.reduce((a, k) => a + (d[k] || 0), 0);
       if (Math.abs(cur - target) < 0.006) return 'ok';
       let best = null;
       const rec = (i, acc, ch, pick) => {
-        if (i === keys.length) { if (Math.abs(acc - target) < 0.006 && (!best || ch < best.ch)) best = { ch, pick: [...pick] }; return; }
+        if (i === keys.length) { if (Math.abs(acc - target) < 0.006) {
+          // eşit sayıda değişiklikte: okunan KDV'si oranına uyan grup sayısı fazla olan kazanır
+          const kf = pick.reduce((a, v, x) => { const r = RATE[keys[x]]; if (!r || !v) return a; const e = v * r / (100 + r);
+            return a + ([d['k' + r], ...amts].some(u => u != null && u > 0 && Math.abs(u - e) <= Math.max(0.011, e * 0.0005)) ? 1 : 0); }, 0);
+          if (!best || ch < best.ch || (ch === best.ch && kf > best.kf)) best = { ch, kf, pick: [...pick], tie: false };
+          else if (ch === best.ch && kf === best.kf && pick.some((v, x) => v !== best.pick[x])) best.tie = true; } return; }
         for (const v of alts(d[keys[i]])) { pick.push(v); rec(i + 1, acc + (v || 0), ch + (v === d[keys[i]] ? 0 : 1), pick); pick.pop(); }
       };
       rec(0, 0, 0, []);
       if (!best || best.ch === 0 || best.ch > 2) return false;
+      if (best.tie) return false;   // birden fazla eşit düzeltme var: tahmin etme, turuncu kalsın
       keys.forEach((k, i) => { if (best.pick[i] !== d[k]) { changed.push(k); notes.push(`${label}: ${String(d[k]).replace('.', ',')} → ${best.pick[i].toFixed(2).replace('.', ',')} (okuma hatası düzeltildi)`); d[k] = best.pick[i]; } });
       return 'fixed';
     };
@@ -187,7 +194,7 @@
     for (const v of amts) { if (v > 0 && v <= rest + 0.01) pool.set(v, true); for (const w of variants(v)) if (w > 0 && w <= rest + 0.01 && !pool.has(w)) pool.set(w, false); }
     const kPool = new Map(); for (const v of amts) { kPool.set(v, true); for (const w of variants(v)) if (!kPool.has(w)) kPool.set(w, false); }
     const kOf = (g, r) => { const e = g * r / (100 + r); let b = null;
-      for (const [v, orig] of kPool) { const t = orig ? Math.max(0.03, v * 0.004) : Math.max(0.01, v * 0.002); const er = Math.abs(v - e); if (er <= t && (!b || er < b.er)) b = { k: v, orig, er }; } return b; };
+      for (const [v, orig] of kPool) { const t = orig ? Math.max(0.03, v * 0.004) : Math.max(0.01, v * 0.002); const er = Math.abs(v - e) + (orig ? 0 : 1000); if (Math.abs(v - e) <= t && (!b || er < b.er)) b = { k: v, orig, er }; } return b; };
     // Her açık grup için adaylar: oranı belli satırdan okunan toplam (ve varyantları) + metindeki tutarlar + 0
     const C = open.map(x => { const m = new Map([[0, { v: 0, lab: false, orig: true }]]);
       if (d[x[0]] != null) for (const v of [d[x[0]], ...variants(d[x[0]])]) m.set(v, { v, lab: true, orig: v === d[x[0]] });
@@ -324,18 +331,20 @@
         pool = ext;
         const vs = pool.map(p => p.v);
         let best = null;
-        for (const a of vs) for (const b of vs) for (const c of vs) {          // Matrah + KDV = Toplam üçlüsü
+        const vo = pool.filter(p => !p.alt).map(p => p.v);
+        for (const a of vo) for (const b of vo) for (const c of vo) {          // Matrah + KDV = Toplam üçlüsü
           if (!(a > b && c > a)) continue;
           const e1 = Math.abs(a + b - c), e2 = Math.abs(a * r / 100 - b);
           if (e1 <= 0.02 && e2 <= tol(b)) { const e = e1 + e2; if (!best || e < best.e) best = { e, g: c, m: a, k: b }; }
         }
         if (!best) for (const P of pool) for (const Q of pool) {             // (KDV dahil, KDV) ya da (matrah, KDV)
           const a = P.v, b = Q.v; if (a <= b) continue;
-          const pen = (P.alt ? 0.001 : 0) + (Q.alt ? 0.001 : 0);
+          const pen = (P.alt ? 1000 : 0) + (Q.alt ? 1000 : 0);               // okunan asıl değer tutuyorsa varyanta hiç bakma
           // etiket "TOPLAM" ise matrah sayma, "MATRAH" ise toplam sayma (küçük tutarlarda matematik ayırt edemez)
           const eg = P.kind === 'm' ? Infinity : Math.abs(a * r / (100 + r) - b), em = P.kind === 'g' ? Infinity : Math.abs(a * r / 100 - b);
-          if (eg <= tol(b) && (!best || eg + pen < best.e)) best = { e: eg + pen, g: a, k: b, m: r2(a - b) };
-          if (em <= tol(b) && (!best || em + pen < best.e)) best = { e: em + pen, m: a, k: b, g: r2(a + b) };
+          const tl = (P.alt || Q.alt) ? Math.max(0.01, b * 0.002) : tol(b);
+          if (eg <= tl && (!best || eg + pen < best.e)) best = { e: eg + pen, g: a, k: b, m: r2(a - b) };
+          if (em <= tl && (!best || em + pen < best.e)) best = { e: em + pen, m: a, k: b, g: r2(a + b) };
         }
         if (best) return { g: best.g, mm: best.m, k: best.k, ok: true };
         const p = pool[0];                                                    // tek tutar: etiketine göre
@@ -367,9 +376,10 @@
       let best = null;
       for (const g0 of G) for (const g of [g0, ...variants(g0)]) for (const k0 of K) for (const k of [k0, ...variants(k0)]) for (const r of [1, 10, 20]) {
         if (g < 0.5 || k <= 0) continue;
-        const e = Math.abs(g * r / (100 + r) - k), t = (g !== g0 || k !== k0) ? Math.max(0.01, k * 0.002) : Math.max(0.03, k * 0.004);
+        const e = Math.abs(g * r / (100 + r) - k), t = (g !== g0 || k !== k0) ? Math.max(0.01, k * 0.002) : Math.max(0.025, k * 0.001);
         if (e > t) continue;
-        const sc = e + (g !== g0 ? 0.002 : 0) + (k !== k0 ? 0.002 : 0) + (a.rate != null && a.rate !== r ? 0.01 : 0);
+        const vp = g0 < 20 ? 0.012 : 1000;   // küçük tutarlarda tolerans görece büyük: tam tutan varyant, zorlama tutan orijinali geçebilsin
+        const sc = e + (g !== g0 ? vp : 0) + (k !== k0 ? vp : 0) + (a.rate != null && a.rate !== r ? 0.01 : 0);
         if (!best || sc < best.sc) best = { sc, g, k, r };
       }
       if (best && (!pairHits[best.r] || best.sc < pairHits[best.r].sc)) pairHits[best.r] = best;
@@ -395,7 +405,7 @@
     // --- Genel toplam: birden fazla aday varsa tutarlı olanı seç ---
     if (genC.length > 1) {
       const grp = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0), pay = (d.nakit || 0) + (d.kart || 0) + (d.diger || 0);
-      const hit = genC.find(v => Math.abs(v - grp) < 0.06) ?? genC.find(v => Math.abs(v - pay) < 0.06);
+      const hit = genC.find(v => Math.abs(v - grp) < 0.006) ?? genC.find(v => Math.abs(v - pay) < 0.006);
       if (hit != null) d.genel = hit;
       else { const cnt = new Map(); genC.forEach(v => cnt.set(v, (cnt.get(v) || 0) + 1)); d.genel = [...cnt.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0]; }
     }
@@ -410,8 +420,12 @@
     const sum = () => ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
     if (d.genel != null && d.g20 != null) {
       const diff = sum() - d.genel;
-      if (Math.abs(diff) > 0.06) for (const extra of [(d.tekel || 0) + (d.gp || 0), d.gp || 0, d.tekel || 0]) {
-        if (extra > 0 && Math.abs(diff - extra) <= 0.06 && d.g20 > extra) {
+      if (Math.abs(diff) > 0.006) for (const extra of [(d.tekel || 0) + (d.gp || 0), d.gp || 0, d.tekel || 0]) {
+        // okunan %20 KDV eski toplamla tutuyorsa (yenisiyle tutmuyorsa) düşme: tekel yanlış okunmuştur
+        const kOld = d.k20 != null && Math.abs(d.k20 - d.g20 * 20 / 120) <= Math.max(0.05, d.k20 * 0.0001);
+        const kNew = d.k20 != null && Math.abs(d.k20 - (d.g20 - extra) * 20 / 120) <= Math.max(0.05, d.k20 * 0.0001);
+        if (kOld && !kNew && !(d.gp > 0 && extra >= d.gp)) continue;   // poşet %20'li olduğundan KDV'si %20 KDV'nin içindedir; tekel (%0) değildir
+        if (extra > 0 && Math.abs(diff - extra) <= 0.006 && d.g20 > extra) {
           d.g20 = r2(d.g20 - extra); d.m20 = r2(d.g20 / 1.2); d.k20 = r2(d.g20 - d.m20);
           unsure.push('g20', 'm20', 'k20');
           notes.push('Tekel/poşet %20 grubunun içinde basılmış; %20’den düşüldü, kontrol et.');
@@ -427,34 +441,53 @@
     if (d.genel != null && d.kasa != null && d.kart != null && Math.abs((d.nakit || 0) + d.kart + (d.diger || 0) - d.genel) >= 0.006 && Math.abs(d.kasa + d.kart + (d.diger || 0) - d.genel) < 0.006) {
       notes.push(`Nakit: ${String(d.nakit).replace('.', ',')} → ${d.kasa.toFixed(2).replace('.', ',')} ("KASA NAKİT" satırından)`); d.nakit = d.kasa; }
     repair(d, notes, unsure, allA);
+    fixTopKdv(d, unsure, notes);
     for (const kf of ['genel', 'nakit', 'kart']) if (d[kf] == null) unsure.push(kf);
     // Toplamlar tutmuyorsa KDV gruplarının hiçbiri "emin" sayılmasın
     const grp = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
-    if (d.genel != null && Math.abs(grp - d.genel) >= 0.06)
+    if (d.genel != null && Math.abs(grp - d.genel) >= 0.006)
       for (const x of ['tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'gp']) if (d[x]) unsure.push(x);
     const found = Object.keys(d).filter(k => d[k] != null).length;
     return { d, unsure: [...new Set(unsure)], notes: [...new Set(notes)], found, amts: allA };
+  }
+  // Bir grubun KDV'si yerine "TOPLAM KDV" okunduysa: diğer KDV'leri çıkarıp düzelt
+  function fixTopKdv(d, unsure, notes) {
+    if (d.top_kdv == null || !(d.top_kdv > 0)) return;
+    const R = [['g1', 'm1', 'k1', 1], ['g10', 'm10', 'k10', 10], ['g20', 'm20', 'k20', 20]];
+    for (const [g, m, k, r] of R) {
+      if (d[k] == null || Math.abs(d[k] - d.top_kdv) >= 0.006) continue;
+      const others = R.filter(x => x[2] !== k).reduce((a, x) => a + (d[x[2]] || 0), 0);
+      if (others < 0.005) continue;
+      const nk = r2(d.top_kdv - others), e = (d[g] || 0) * r / (100 + r);
+      if (Math.abs(d[k] - e) <= Math.max(0.05, e * 0.0001)) continue;   // zaten oranına uyuyor (Beko'da "TOPKDV" grup satırıdır)
+      if (Math.abs(nk - e) <= Math.max(0.05, e * 0.0001)) { d[k] = nk; d[m] = r2(d[g] - nk); notes.push(`%${r} KDV: toplam KDV yerine okunmuştu; ${String(nk).replace('.', ',')} olarak düzeltildi.`); }
+      else { d[k] = r2(e); d[m] = r2(d[g] - d[k]); unsure.push(k, m); }
+    }
   }
   // Bir okumanın iç tutarlılığı: birden fazla okuma arasında seçim için
   function consistency(res) {
     const d = res.d; let s = 0;
     const grp = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
     const pay = ['nakit', 'kart', 'diger'].reduce((a, x) => a + (d[x] || 0), 0);
-    if (d.genel != null && grp > 0 && Math.abs(grp - d.genel) < 0.06) s += 3;
-    if (d.genel != null && pay > 0 && Math.abs(pay - d.genel) < 0.06) s += 3;
+    if (d.genel != null && grp > 0 && Math.abs(grp - d.genel) < 0.006) s += 3;
+    if (d.genel != null && pay > 0 && Math.abs(pay - d.genel) < 0.006) s += 3;
     s -= res.unsure.length * 0.5; if (d.tarih) s += 0.5; if (d.z_no) s += 0.5;
     return s;
   }
   // Birden fazla okumayı alan alan birleştir: oylama + "0 → 8/9" alternatifleri + toplam tutarlılığı
   function merge(list) {
     if (list.length === 1) return list[0];
-    const near = (a, b) => a != null && b != null && Math.abs(a - b) < 0.06;
-    const zalt = v => { const [i, dd] = v.toFixed(2).split('.'), d2 = dd.replace(/[689]/g, '0'); return d2 !== dd ? [+(i + '.' + d2)] : []; };
+    const near = (a, b) => a != null && b != null && Math.abs(a - b) < 0.006;
+    // kuruştaki tek bir 6/8/9'u 0 yap (noktalı sıfır) — her seferinde tek hane
+    const zalt = v => { const [i, dd] = v.toFixed(2).split('.'), out = [];
+      for (let x = 0; x < 2; x++) if (/[689]/.test(dd[x])) out.push(+(i + '.' + dd.slice(0, x) + '0' + dd.slice(x + 1))); return out; };
     const cands = k => {
-      const m = new Map();
+      const m = new Map(), za = new Map();
       for (const r of list) { const v = r.d[k]; if (v == null || typeof v !== 'number') continue;
-        m.set(v.toFixed(2), (m.get(v.toFixed(2)) || 0) + 1);
-        for (const z of zalt(v)) m.set(z.toFixed(2), (m.get(z.toFixed(2)) || 0) + 0.4); }
+        const base = r.unsure && r.unsure.includes(k) ? 0.6 : 1;   // kendi okumasında şüpheli olan değer daha az oy alır
+        m.set(v.toFixed(2), (m.get(v.toFixed(2)) || 0) + base);
+        for (const z of zalt(v)) za.set(z.toFixed(2), (za.get(z.toFixed(2)) || 0) + 0.4 * base); }
+      for (const [z, w] of za) m.set(z, (m.get(z) || 0) + Math.min(0.4, w));   // alternatifler yığılıp gerçek okumayı geçmesin
       return [...m.entries()].map(([v, w]) => ({ v: +v, w })).sort((a, b) => b.w - a.w);
     };
     const vote = k => { const m = new Map(); for (const r of list) { const v = r.d[k]; if (v) m.set(v, (m.get(v) || 0) + 1); }
@@ -474,7 +507,7 @@
       const G = cands(g), K = cands(k); if (!G.length) continue;
       let best = null;
       for (const a of G) for (const b of (K.length ? K : [{ v: null, w: 0 }])) {
-        const ok = b.v != null && (a.v === 0 ? b.v === 0 : Math.abs(a.v * r / (100 + r) - b.v) <= Math.max(0.03, b.v * 0.004));
+        const ok = b.v != null && (a.v === 0 ? b.v === 0 : b.v === 0 ? a.v * r / (100 + r) < 0.005 : Math.abs(a.v * r / (100 + r) - b.v) <= Math.max(0.03, b.v * 0.004));
         const sc = a.w + b.w + (ok ? 3 : 0); if (!best || sc > best.sc) best = { sc, g: a.v, k: b.v, ok };
       }
       d[g] = best.g;
@@ -515,8 +548,9 @@
     complete(d, amts, unsure, notes);
     solveGroups(d, amts, unsure, notes);
     repair(d, notes, unsure, amts);
+    { const tk = list.map(r => r.d.top_kdv).filter(v => v > 0); if (tk.length) { d.top_kdv = tk.sort((a, b) => tk.filter(v => v === b).length - tk.filter(v => v === a).length)[0]; fixTopKdv(d, unsure, notes); } }
     const grpN = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
-    if (!near(d.genel, grpN)) { for (const x of ['g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'tekel', 'gp']) if (d[x]) unsure.push(x); }
+    if (!near(d.genel, grpN)) { for (const [g, m, k] of [['g1', 'm1', 'k1'], ['g10', 'm10', 'k10'], ['g20', 'm20', 'k20']]) if (d[g]) unsure.push(g, m, k); for (const x of ['tekel', 'gp']) if (d[x]) unsure.push(x); }
     else { for (const x of ['tekel', 'g1', 'g10', 'g20', 'gp']) { let i; while ((i = unsure.indexOf(x)) >= 0) unsure.splice(i, 1); } }
     // Hiçbir okumada gerçekten okunmamış (hepsinde orandan hesaplanmış) KDV turuncu kalır
     for (const k of ['k1', 'k10', 'k20']) {
@@ -536,7 +570,7 @@
       const NC = cands('nakit'), KC = cands('kart'), DC = cands('diger');
       for (const c of cands('kasa')) { const e = NC.find(x => near(x.v, c.v)); if (e) e.w += 0.5 * c.w; else NC.push({ v: c.v, w: 0.5 * c.w }); }
       let bp = null;
-      for (const n of NC.length ? NC : [{ v: null, w: 0 }]) for (const k of KC.length ? KC : [{ v: null, w: 0 }]) for (const o of DC.length ? DC : [{ v: null, w: 0 }]) {
+      for (const n of NC.length ? NC : [{ v: null, w: 0 }]) for (const k of KC.length ? KC : [{ v: null, w: 0 }]) for (const o of [{ v: null, w: 0 }, ...DC]) {
         if (n.v == null && k.v == null) continue;
         if (!near((n.v || 0) + (k.v || 0) + (o.v || 0), d.genel)) continue;
         const sc = n.w + k.w + o.w; if (!bp || sc > bp.sc) bp = { sc, n: n.v, k: k.v, o: o.v };
@@ -555,5 +589,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 20, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 21, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
