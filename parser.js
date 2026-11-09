@@ -262,8 +262,9 @@
         if (/KDV\s?B[İI1]LG/.test(t)) sec = 'kdvb'; else if (/DEPARTMAN/.test(t)) sec = 'dept'; else if (/[ÖO]DEME\s?B[İI1]LG/.test(t)) sec = 'odeme';
         else if (/BELGE\s?T[İI1]P/.test(t)) sec = 'belge'; else if (/SAYA[ÇC]LAR/.test(t)) sec = 'sayac'; else if (/KAS[İI1]YER\s?B/.test(t)) sec = 'kasiyer';
         else if (/G[ÜU]NL[ÜU]K\s?F[İI1][ŞS]/.test(t)) sec = 'gunluk';
-        else if (sec === 'belge' && /^\W*[İI1]P[İI1T]AL\b|^\W*[İI1]PTAL/.test(t)) sec = 'iptal';
+        else if (sec === 'belge' && /^\W*[İI1][PR]\S{0,2}AL\b/.test(t)) sec = 'iptal';
         l.sec = sec;
+        if (sec === 'belge' && /D[İI1][ĞG]ER/.test(t)) sec = 'iptal';   // -DİĞER'den sonrası iptal bölümü
         // İptal, sayaç, kasiyer ve (kullanıcı isteği) ödeme bilgileri satırları hesaba katılmaz
         if (sec === 'iptal' || sec === 'sayac' || sec === 'kasiyer' || sec === 'odeme') l.cum = true;
       }
@@ -637,7 +638,7 @@
     // BELGE TİPLERİ (İPTAL'e kadar): satış toplamı, KDV toplamı, nakit, kredi, diğer
     const B = L.filter(l => l.sec === 'belge');
     const pick = re => { for (const l of B) if (re.test(l.s) && l.a.length) return l.a[l.a.length - 1]; return null; };
-    const gen = pick(/SATI[ŞS]\s?TOPLAM/), tk = pick(/KDV\s?TOPLAM/), nk = pick(/(?:^|\W)N?AK[İI1]T/), kr = pick(/KRED[İI1]|KART/), dg = pick(/D[İI1][ĞG]ER/);
+    const gen = pick(/SATI[ŞS]\s?T[OU]PLA/), tk = pick(/KDV\s?T[OU]PLA/), nk = pick(/(?:^|\W)N?AK[İI1]T/), kr = pick(/KRED[İI1]|KART/), dg = pick(/D[İI1][ĞG]ER/);
     if (gen != null) { d.genel = gen; clear('genel'); }
     if (nk != null) { d.nakit = nk; d.kasa = null; }
     if (kr != null) d.kart = kr;
@@ -809,5 +810,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 32, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 33, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
