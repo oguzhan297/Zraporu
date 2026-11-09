@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=31"></script>
+<script src="parser.js?v=32"></script>
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#e4e2dc;--acc:#1f6f5c;--acc2:#e8f3ef;--warn:#b5621b;--warnbg:#fdf1e6;--err:#b3261e;--ok:#1f6f5c}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#efeee9;--mut:#a3a29c;--line:#34332f;--acc:#5fc2a6;--acc2:#1f2f2a;--warn:#f0a35e;--warnbg:#3a2a1c;--err:#ff8a80;--ok:#5fc2a6}}
@@ -268,6 +268,11 @@ function checks(r){
   else if(!dateOk(d.tarih))out.push({ok:false,m:`Tarih geçersiz veya GG.AA.YYYY biçiminde değil: “${d.tarih}”`});
   if(!d.z_no)out.push({ok:false,m:'Z No boş'});
   else if(rows.some(x=>x!==r&&x.status==='done'&&x.d.z_no&&String(x.d.z_no).replace(/^0+/,'')===String(d.z_no).replace(/^0+/,'')&&x.d.tarih===d.tarih))out.push({ok:false,m:'Aynı tarih ve Z No ile listede başka bir rapor var — iki kez eklenmiş olabilir'});
+  // Z sırası: yakın tarihli raporlara göre beklenen Z'ye çok benziyor ama farklıysa (eksik/yanlış hane) uyar
+  {const t=dnum(d.tarih),z=String(d.z_no||'');if(t!=null&&/^\d+$/.test(z)){
+    const ex=[...new Set(rows.filter(x=>x!==r&&x.status==='done'&&/^\d+$/.test(String(x.d.z_no||''))&&dnum(x.d.tarih)!=null&&Math.abs(dnum(x.d.tarih)-t)<=3&&dnum(x.d.tarih)!==t).map(x=>+x.d.z_no-(dnum(x.d.tarih)-t)))];
+    const like=e=>{const a=String(e);if(a===z)return false;if(a.length!==z.length)return a.startsWith(z)||a.endsWith(z)||z.startsWith(a)||z.endsWith(a);let n=0;for(let i=0;i<a.length;i++)if(a[i]!==z[i])n++;return n===1};
+    const e=ex.find(like);if(e!=null&&!ex.includes(+z))out.push({ok:false,m:`Z No ${z} şüpheli: yakın tarihli raporlara göre ${e} olmalı`})}}
   if(satis(d)===0)out.push({ok:false,m:'Hiç satış tutarı yok'});
   for(const [g,m,k] of GROUPS){if(d[g]!=null&&d[m]!=null&&d[k]!=null){const df=Math.abs(d[m]+d[k]-d[g]);if(df>=0.006)out.push({ok:false,m:`${names[g]}: Matrah + KDV, genel toplamla tutmuyor (fark ${fm(df)})`})}}
   const s=satis(d);
@@ -635,7 +640,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=31;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
+const APP_VER=32;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
 if(S.mode==='api'&&!S.key){$('#settings').open=true;notice('Claude API ile okuma için ⚙️ Ayarlar’a anahtarını gir ya da yöntemi “Ücretsiz” yap.')}
 setStore('wait');load();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
