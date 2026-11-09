@@ -11,18 +11,20 @@
 
   function normLine(l) {
     let s = TRU(l).replace(/[‘’`´]/g, "'").replace(/[ \t]+/g, ' ').replace(/\s+/g, ' ').trim();
+    // "*1/00" ve "0/09" tutarlardır — "%" kuralından önce uygula
+    s = s.replace(/(?<![\/\d])(\d{1,6})\/(\d{2})(?![\d\/])/g, '$1,$2');
     s = s.replace(/°\/O|0\/0|º\/O|°\/0/g, '%');
     // rakamların arasındaki tipik yazı tanıma karışıklıkları
     s = s.replace(/(\d)[OÖ](?=[\d,.])/g, '$10').replace(/([\d,.])[OÖ](?=\d)/g, '$10');
     s = s.replace(/(\d)[İIL|](?=\d)/g, '$11');
     s = s.replace(/(\d)\s?[,.]\s(\d{2})(?!\d)/g, '$1,$2');   // "123, 45" → "123,45"
     s = s.replace(/(\d{1,3}),(\d{3}),(\d{2})(?!\d)/g, '$1.$2,$3');
-    s = s.replace(/(?<![\/\d])(\d{1,6})\/(\d{2})(?![\d\/])/g, '$1,$2');
-    s = s.replace(/([*'"“”])\s?(\d{1,6}):(\d[\dĞG])(?!\d)/g, '$1$2,$3');            // "*1:0ğ" → "*1,0ğ"                       // "*1/00" → "*1,00"          // "1,255,00" → "1.255,00"
+    s = s.replace(/([*'"“”«»])\s?(\d{1,6}):(\d[\dĞG])(?!\d)/g, '$1$2,$3');            // "*1:0ğ" → "*1,0ğ"                       // "*1/00" → "*1,00"          // "1,255,00" → "1.255,00"
     s = s.replace(/\bK[O0ÖD]V\b/g, 'KDV');                                    // "KOV" → "KDV"
     s = s.replace(/^\+\s?(?=\d)/, '*').replace(/(\s)\+\s?(?=\d)/g, '$1*');   // "+8.654,00" → "*8.654,00"
     s = s.replace(/([*'"]\s?\d{1,3})\s(\d{3}[,.]\d{2})(?!\d)/g, '$1.$2'); // "*8 464,00" → "*8.464,00"
-    s = s.replace(/([*'"]\s?\d+)\s(\d{2})(?![\d,.])/g, '$1,$2');           // "*187 47" → "*187,47"
+    s = s.replace(/([*'"“”«»]\s?\d+)\s(\d{2})(?![\d,.])/g, '$1,$2');
+    if (/TOPLAM|TOP\s?K[DO]V|\bKDV\b/.test(s)) s = s.replace(/(\s\d{1,6})\s(\d{2})\s*$/, '$1,$2');   // "TOPKDV 10 01" → "10,01"           // "*187 47" → "*187,47"
     // "*B.654,00" / "*8.4H4,00" gibi: harf karışmış tutarları düzelt
     s = s.replace(/([*'"]?)([0-9BSOÖDQLIİ|ZGHATY]{1,3}(?:[.'][0-9BSOÖDQLIİ|ZGHATY]{3})*[,.][0-9OÖDQYGĞ]{2})(?![\dA-ZÇĞİÖŞÜ])/g,
       (m, p, t) => (/\d/.test(t) && (p || /^\d/.test(t))) ? p + fixAmt(t) : m);
@@ -62,7 +64,7 @@
   // Tipik okuma hatalarının olası doğru hâlleri
   function variants(v) {
     if (v == null) return [];
-    const o = [], [i, dd] = v.toFixed(2).split('.'), d0 = dd.replace(/[2689]/g, '0');
+    const o = [], [i, dd] = v.toFixed(2).split('.'), d0 = dd.replace(/[24689]/g, '0');
     if (d0 !== dd) o.push(+(i + '.' + d0));
     if (/^[1347]\d/.test(i)) { o.push(+(i.slice(1) + '.' + dd)); if (d0 !== dd) o.push(+(i.slice(1) + '.' + d0)); }
     return [...new Set(o)].filter(x => x !== v);
@@ -115,8 +117,13 @@
     };
     const changed = [];
     const G = ['tekel', 'g1', 'g10', 'g20', 'gp'].filter(k => d[k] != null);
+    const sumG = G.reduce((a, k) => a + d[k], 0), sumP = ['nakit', 'kart', 'diger'].reduce((a, k) => a + (d[k] || 0), 0);
+    if (Math.abs(sumG - d.genel) >= 0.006 && Math.abs(sumP - d.genel) >= 0.006) {
+      const gv = variants(d.genel).find(v => Math.abs(v - sumG) < 0.006 || Math.abs(v - sumP) < 0.006);
+      if (gv != null) { notes.push(`Genel toplam: ${String(d.genel).replace('.', ',')} → ${gv.toFixed(2).replace('.', ',')} (okuma hatası düzeltildi)`); d.genel = gv; }
+    }
     if (fix(G, d.genel, 'Grup tutarı') === 'fixed') {
-      for (const x of ['tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'gp']) { const i = unsure.indexOf(x); if (i >= 0 && d[x] != null) unsure.splice(i, 1); }
+      for (const x of ['tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'gp']) { let i; while (d[x] != null && (i = unsure.indexOf(x)) >= 0) unsure.splice(i, 1); }
       // Toplamı düzeltilen grubun KDV'sini yeni toplama göre yeniden bul
       for (const [g, m, k, r] of [['g1', 'm1', 'k1', 1], ['g10', 'm10', 'k10', 10], ['g20', 'm20', 'k20', 20], ['gp', 'mp', 'kp', 20]]) {
         if (d[g] == null) continue;
@@ -130,6 +137,11 @@
     }
     const P = ['nakit', 'kart', 'diger'].filter(k => d[k] != null);
     if (P.length && !fix(P, d.genel, 'Ödeme tutarı')) unsure.push(...P);
+    else for (const x of P) { let i; while ((i = unsure.indexOf(x)) >= 0) unsure.splice(i, 1); }
+    // Genel toplam ne gruplarla ne ödemelerle tutuyorsa turuncu
+    const sG2 = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, k) => a + (d[k] || 0), 0), sP2 = ['nakit', 'kart', 'diger'].reduce((a, k) => a + (d[k] || 0), 0);
+    if (Math.abs(sG2 - d.genel) >= 0.006 && Math.abs(sP2 - d.genel) >= 0.006) unsure.push('genel');
+    else { let i; while ((i = unsure.indexOf('genel')) >= 0) unsure.splice(i, 1); }
   }
 
   function parseZ(text) {
@@ -389,6 +401,7 @@
       else { d[m] = r2(best.g / (1 + r / 100)); d[k] = r2(best.g - d[m]); unsure.push(g, m, k); }
     }
     const tk = cands('tekel'); if (tk.length) d.tekel = tk[0].v;
+    if (tk.length && tk[0].w >= 2) { const i = notes.findIndex(n => /Tekel sütununa yazıldı/.test(n)); if (i >= 0) notes.splice(i, 1); }
     const amts = [...new Set(list.flatMap(r => r.amts || []))];
     for (const k of ['nakit', 'kart', 'diger']) { const c = cands(k); if (c.length) d[k] = c[0].v; }
     // Genel toplam: oy + gruplarla ve ödemelerle uyum
@@ -401,6 +414,18 @@
     repair(d, notes, unsure, amts);
     const grpN = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
     if (!near(d.genel, grpN)) for (const x of ['g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'tekel', 'gp']) if (d[x]) unsure.push(x);
+    // Ödemeler: adaylar arasından toplamı genel toplamı veren birleşimi seç
+    if (d.genel != null) {
+      const NC = cands('nakit'), KC = cands('kart'), DC = cands('diger');
+      let bp = null;
+      for (const n of NC.length ? NC : [{ v: null, w: 0 }]) for (const k of KC.length ? KC : [{ v: null, w: 0 }]) for (const o of DC.length ? DC : [{ v: null, w: 0 }]) {
+        if (n.v == null && k.v == null) continue;
+        if (!near((n.v || 0) + (k.v || 0) + (o.v || 0), d.genel)) continue;
+        const sc = n.w + k.w + o.w; if (!bp || sc > bp.sc) bp = { sc, n: n.v, k: k.v, o: o.v };
+      }
+      if (bp) { d.nakit = bp.n; d.kart = bp.k; if (bp.o != null) d.diger = bp.o;
+        for (const x of ['nakit', 'kart', 'diger']) { let i; while ((i = unsure.indexOf(x)) >= 0) unsure.splice(i, 1); } }
+    }
     // Tek bir ödeme okunamadıysa: genel toplamdan hesapla (turuncu işaretli)
     if (d.genel != null && near(d.genel, grpN)) {
       if (d.kart == null && d.nakit != null) { d.kart = r2(d.genel - d.nakit - (d.diger || 0)); unsure.push('kart'); notes.push('Kart tutarı okunamadı; genel toplam − nakit olarak hesaplandı.'); }
@@ -412,5 +437,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 15, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 16, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
