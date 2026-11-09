@@ -273,11 +273,22 @@
     // --- Tarih ---
     const all = L.map(l => l.s).join('\n');
     let m;
-    const dates = [...all.matchAll(/\b(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})\b/g)].map(x => {
-      const dd = +x[1], mm = +x[2], yy = x[3].length === 2 ? 2000 + +x[3] : +x[3];
-      return dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && yy >= 2000 && yy <= 2099 ? `${String(dd).padStart(2, '0')}.${String(mm).padStart(2, '0')}.${yy}` : null; }).filter(Boolean);
-    if (dates.length) { const c = {}; dates.forEach(x => c[x] = (c[x] || 0) + 1); d.tarih = dates.slice().sort((a, b) => c[b] - c[a])[0]; }
-    else unsure.push('tarih');
+    // Tarih adayları: tam geçerli olanlar 1 puan; okuma hatası düzeltilmiş olanlar ("11-18" → ay 10, yıl "2626" → 2026) 0,4 puan
+    const c = {}, fixD = x => x.replace(/[689]/g, '0');
+    const addDate = (D, M, Y, w) => {
+      let dd = +D, mm = +M, yy = Y.length === 2 ? 2000 + +Y : +Y, ww = w;
+      if (yy < 2000 || yy > 2099) { if (Y.length === 4 && /^2\d2\d$/.test(Y)) { yy = +('20' + Y.slice(2)); ww *= 0.4; } else return; }
+      if (mm < 1 || mm > 12) { mm = +fixD(M); ww *= 0.4; }
+      if (dd < 1 || dd > 31) { dd = +fixD(D); ww *= 0.4; }
+      if (!(dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12)) return;
+      const k = `${String(dd).padStart(2, '0')}.${String(mm).padStart(2, '0')}.${yy}`; c[k] = (c[k] || 0) + ww;
+    };
+    for (const x of all.matchAll(/\b(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})\b/g)) addDate(x[1], x[2], x[3], 1);
+    // "TARİH" satırı (TARİM/TARİN okunabilir): ayırıcı boşluk da olabilir ("11 10 2026", "11-18 2026")
+    for (const l of L) { const x = l.s.match(/TAR[İI1]\S?\W*(\d{1,2})\s*[./\-\s]\s*(\d{1,2})\s*[./\-\s]\s*(\d{4})\b/); if (x) addDate(x[1], x[2], x[3], /\d[./-]\d{1,2}[./-]\d/.test(x[0]) ? 0 : 0.8); }
+    const dk = Object.keys(c);
+    if (dk.length) { dk.sort((a, b) => c[b] - c[a]); d.tarih = dk[0]; if (c[dk[0]] < 1 || (dk[1] && c[dk[1]] >= c[dk[0]] * 0.8)) unsure.push('tarih'); }
+    if (!d.tarih) unsure.push('tarih');
 
     // --- Z No ---
     m = all.match(/\bZ\s?(?:NO|NUMARASI|SIRA\s?NO|SAYISI|SAYA[ÇC])\s*[:.]?\s*(\d{1,6})\b/) ||
@@ -590,5 +601,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 22, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 23, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
