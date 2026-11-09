@@ -299,6 +299,7 @@
     const dk = Object.keys(c);
     if (dk.length) { dk.sort((a, b) => c[b] - c[a]); d.tarih = dk[0]; if (c[dk[0]] < 1 || (dk[1] && c[dk[1]] >= c[dk[0]] * 0.8)) unsure.push('tarih'); }
     if (!d.tarih) unsure.push('tarih');
+    else if (+d.tarih.slice(6) < new Date().getFullYear() - 1) unsure.push('tarih');   // "2021": yıl okuma hatası olabilir
 
     // --- Z No ---
     m = all.match(/\bZ\s?(?:NO|NUMARASI|SIRA\s?NO|SAYISI|SAYA[ÇC])\s*[:.]?\s*(\d{1,6})\b/) ||
@@ -718,5 +719,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 28, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 29, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);

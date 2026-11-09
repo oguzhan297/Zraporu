@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=28"></script>
+<script src="parser.js?v=29"></script>
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#e4e2dc;--acc:#1f6f5c;--acc2:#e8f3ef;--warn:#b5621b;--warnbg:#fdf1e6;--err:#b3261e;--ok:#1f6f5c}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#efeee9;--mut:#a3a29c;--line:#34332f;--acc:#5fc2a6;--acc2:#1f2f2a;--warn:#f0a35e;--warnbg:#3a2a1c;--err:#ff8a80;--ok:#5fc2a6}}
@@ -422,7 +422,11 @@ async function getOCR(onProg){
   return ocrLoading;
 }
 function openImage(src){return new Promise((res,rej)=>{const u=URL.createObjectURL(src),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);res(im)};im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('Fotoğraf açılamadı'))};im.src=u})}
-function grayOf(ctx,w,h){const p=ctx.getImageData(0,0,w,h).data,g=new Uint8Array(w*h);for(let i=0,j=0;i<p.length;i+=4,j++)g[j]=(p[i]*299+p[i+1]*587+p[i+2]*114)/1000|0;return g}
+// mode 'max': renkli lekeler (çay, kahve, yağ, mürekkep) kanallardan en az birinde açıktır, siyah yazı her kanalda koyudur
+//   → en açık kanalı almak lekeyi büyük ölçüde siler, yazıyı korur
+function grayOf(ctx,w,h,mode){const p=ctx.getImageData(0,0,w,h).data,g=new Uint8Array(w*h);
+  if(mode==='max'){for(let i=0,j=0;i<p.length;i+=4,j++){const a=p[i],b=p[i+1],c=p[i+2];g[j]=a>b?(a>c?a:c):(b>c?b:c)}return g}
+  for(let i=0,j=0;i<p.length;i+=4,j++)g[j]=(p[i]*299+p[i+1]*587+p[i+2]*114)/1000|0;return g}
 function cropBox(im){
   // Küçük kopyada kâğıdı (en açık bölge) bulup fişi kırp
   const W=im.naturalWidth,H=im.naturalHeight,sw=300,sh=Math.max(1,Math.round(H*sw/W));
@@ -456,7 +460,7 @@ async function prepImage(src,opt={}){
   // fişi kendi çözünürlüğünde al (en fazla 16 MP), sonra Lanczos ile hedef boyuta getir
   let nw=Math.round(cw),nh=Math.round(ch);if(nw*nh>16e6){const k=Math.sqrt(16e6/(nw*nh));nw=Math.round(nw*k);nh=Math.round(nh*k)}
   const c0=document.createElement('canvas');c0.width=nw;c0.height=nh;const x0=c0.getContext('2d',{willReadFrequently:true});x0.drawImage(im,cx,cy,cw,ch,0,0,nw,nh);
-  const g=lanczos(grayOf(x0,nw,nh),nw,nh,tw,th);c0.width=c0.height=1;
+  const g=lanczos(grayOf(x0,nw,nh,opt.gray),nw,nh,tw,th);c0.width=c0.height=1;
   const c=document.createElement('canvas');c.width=tw;c.height=th;const x=c.getContext('2d',{willReadFrequently:true});
   const W1=tw+1,I=new Uint32Array(W1*(th+1));
   for(let y=1;y<=th;y++){let row=0;for(let xx=1;xx<=tw;xx++){row+=g[(y-1)*tw+xx-1];I[y*W1+xx]=I[(y-1)*W1+xx]+row}}
@@ -493,10 +497,10 @@ async function extractFree(r){
   try{
     const w=await getOCR(m=>{if(m.status==='recognizing text'&&!/tekrar/.test(r.prog||''))setProg(r,`Okunuyor… %${Math.round(m.progress*100)}`);else if(/load|init/i.test(m.status))setProg(r,'İlk kullanım: Türkçe dil dosyası indiriliyor (bir kez)…')});
     // Tutarlı sonuç çıkana kadar en fazla 3 farklı ayarla oku, en tutarlısını seç
-    const passes=[{tw:1400,t:.15,win:1/16},{tw:1100,t:.20,win:1/8},{tw:1700,t:.20,win:1/16}];
+    const passes=[{tw:1400,t:.15,win:1/16},{tw:1400,t:.18,win:1/12,gray:'max'},{tw:1100,t:.20,win:1/8},{tw:1700,t:.20,win:1/16}];   // 2.: renkli leke temizleyen okuma
     let best=null;const all=[],texts=[];
     for(let n=0;n<passes.length;n++){
-      setProg(r,n?`Toplamlar tutmadı, tekrar okunuyor (${n+1}/3)…`:'Okunuyor…');
+      setProg(r,n?`Toplamlar tutmadı, tekrar okunuyor (${n+1}/${passes.length})…`:'Okunuyor…');
       const img=await prepImage(r.file||r.blob,passes[n]);
       // takılırsa sonsuza dek "Okunuyor…"da kalmasın: 2 dakikada iptal et, okuyucuyu yeniden başlat
       let tm;const {data}=await Promise.race([w.recognize(img),new Promise((_,rej)=>{tm=setTimeout(()=>{try{w.terminate()}catch(e){}ocrW=null;ocrLoading=null;rej(new Error('Okuma 2 dakikada bitmedi. Tekrar dene; olmazsa fotoğrafı yeniden çek ya da 📋 Metinden ekle’yi kullan.'))},120000)})]);clearTimeout(tm);
@@ -623,7 +627,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=28;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
+const APP_VER=29;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
 if(S.mode==='api'&&!S.key){$('#settings').open=true;notice('Claude API ile okuma için ⚙️ Ayarlar’a anahtarını gir ya da yöntemi “Ücretsiz” yap.')}
 setStore('wait');load();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
