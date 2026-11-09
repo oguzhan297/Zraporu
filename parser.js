@@ -187,37 +187,46 @@
     if (d.genel == null) return false;
     const R = [['g1', 'm1', 'k1', 1], ['g10', 'm10', 'k10', 10], ['g20', 'm20', 'k20', 20]];
     const isOk = x => d[x[0]] != null && !unsure.includes(x[0]) && !unsure.includes(x[2]);
-    const fixedSum = (d.tekel || 0) + (d.gp || 0) + R.filter(isOk).reduce((a, x) => a + d[x[0]], 0);
+    const otherSum = (d.gp || 0) + R.filter(isOk).reduce((a, x) => a + d[x[0]], 0);
     const open = R.filter(x => !isOk(x));
     if (!open.length) return false;
-    const rest = r2(d.genel - fixedSum);
-    if (rest < 0) return false;
-    const pool = new Map();                                    // metindeki tutarlar (asıl / varyant)
-    for (const v of amts) { if (v > 0 && v <= rest + 0.01) pool.set(v, true); for (const w of variants(v)) if (w > 0 && w <= rest + 0.01 && !pool.has(w)) pool.set(w, false); }
+    // Tekel adayları: okunan değer; şüpheliyse okuma hatası varyantları da (ör. "*2.030,00" → "12.030,00"),
+    // ama varyant ancak metinde aynen geçiyorsa (Tekel departman satırı) kabul edilir
+    const amtSet = new Set(amts);
+    const TK = [{ v: d.tekel || 0, orig: true }];
+    if (d.tekel && (unsure.includes('tekel') || d.tekel + otherSum > d.genel + 0.006))
+      for (const w of variants(d.tekel)) if (w > 0 && amtSet.has(w)) TK.push({ v: w, orig: false });
     const kPool = new Map(); for (const v of amts) { kPool.set(v, true); for (const w of variants(v)) if (!kPool.has(w)) kPool.set(w, false); }
     const kOf = (g, r) => { const e = g * r / (100 + r); let b = null;
       for (const [v, orig] of kPool) { const t = orig ? Math.max(0.03, v * 0.004) : Math.max(0.01, v * 0.002); const er = Math.abs(v - e) + (orig ? 0 : 1000); if (Math.abs(v - e) <= t && (!b || er < b.er)) b = { k: v, orig, er }; } return b; };
-    // Her açık grup için adaylar: oranı belli satırdan okunan toplam (ve varyantları) + metindeki tutarlar + 0
-    const C = open.map(x => { const m = new Map([[0, { v: 0, lab: false, orig: true }]]);
-      if (d[x[0]] != null) for (const v of [d[x[0]], ...variants(d[x[0]])]) m.set(v, { v, lab: true, orig: v === d[x[0]] });
-      for (const [v, orig] of pool) if (!m.has(v)) m.set(v, { v, lab: false, orig }); return m; });
     let best = null;
-    const score = parts => {
-      let sc = 0; const ks = [];
-      for (const p of parts) {
-        if (p.v === 0) { ks.push({ k: 0, orig: true }); continue; }
-        if (p.v < 1) return;
-        const kv = kOf(p.v, p.x[3]);
-        if (!kv && !p.lab) return;                               // KDV'si de yok, oranı belli satırdan da gelmiyor → kabul etme
-        ks.push(kv); sc += (kv ? 2 + (kv.orig ? 1 : 0) : 0) + (p.lab ? 2 + (p.orig ? 1 : 0) : 0) + (p.orig ? 0.5 : 0);
-      }
-      if (!best || sc > best.sc) best = { sc, parts: parts.map(p => ({ ...p })), ks };
-    };
-    const n = open.length;
-    if (n === 1) { const c = C[0].get(rest) || (pool.has(rest) ? { v: rest, lab: false, orig: pool.get(rest) } : null); if (c) score([{ ...c, x: open[0] }]); }
-    else if (n === 2) { for (const a of C[0].values()) { const b = r2(rest - a.v); const c = C[1].get(b); if (c) score([{ ...a, x: open[0] }, { ...c, x: open[1] }]); } }
-    else { for (const a of C[0].values()) for (const b of C[1].values()) { const c3 = r2(rest - a.v - b.v); if (c3 < 0) continue; const c = C[2].get(c3); if (c) score([{ ...a, x: open[0] }, { ...b, x: open[1] }, { ...c, x: open[2] }]); } }
+    for (const tk of TK) {
+      const rest = r2(d.genel - tk.v - otherSum);
+      if (rest < 0) continue;
+      const pool = new Map();                                    // metindeki tutarlar (asıl / varyant)
+      for (const v of amts) { if (v > 0 && v <= rest + 0.01) pool.set(v, true); for (const w of variants(v)) if (w > 0 && w <= rest + 0.01 && !pool.has(w)) pool.set(w, false); }
+      // Her açık grup için adaylar: oranı belli satırdan okunan toplam (ve varyantları) + metindeki tutarlar + 0
+      const C = open.map(x => { const m = new Map([[0, { v: 0, lab: false, orig: true }]]);
+        if (d[x[0]] != null) for (const v of [d[x[0]], ...variants(d[x[0]])]) m.set(v, { v, lab: true, orig: v === d[x[0]] });
+        for (const [v, orig] of pool) if (!m.has(v)) m.set(v, { v, lab: false, orig }); return m; });
+      const score = parts => {
+        let sc = tk.orig ? 0.5 : 0; const ks = [];
+        for (const p of parts) {
+          if (p.v === 0) { ks.push({ k: 0, orig: true }); continue; }
+          if (p.v < 1) return;
+          const kv = kOf(p.v, p.x[3]);
+          if (!kv && !p.lab) return;                               // KDV'si de yok, oranı belli satırdan da gelmiyor → kabul etme
+          ks.push(kv); sc += (kv ? 2 + (kv.orig ? 1 : 0) : 0) + (p.lab ? 2 + (p.orig ? 1 : 0) : 0) + (p.orig ? 0.5 : 0);
+        }
+        if (!best || sc > best.sc) best = { sc, parts: parts.map(p => ({ ...p })), ks, tk };
+      };
+      const n = open.length;
+      if (n === 1) { const c = C[0].get(rest) || (pool.has(rest) ? { v: rest, lab: false, orig: pool.get(rest) } : null); if (c) score([{ ...c, x: open[0] }]); }
+      else if (n === 2) { for (const a of C[0].values()) { const b = r2(rest - a.v); const c = C[1].get(b); if (c) score([{ ...a, x: open[0] }, { ...c, x: open[1] }]); } }
+      else { for (const a of C[0].values()) for (const b of C[1].values()) { const c3 = r2(rest - a.v - b.v); if (c3 < 0) continue; const c = C[2].get(c3); if (c) score([{ ...a, x: open[0] }, { ...b, x: open[1] }, { ...c, x: open[2] }]); } }
+    }
     if (!best) return false;
+    if (!best.tk.orig) { notes.push(`Tekel: ${String(d.tekel).replace('.', ',')} → ${best.tk.v.toFixed(2).replace('.', ',')} (okuma hatası; genel toplamla doğrulandı)`); d.tekel = best.tk.v; }
     best.parts.forEach((p, i) => { const [g, m, k, r] = p.x;
       if (d[g] != null && Math.abs(d[g] - p.v) >= 0.006) notes.push(`%${r} toplamı: ${String(d[g]).replace('.', ',')} → ${p.v.toFixed(2).replace('.', ',')} (genel toplamla doğrulandı)`);
       d[g] = p.v; for (const x of [g, m, k]) { let j; while ((j = unsure.indexOf(x)) >= 0) unsure.splice(j, 1); }
@@ -613,5 +622,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 25, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 26, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
