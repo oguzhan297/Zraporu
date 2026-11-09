@@ -55,7 +55,8 @@
     s = s.replace(/\bM[İI]?KTR\.?\s*[\d.,]*|\bM[İI]KTAR\s*[\d.,]*/g, ' MKTR ');
     s = s.replace(/\s+/g, ' ').trim();
     // Satır başındaki kenar gölgesi çöpleri: "J TOPLAM", "© KDV", "| KDV", "3 TOPLAM"
-    while (/\d[,.]\d{2}/.test(s) && /\d[,.]\d{2}\s+(?:[^\s\d]{1,3}\s*)+$/.test(s)) s = s.replace(/\s+[^\s\d]{1,3}\s*$/, '');
+    // (her turda en az bir karakter silinmeli; silinmezse dur — v18–v21'de "*15892,42 TARİH" gibi satırda sonsuz döngüye giriyordu)
+    for (let g = 0; g < 20 && /\d[,.]\d{2}(?:\s+[^\s\d]{1,3})+\s*$/.test(s); g++) { const t = s.replace(/\s+[^\s\d]{1,3}\s*$/, ''); if (t === s) break; s = t; }
     normLine.pre = s;
     s = s.replace(/^(?:[^A-ZÇĞİÖŞÜ0-9*%\s]{1,2}\s|[A-ZÇĞİÖŞÜ0-9]\s(?=(?:TOPLAM|TOP|KDV|NAK|BANKA|KRED|YEMEK|KART|MATRAH)\b))+/, '');
     s = s.replace(/^(?:\S{1,2}\s+)+(?=(?:TOPLAM|KDV|NAK[İI]T|BANKA|KRED[İI]|YEMEK|MATRAH|NET\s?C[İI]RO|BR[ÜU]T)\b)/, '');
@@ -589,5 +590,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 21, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 22, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);

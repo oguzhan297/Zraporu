@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=21"></script>
+<script src="parser.js?v=22"></script>
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#e4e2dc;--acc:#1f6f5c;--acc2:#e8f3ef;--warn:#b5621b;--warnbg:#fdf1e6;--err:#b3261e;--ok:#1f6f5c}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#efeee9;--mut:#a3a29c;--line:#34332f;--acc:#5fc2a6;--acc2:#1f2f2a;--warn:#f0a35e;--warnbg:#3a2a1c;--err:#ff8a80;--ok:#5fc2a6}}
@@ -400,11 +400,13 @@ async function callClaude(content,maxTokens,count=true){
 // ---- Ücretsiz okuma: telefonda yazı tanıma (Tesseract) + kural tabanlı ayrıştırıcı ----
 let ocrW=null,ocrLoading=null;
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Yazı tanıma aracı indirilemedi. İnternet bağlantını kontrol et.'));document.head.appendChild(s)})}
+let ocrProg=null;
 async function getOCR(onProg){
+  ocrProg=onProg;   // ilerleme her zaman o an okunan karta yazılsın
   if(ocrW)return ocrW;
   if(!ocrLoading)ocrLoading=(async()=>{
     if(!window.Tesseract)await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
-    const w=await Tesseract.createWorker('tur',1,{logger:m=>onProg&&onProg(m)});
+    const w=await Tesseract.createWorker('tur',1,{logger:m=>ocrProg&&ocrProg(m)});
     await w.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'});
     ocrW=w;return w;
   })().catch(e=>{ocrLoading=null;throw e});
@@ -487,7 +489,8 @@ async function extractFree(r){
     for(let n=0;n<passes.length;n++){
       setProg(r,n?`Toplamlar tutmadı, tekrar okunuyor (${n+1}/3)…`:'Okunuyor…');
       const img=await prepImage(r.file||r.blob,passes[n]);
-      const {data}=await w.recognize(img);
+      // takılırsa sonsuza dek "Okunuyor…"da kalmasın: 2 dakikada iptal et, okuyucuyu yeniden başlat
+      let tm;const {data}=await Promise.race([w.recognize(img),new Promise((_,rej)=>{tm=setTimeout(()=>{try{w.terminate()}catch(e){}ocrW=null;ocrLoading=null;rej(new Error('Okuma 2 dakikada bitmedi. Tekrar dene; olmazsa fotoğrafı yeniden çek ya da 📋 Metinden ekle’yi kullan.'))},120000)})]);clearTimeout(tm);
       const res=ZParse.parseZ(data.text||''),sc=ZParse.consistency(res);
       all.push(res);texts.push(data.text||'');
       if(!best||sc>best.sc)best={res,sc,text:data.text||''};
@@ -611,7 +614,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=21;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
+const APP_VER=22;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
 if(S.mode==='api'&&!S.key){$('#settings').open=true;notice('Claude API ile okuma için ⚙️ Ayarlar’a anahtarını gir ya da yöntemi “Ücretsiz” yap.')}
 setStore('wait');load();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
