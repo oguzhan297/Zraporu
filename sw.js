@@ -1,6 +1,6 @@
 // Uygulamayı internetsiz de açılabilir yapar. Sürüm değişince eski önbellek silinir.
-const V='zrapor-v19';
-const SHELL=['./','./index.html','./parser.js?v=19','./manifest.webmanifest','./icon-192.png','./icon-512.png',
+const V='zrapor-v20';
+const SHELL=['./','./index.html','./parser.js?v=20','./manifest.webmanifest','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 // cache:'reload' → tarayıcının kendi önbelleğindeki eski kopyayı değil, sunucudaki güncel dosyayı al
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>Promise.all(SHELL.map(u=>c.add(new Request(u,u.startsWith('http')?{mode:'no-cors'}:{cache:'reload'})).catch(()=>{})))).then(()=>self.skipWaiting()))});
