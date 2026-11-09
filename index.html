@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=38"></script>
+<script src="parser.js?v=39"></script>
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#e4e2dc;--acc:#1f6f5c;--acc2:#e8f3ef;--warn:#b5621b;--warnbg:#fdf1e6;--err:#b3261e;--ok:#1f6f5c}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#efeee9;--mut:#a3a29c;--line:#34332f;--acc:#5fc2a6;--acc2:#1f2f2a;--warn:#f0a35e;--warnbg:#3a2a1c;--err:#ff8a80;--ok:#5fc2a6}}
@@ -139,9 +139,9 @@ body.dropping{outline:3px dashed var(--acc,#6cc3a5);outline-offset:-8px}
 <div class="toast" id="toast"></div>
 <div class="modal" id="pm" hidden><div class="mbox">
   <div class="mt">Z raporu metnini yapıştır</div>
-  <div class="hint">iPhone: Fotoğraflar’da fişi aç → yazıya uzun bas → “Tümünü Seç” → “Kopyala”.<br>Android: Google Lens ile fişi tara → “Metin” → “Tümünü seç” → “Kopyala”.</div>
+  <div class="hint">Toplu: “Z Tara” kestirmesini çalıştır, sonra burada <b>📥 Panodan al</b>’a dokun (birden çok fiş tek seferde eklenir).<br>Tek fiş — iPhone: Fotoğraflar’da fişi aç → yazıya uzun bas → “Tümünü Seç” → “Kopyala”. Android: Google Lens → “Metin” → “Tümünü seç” → “Kopyala”.</div>
   <textarea id="pmt" rows="12" placeholder="Metni buraya yapıştır…"></textarea>
-  <div class="set-row" style="justify-content:flex-end"><button class="btn small" id="pmc">Vazgeç</button><button class="btn small primary" id="pmo">Oku ve ekle</button></div>
+  <div class="set-row" style="justify-content:flex-end"><button class="btn small" id="pmc">Vazgeç</button><button class="btn small" id="pmclip">📥 Panodan al</button><button class="btn small primary" id="pmo">Oku ve ekle</button></div>
 </div></div>
 
 <script>
@@ -675,9 +675,20 @@ const pm=$('#pm');
 $('#paste').onclick=()=>{pm.hidden=false;$('#pmt').value='';setTimeout(()=>$('#pmt').focus(),50)};
 $('#pmc').onclick=()=>{pm.hidden=true};
 pm.addEventListener('click',e=>{if(e.target===pm)pm.hidden=true});
-$('#pmo').onclick=()=>{const t=$('#pmt').value.trim();if(!t){toast('Önce metni yapıştır');return}
-  const r={id:uid(),status:'done',d:{},unsure:[],auto:[],src:'metin',created:Date.now(),open:true};applyParse(r,t);
-  rows.forEach(x=>x.open=false);rows.unshift(r);save(r);autoZ();render();pm.hidden=true;toast('Rapor eklendi — kontrol et')};
+// Toplu metin: "Z Tara" kestirmesi her fişin metninden önce "#ZR#" satırı koyar
+function splitBulk(t){const parts=t.split(/^[ \t]*#\s?ZR\s?#.*$/mi).map(x=>x.trim()).filter(x=>x.length>=20);return parts.length?parts:[t.trim()]}
+function sameReport(a,b){const n=v=>v==null?null:Math.round(+v*100);
+  return a.tarih&&a.tarih===b.tarih&&n(a.genel)!=null&&n(a.genel)===n(b.genel)&&(!a.z_no||!b.z_no||String(+a.z_no)===String(+b.z_no))}
+function addTexts(t){const parts=splitBulk(t),add=[];let dup=0;
+  for(const p of parts){const r={id:uid(),status:'done',d:{},unsure:[],auto:[],src:'metin',created:Date.now(),open:false};applyParse(r,p);
+    if(rows.concat(add).some(x=>x.status==='done'&&sameReport(x.d,r.d))){dup++;continue}add.push(r)}
+  if(add.length){rows.forEach(x=>x.open=false);if(add.length===1)add[0].open=true;rows.unshift(...add.slice().reverse());for(const r of add)save(r);autoZ();render()}
+  pm.hidden=true;
+  toast(add.length?`${add.length} rapor eklendi${dup?`, ${dup} tanesi zaten listedeydi`:''} — kontrol et`:(dup?'Bu raporlar zaten listede':'Metinde rapor bulunamadı'))}
+$('#pmo').onclick=()=>{const t=$('#pmt').value.trim();if(!t){toast('Önce metni yapıştır');return}addTexts(t)};
+$('#pmclip').onclick=async()=>{try{const t=(await navigator.clipboard.readText()||'').trim();if(!t){toast('Pano boş — önce kestirmeyi çalıştır');return}addTexts(t)}
+  catch(e){toast('Panoya erişilemedi — kutuya uzun basıp “Yapıştır” de, sonra Oku ve ekle');$('#pmt').focus()}};
+if(/^#(toplu|tara)/.test(location.hash)){history.replaceState(null,'',location.pathname);setTimeout(()=>$('#paste').click(),300)}
 $('#key').addEventListener('change',e=>{S.key=e.target.value.trim();e.target.value=S.key;saveS();$('#testres').textContent='';if(S.key)notice('')});
 $('#keyshow').onclick=()=>{const k=$('#key');k.type=k.type==='password'?'text':'password';$('#keyshow').textContent=k.type==='password'?'Göster':'Gizle'};
 $('#model').addEventListener('change',e=>{S.model=e.target.value;saveS()});
@@ -699,7 +710,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=38;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
+const APP_VER=39;{const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;if(pv!==APP_VER){$('#ver').style.color='var(--warn)';$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç'}}
 if(S.mode==='api'&&!S.key){$('#settings').open=true;notice('Claude API ile okuma için ⚙️ Ayarlar’a anahtarını gir ya da yöntemi “Ücretsiz” yap.')}
 setStore('wait');load();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
