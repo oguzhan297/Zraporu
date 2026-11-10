@@ -15,7 +15,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=46"></script>
+<script src="parser.js?v=47"></script>
 <style>
 /* ===== Sade fintech teması: slate-900 zemin, soft zümrüt (emerald-600) + mavi (blue-600), Excel yeşili ===== */
 :root{
@@ -97,23 +97,45 @@ h1 .to{color:var(--mut);font-weight:500}
 .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;margin-left:6px;vertical-align:1px}
 .b-ok{background:var(--acc2);color:var(--ok)}
 .b-warn{background:var(--warnbg);color:var(--warn)}
-.body{border-top:1px solid var(--line);padding:14px;display:none}
+.body{border-top:1px solid var(--line);padding:14px;display:none;background:rgba(2,6,23,.18)}
 .card.open .body{display:block}
-.big{width:100%;max-height:340px;object-fit:contain;border-radius:10px;background:#000;margin-bottom:14px;cursor:zoom-in}
-.big.zoom{max-height:none}
+.card.open{border-color:rgba(148,163,184,.24)}
+.big{display:block;width:100%;max-height:260px;object-fit:contain;border-radius:10px;background:#000;margin-bottom:12px;cursor:zoom-in;border:1px solid var(--line)}
+.big.zoom{max-height:none;cursor:zoom-out}
+/* kontrol özeti */
+.checks{margin:0 0 12px;border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px;line-height:1.45}
+.ck-h{padding:9px 12px;font-weight:600;font-size:13px;display:flex;gap:6px;align-items:center}
+.ck-h span{margin-left:auto;font-weight:500;font-size:12px;opacity:.8}
+.ck-h.ok{background:rgba(16,185,129,.10);color:var(--ok)}
+.ck-h.bad{background:var(--warnbg);color:var(--warn)}
+.ck{display:flex;gap:9px;align-items:flex-start;padding:7px 12px;border-top:1px solid var(--line);color:#cbd5e1}
+.ck i{flex:none;width:17px;height:17px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10.5px;font-weight:800;margin-top:1px}
+.ck.ok i{background:rgba(16,185,129,.16);color:var(--ok)}
+.ck.bad i{background:rgba(251,191,36,.16);color:var(--warn)}
+.ck.bad span{color:#fde68a}
+/* bölümler */
+.grps{display:flex;flex-direction:column;gap:10px}
+.grp{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px 12px}
+.grp-x{background:transparent;border-style:dashed}
+.grp-h{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:#cbd5e1;margin-bottom:9px;letter-spacing:.01em}
+.grp-h .rate{font-size:11.5px;font-weight:700;padding:1px 7px;border-radius:6px;background:rgba(59,130,246,.14);color:#93c5fd;font-variant-numeric:tabular-nums}
+.grp-note{margin-left:auto;font-size:11px;font-weight:500;color:var(--mut)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.f{display:flex;flex-direction:column;gap:4px}
+.f{display:flex;flex-direction:column;gap:5px;min-width:0}
 .f.full{grid-column:1/-1}
-.f label{font-size:12px;font-weight:500;color:var(--mut)}
-.f input{font:inherit;font-size:16px;padding:10px 11px;border:1px solid var(--line2);border-radius:10px;background:var(--bg);color:var(--ink);font-variant-numeric:tabular-nums;width:100%;transition:border-color .15s,box-shadow .15s}
+.f label{font-size:12px;font-weight:500;color:var(--mut);display:flex;align-items:center;gap:6px}
+.f input{font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line2);border-radius:9px;background:var(--bg);color:var(--ink);font-variant-numeric:tabular-nums;width:100%;transition:border-color .15s,box-shadow .15s}
+.f.num input{text-align:right;font-weight:500;letter-spacing:.01em}
+.f input::placeholder{color:#475569}
+.f.full.num input{font-size:17px;font-weight:600}
 .f input:focus,.f select:focus,.mbox textarea:focus,.ocr textarea:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.22)}
-.f input.unsure{border-color:rgba(251,191,36,.55);background:var(--warnbg)}
-.sec{grid-column:1/-1;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
-.grid .sec:first-child{border-top:0;padding-top:0;margin-top:0}
-.checks{margin:14px 0 4px;font-size:13px}
-.checks div{padding:3px 0}
-.c-ok{color:var(--ok)}.c-bad{color:var(--warn)}
-.cardfoot{display:flex;justify-content:space-between;gap:8px;margin-top:14px}
+.f input.calc{color:#cbd5e1;border-style:dashed}
+.f:has(input.calc) label::after{content:"hesaplandı";font-size:10.5px;font-weight:500;color:#64748b}
+.f input.unsure{border-color:rgba(251,191,36,.6);background:var(--warnbg);color:#fde68a;border-style:solid}
+.f:has(input.unsure) label{color:var(--warn)}
+.f:has(input.unsure) label::after{content:"kontrol et";font-size:10.5px;font-weight:600;color:#0f172a;background:var(--warn);padding:0 6px;border-radius:5px}
+
+.cardfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .spin{width:18px;height:18px;border:2.5px solid var(--line2);border-top-color:#34d399;border-radius:50%;animation:s .8s linear infinite;flex:none}
 @keyframes s{to{transform:rotate(360deg)}}
 .empty-state{text-align:center;color:var(--mut);padding:36px 16px;border:1.5px dashed var(--line2);border-radius:var(--r);font-size:14px}
@@ -349,18 +371,19 @@ function render(){
   else L.innerHTML=rows.map(r=>{
     if(r.status==='work'||r.status==='queued') return `<div class="card" id="c_${r.id}"><div class="head">${r.thumb?`<img class="thumb" src="${r.thumb}">`:'<div class="thumb empty"></div>'}<div class="meta"><div class="t1">${r.status==='work'?'Okunuyor…':'Sırada…'}</div><div class="t2">${esc(r.prog||'Z raporu inceleniyor')}</div></div><div class="spin"></div></div></div>`;
     if(r.status==='error') return `<div class="card"><div class="head">${r.thumb?`<img class="thumb" src="${r.thumb}">`:'<div class="thumb empty"></div>'}<div class="meta"><div class="t1" style="color:var(--err)">Okunamadı</div><div class="t2">${esc(r.err)}</div></div><button class="btn small" data-retry="${r.id}" ${r.blob||r.file?'':'disabled'}>Tekrar</button><button class="btn small danger" data-del="${r.id}">Sil</button></div></div>`;
-    let g='';
+    let g='',inSec=false;
     for(const f of FIELDS){
-      if(f.sec)g+=`<div class="sec">${f.sec}</div>`;
-      g+=`<div class="f${f.full?' full':''}"><label>${f.l}</label><input data-id="${r.id}" data-k="${f.k}" ${f.t!=='text'?'inputmode="decimal"':''} class="${r.unsure&&r.unsure.includes(f.k)?'unsure':''}" value="${esc(fv(f,r.d[f.k]))}"></div>`;
+      if(f.sec){if(inSec)g+='</div></section>';g+=`<section class="grp${f.x?' grp-x':''}"><div class="grp-h">${secHTML(f.sec)}</div><div class="grid">`;inSec=true}
+      g+=`<div class="f${f.full?' full':''}${f.t==='num'?' num':''}"><label>${shortL(f)}</label><input data-id="${r.id}" data-k="${f.k}" ${f.t!=='text'?'inputmode="decimal"':''} class="${fcls(r,f)}" value="${esc(fv(f,r.d[f.k]))}" ${f.t==='num'?'placeholder="—"':''} aria-label="${esc(f.l)}"></div>`;
     }
+    if(inSec)g+='</div></section>';
     return `<div class="card${r.open?' open':''}" id="c_${r.id}">
       <div class="head" data-tog="${r.id}">${headHTML(r)}</div>
       <div class="body">
-        ${r.thumb?`<img class="big" src="${r.thumb}" data-zoom>`:''}
+        ${r.thumb?`<img class="big" src="${r.thumb}" data-zoom alt="Z raporu fotoğrafı (dokun: büyüt)">`:''}
         ${r.d.z_rapor_mu===false?'<div class="notice" style="display:block">Bu görüntü bir Z raporuna benzemiyor, değerleri dikkatle kontrol et.</div>':''}
-        <div class="grid">${g}</div>
         <div class="checks">${checksHTML(r)}</div>
+        <div class="grps">${g}</div>
         ${r.ocr!=null?`<details class="ocr"><summary>Okunan metin (düzeltip yeniden okutabilirsin)</summary><textarea rows="10" data-ocr="${r.id}">${esc(r.ocr)}</textarea><div class="set-row"><button class="btn small" data-copyocr="${r.id}">📋 Kopyala</button><button class="btn small" data-reparse="${r.id}">Metne göre yeniden oku</button></div></details>`:''}
         <div class="cardfoot"><button class="btn small danger" data-del="${r.id}">Sil</button><button class="btn small" data-tog="${r.id}">Kapat</button></div>
       </div></div>`;
@@ -372,7 +395,17 @@ function headHTML(r){const bad=isBad(r);return `${r.thumb?`<img class="thumb" sr
         <div class="meta"><div class="t1"><span class="tt">${esc(r.d.tarih||'Tarih yok')} · Z ${esc(r.d.z_no||'—')}</span></div>
         <div class="t2">KDV ${fm(kdvT(r.d))} · Kart ${fm(r.d.kart)||'—'} · Nakit ${fm(r.d.nakit)||'—'}</div></div>
         <div class="amt">${fm(satis(r.d))||'—'}<span class="badge ${bad?'b-warn':'b-ok'}">${bad?'Kontrol et':'Tamam'}</span></div>`}
-function checksHTML(r){return checks(r).map(c=>`<div class="${c.ok?'c-ok':'c-bad'}">${c.ok?'':'⚠ '}${esc(c.m)}</div>`).join('')+(r.unsure&&r.unsure.length?`<div class="c-bad">⚠ Emin olunamayan alanlar turuncu işaretli.</div>`:'')}
+// Kontrol ekranı: bölüm başlığı (oran rozeti), bölüm içinde kısa etiketler, alan durumu (şüpheli / hesaplandı)
+function secHTML(t){const m=t.match(/^%(\d+)\s+KDV(.*)$/);if(m)return `<span class="rate">%${m[1]}</span>KDV${esc(m[2])}`;
+  const p=t.match(/^Poşet\s*\((%\d+)\)$/);if(p)return `<span class="rate">${p[1]}</span>Poşet`;
+  const k=t.match(/^Kontrol\s*—\s*(.*)$/);if(k)return `Kontrol<span class="grp-note">${esc(k[1])}</span>`;return esc(t)}
+const SHORT={tekel:'Toplam (KDV dahil)',g1:'Toplam (KDV dahil)',g10:'Toplam (KDV dahil)',g20:'Toplam (KDV dahil)',gp:'Toplam (KDV dahil)',
+  m1:'Matrah',m10:'Matrah',m20:'Matrah',mp:'Matrah',k1:'KDV',k10:'KDV',k20:'KDV',kp:'KDV',kart:'Kredi kartı',genel:'Fişteki genel toplam',not:'Not'};
+const shortL=f=>SHORT[f.k]||f.l;
+const fcls=(r,f)=>[(r.unsure||[]).includes(f.k)?'unsure':'',(r.auto||[]).includes(f.k)?'calc':''].filter(Boolean).join(' ');
+function checksHTML(r){const L=checks(r),bad=L.filter(c=>!c.ok).length,un=(r.unsure||[]).length;
+  const head=bad||un?`<div class="ck-h bad">${bad?`${bad} uyarı`:''}${bad&&un?' · ':''}${un?`${un} şüpheli alan`:''}<span>kontrol et</span></div>`:`<div class="ck-h ok">Tüm kontroller tamam</div>`;
+  return head+L.map(c=>`<div class="ck ${c.ok?'ok':'bad'}"><i>${c.ok?'✓':'!'}</i><span>${esc(c.m.replace(/\s*✓$/,''))}</span></div>`).join('')+(un?`<div class="ck bad"><i>!</i><span>Emin olunamayan alanlar turuncu işaretli.</span></div>`:'')}
 function renderSum(){
   const done=rows.filter(r=>r.status==='done');
   const tot=done.reduce((a,r)=>a+satis(r.d),0), kdv=done.reduce((a,r)=>a+kdvT(r.d),0);
@@ -383,7 +416,7 @@ function refreshCard(r){
   const c=document.getElementById('c_'+r.id);if(!c){render();return}
   c.querySelector('.head').innerHTML=headHTML(r);
   c.querySelector('.checks').innerHTML=checksHTML(r);
-  c.querySelectorAll('input[data-k]').forEach(i=>{const f=FIELDS.find(x=>x.k===i.dataset.k);if(i!==document.activeElement)i.value=fv(f,r.d[f.k]);i.classList.toggle('unsure',!!(r.unsure&&r.unsure.includes(f.k)))});
+  c.querySelectorAll('input[data-k]').forEach(i=>{const f=FIELDS.find(x=>x.k===i.dataset.k);if(i!==document.activeElement)i.value=fv(f,r.d[f.k]);i.classList.toggle('unsure',!!(r.unsure&&r.unsure.includes(f.k)));i.classList.toggle('calc',!!(r.auto&&r.auto.includes(f.k)))});
   renderSum();
 }
 
@@ -863,7 +896,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=46;
+const APP_VER=47;
 function showVer(){const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;$('#ver').style.color=pv===APP_VER?'':'var(--warn)';if(pv!==APP_VER)$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç';return pv===APP_VER}
 // Okuyucu yüklenemediyse (ör. GitHub güncellemesi yayılırken) kendiliğinden yeniden dene
 (function retryParser(n){if(showVer()||n>6)return;const sc=document.createElement('script');sc.src=`parser.js?v=${APP_VER}&r=${Date.now()}`;sc.onload=()=>{showVer();if(window.ZParse&&rows.length)render()};sc.onerror=()=>{};document.head.appendChild(sc);setTimeout(()=>retryParser(n+1),n<2?3000:15000)})(0);
