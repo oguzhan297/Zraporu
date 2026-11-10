@@ -169,4 +169,4 @@ $('#okonerisonra').onclick=()=>{$('#okoneri').hidden=true;try{localStorage.setIt
 $('#mode').addEventListener('change',()=>{okDurumUI();if(S.mode!=='paddle')$('#okoneri').hidden=true});
 setTimeout(async()=>{const h=await okDurumUI();if(h!==false||S.mode!=='paddle'||onIndir)return;const c=navigator.connection;
   if(c&&(c.type==='wifi'||c.type==='ethernet')&&!c.saveData){okuyucuIndir();return}
-  let sonra=0;try{sonra=+localStorage.getItem('zr_okoneri')||0}catch(e){}if(Date.now()-sonra<3*864e5)return;$('#okoneri').hidden=false},5000);
+  let sonra=0;try{sonra=+localStorage.getItem('zr_okoneri')||0}catch(e){}if(Date.now()-sonra<3*864e5)return;$("#okoneri").hidden=false},400);   // hemen: sonradan eklenip düğmeleri kaydırmasın
