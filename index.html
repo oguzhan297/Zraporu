@@ -9,16 +9,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="ikon.svg?v=59" type="image/svg+xml">
+<link rel="icon" href="ikon.svg?v=60" type="image/svg+xml">
 <link rel="alternate icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="js/parser.js?v=59"></script>
-<script src="js/goruntu.js?v=59"></script>
-<link rel="stylesheet" href="css/uygulama.css?v=59">
+<script src="js/parser.js?v=60"></script>
+<script src="js/goruntu.js?v=60"></script>
+<link rel="stylesheet" href="css/uygulama.css?v=60">
 </head>
 <body>
 <!-- İkonlar (SF Symbols tarzı çizgi ikonlar, 24×24). Kullanım: <svg class="ik"><use href="#i-kamera"/></svg> -->
@@ -41,14 +41,14 @@
 <symbol id="i-pano" viewBox="0 0 24 24"><rect x="5.5" y="5" width="13" height="16" rx="2"/><path d="M9 5V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1M12 10v6M9.5 13.5 12 16l2.5-2.5"/></symbol>
 </defs></svg>
 <div class="wrap">
-  <div class="brand"><img class="logo" src="ikon.svg?v=59" alt=""><div><h1>Z Raporu <span class="to">→</span> Luca</h1><div class="tag">Fiş tara · kontrol et · Luca’ya aktar</div></div></div>
+  <div class="brand"><img class="logo" src="ikon.svg?v=60" alt=""><div><h1>Z Raporu <span class="to">→</span> Luca</h1><div class="tag">Fiş tara · kontrol et · Luca’ya aktar</div></div></div>
   <p class="sub">Z raporunun fotoğrafını çek ya da metnini yapıştır; tarih, Z no, tekel, KDV grupları, poşet, kart ve nakit otomatik okunur. Kontrol et, sonra Luca şablonundaki CSV olarak indir.</p>
 
   <div class="sync s-wait" id="sync">Bağlanıyor…</div>
   <div class="notice" id="notice"></div>
 
   <div class="actions">
-    <label class="btn primary" for="cam"><svg class="ik"><use href="#i-kamera"/></svg>Fotoğraf çek</label>
+    <button class="btn primary" id="tekcek" type="button"><svg class="ik"><use href="#i-kamera"/></svg>Fotoğraf çek</button>
     <label class="btn sap" for="gal"><svg class="ik"><use href="#i-foto"/></svg>Galeriden seç</label>
   </div>
   <input type="file" id="cam" accept="image/*" capture="environment">
@@ -99,8 +99,8 @@
 <div class="toast" id="toast"></div>
 <div class="kamera" id="kamera" hidden>
   <video id="kvid" playsinline autoplay muted></video>
-  <div class="k-cerceve"><div class="k-ipucu">Fişi çerçeveye sığdır · uzunsa üst kısmı çek, sonra kartından devamını ekle</div></div>
-  <div class="k-ust"><span id="ksay">0 fiş</span><button class="btn small" id="kbitti" type="button">Bitti</button></div>
+  <div class="k-cerceve"><div class="k-ipucu" id="kipucu">Fişi çerçeveye sığdır · uzunsa üst kısmı çek, sonra kartından devamını ekle</div></div>
+  <div class="k-ust"><span id="ksay">0 fiş</span><button class="btn small" id="kyerel" type="button">Telefon kamerası</button><button class="btn small" id="kbitti" type="button">Bitti</button></div>
   <div class="k-mesaj" id="kmesaj"></div>
   <div class="k-alt"><img id="kson" alt=""><button class="k-dek" id="kdek" type="button" aria-label="Çek"></button><button class="k-isik" id="kisik" type="button" hidden aria-label="Fener"><svg class="ik"><use href="#i-fener"/></svg></button></div>
   <div class="k-flas" id="kflas"></div>
@@ -113,17 +113,17 @@
 </div></div>
 
 <!-- Uygulama: sıra önemli (tanımlar önce, açılış en son). Ayrıntı: README.md -->
-<script src="js/temel.js?v=59"></script>
-<script src="js/depo.js?v=59"></script>
-<script src="js/ayarlar.js?v=59"></script>
-<script src="js/kontrol.js?v=59"></script>
-<script src="js/kalite.js?v=59"></script>
-<script src="js/arayuz.js?v=59"></script>
-<script src="js/okuyucu-claude.js?v=59"></script>
-<script src="js/okuyucu-tesseract.js?v=59"></script>
-<script src="js/okuyucu-paddle.js?v=59"></script>
-<script src="js/okuma.js?v=59"></script>
-<script src="js/disari.js?v=59"></script>
-<script src="js/baslat.js?v=59"></script>
+<script src="js/temel.js?v=60"></script>
+<script src="js/depo.js?v=60"></script>
+<script src="js/ayarlar.js?v=60"></script>
+<script src="js/kontrol.js?v=60"></script>
+<script src="js/kalite.js?v=60"></script>
+<script src="js/arayuz.js?v=60"></script>
+<script src="js/okuyucu-claude.js?v=60"></script>
+<script src="js/okuyucu-tesseract.js?v=60"></script>
+<script src="js/okuyucu-paddle.js?v=60"></script>
+<script src="js/okuma.js?v=60"></script>
+<script src="js/disari.js?v=60"></script>
+<script src="js/baslat.js?v=60"></script>
 </body>
 </html>

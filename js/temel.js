@@ -1,6 +1,6 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=59;
+const APP_VER=60;
 const FIELDS=[
   {k:'tarih',l:'Tarih',c:'TARİH',t:'text',sec:'Genel'},
   {k:'z_no',l:'Z No',c:'Z NO',t:'text'},

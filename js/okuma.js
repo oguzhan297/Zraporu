@@ -122,21 +122,27 @@ async function devamEkle(file){const r=rows.find(x=>x.id===devId);devId=null;if(
 $('#devam').addEventListener('change',e=>{devamEkle(e.target.files[0]);e.target.value=''});
 
 // ---- Arka arkaya tarama: uygulama içi kamera (açık kalır; her kare kalite kontrolünden geçip sıraya girer) ----
-const KAM={akis:null,sayi:0,isik:false};
-async function kameraAc(){
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('Bu tarayıcıda uygulama içi kamera yok; 📷 Fotoğraf çek’i kullan');return}
+// mod 'tek': "Fotoğraf çek" — net bir kare alınınca kapanır. mod 'seri': "Arka arkaya tara" — "Bitti"ye kadar açık kalır.
+// Uygulama içi kamera yoksa ya da izin verilmediyse telefonun kendi kamerası (#cam) açılır.
+const KAM={akis:null,sayi:0,isik:false,mod:'seri',yerel:false};
+const yerelKamera=()=>{const i=$('#cam');i.value='';i.click()};
+async function kameraAc(mod='seri'){
+  KAM.mod=mod;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||(KAM.yerel&&mod==='tek')){if(mod==='tek')return yerelKamera();toast('Bu tarayıcıda uygulama içi kamera yok; Fotoğraf çek’i kullan');return}
   try{KAM.akis=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:3840},height:{ideal:2160}}})}
-  catch(e){toast(e&&e.name==='NotAllowedError'?'Kamera izni verilmedi (Ayarlar › Safari › Kamera)':'Kamera açılamadı');return}
+  catch(e){KAM.yerel=true;toast(e&&e.name==='NotAllowedError'?'Kamera izni verilmedi. Telefonun kamerası için tekrar dokun (izin: Ayarlar › Safari › Kamera)':'Kamera açılamadı. Telefonun kamerası için tekrar dokun');return}
+  const tek=mod==='tek';$('#ksay').hidden=tek;$('#kbitti').textContent=tek?'Vazgeç':'Bitti';
+  $('#kipucu').textContent=tek?'Fişi çerçeveye sığdır, net görününce çek · en yüksek kalite için: Telefon kamerası':'Fişi çerçeveye sığdır · uzunsa üst kısmı çek, sonra kartından devamını ekle';
   const v=$('#kvid');v.srcObject=KAM.akis;KAM.sayi=0;$('#ksay').textContent='0 fiş';$('#kson').removeAttribute('src');kMesaj('');
   $('#kamera').hidden=false;document.body.classList.add('kamera-acik');
   try{await v.play()}catch(e){}
   const tr=KAM.akis.getVideoTracks()[0],cap=tr.getCapabilities?tr.getCapabilities():{};
-  $('#kisik').hidden=!cap.torch;KAM.isik=false;
+  $('#kisik').hidden=!(cap.torch||'torch' in cap||/iP(hone|ad)/.test(navigator.userAgent));   // iOS desteği bazen yanlış bildirirKAM.isik=false;
   // sürekli netleme destekleniyorsa aç
   try{if(cap.focusMode&&cap.focusMode.includes('continuous'))await tr.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
 }
 function kameraKapat(){if(KAM.akis)KAM.akis.getTracks().forEach(t=>t.stop());KAM.akis=null;$('#kvid').srcObject=null;$('#kamera').hidden=true;document.body.classList.remove('kamera-acik');
-  if(KAM.sayi)toast(`${KAM.sayi} fiş eklendi; okumalar sırayla sürüyor`)}
+  if(KAM.sayi)toast(KAM.mod==='tek'?'Fotoğraf eklendi, okunuyor':`${KAM.sayi} fiş eklendi; okumalar sırayla sürüyor`)}
 function kMesaj(m,tur){const el=$('#kmesaj');el.textContent=m;el.className='k-mesaj'+(tur?' '+tur:'');clearTimeout(el._t);if(m)el._t=setTimeout(()=>{el.textContent='';el.className='k-mesaj'},2600)}
 async function kareAl(){
   const tr=KAM.akis&&KAM.akis.getVideoTracks()[0];if(!tr)return null;
@@ -145,9 +151,11 @@ async function kareAl(){
   const v=$('#kvid'),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;if(!c.width)return null;
   c.getContext('2d').drawImage(v,0,0);const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));c.width=c.height=1;return b;
 }
-$('#seri').onclick=kameraAc;
+$('#seri').onclick=()=>kameraAc('seri');
+$('#tekcek').onclick=()=>kameraAc('tek');
+$('#kyerel').onclick=()=>{KAM.sayi=0;kameraKapat();yerelKamera()};   // en yüksek çözünürlük: telefonun kendi kamerası
 $('#kbitti').onclick=kameraKapat;
-$('#kisik').onclick=async()=>{const tr=KAM.akis&&KAM.akis.getVideoTracks()[0];if(!tr)return;KAM.isik=!KAM.isik;try{await tr.applyConstraints({advanced:[{torch:KAM.isik}]})}catch(e){KAM.isik=false}$('#kisik').classList.toggle('on',KAM.isik)};
+$('#kisik').onclick=async()=>{const tr=KAM.akis&&KAM.akis.getVideoTracks()[0];if(!tr)return;KAM.isik=!KAM.isik;try{await tr.applyConstraints({advanced:[{torch:KAM.isik}]})}catch(e){KAM.isik=false;$('#kisik').hidden=true;kMesaj('Bu cihazda fener açılamıyor','kotu')}$('#kisik').classList.toggle('on',KAM.isik)};
 $('#kdek').onclick=async()=>{
   const d=$('#kdek');if(d.disabled)return;d.disabled=true;
   try{
@@ -159,7 +167,9 @@ $('#kdek').onclick=async()=>{
     const k=kaliteSorun(q);
     if(k.includes('bulanik')){kMesaj('Bulanık — sabit tut, tekrar çek','kotu');return}
     if(k.includes('kucuk')){kMesaj('Görüntü çok küçük — fişe yaklaş','kotu');return}
-    KAM.sayi++;$('#ksay').textContent=`${KAM.sayi} fiş`;$('#kson').src=URL.createObjectURL(b);kMesaj('✓ Eklendi, sıradaki fiş','iyi');
+    KAM.sayi++;$('#ksay').textContent=`${KAM.sayi} fiş`;$('#kson').src=URL.createObjectURL(b);
     onFiles([file]);
+    if(KAM.mod==='tek'){kameraKapat();return}
+    kMesaj('✓ Eklendi, sıradaki fiş','iyi');
   }finally{d.disabled=false}
 };

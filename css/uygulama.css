@@ -279,3 +279,5 @@ body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none
 .bar .sum .s2 b{font-size:15.5px}.bar .sum .s2 span{font-size:11.5px;color:var(--mut)}
 .bar .in{gap:7px}
 @media (max-width:420px){.bar .btn{padding:11px 13px;font-size:14.5px}.bar #xlsx .ik{display:none}.bar .sum .s2 span{display:none}}
+
+.k-ust{gap:8px}.k-ust #ksay{margin-right:auto}.k-ust #ksay[hidden]{display:block;visibility:hidden}
