@@ -14,12 +14,14 @@ function duzeltilen(r){if(!r.oku)return [];const n=v=>v==null||v===''?null:typeo
 function duzeltmeHTML(r){const k=duzeltilen(r);if(!k.length)return '';const ad=x=>(FIELDS.find(f=>f.k===x)||{}).l||x;
   return `<div class="duz">✎ Düzelttiğin alanlar: <b>${k.map(x=>esc(ad(x))).join(', ')}</b><div class="hint">Okuyucu bunları yanlış okumuş. Bildirirsen bu fiş test arşivine eklenir ve aynı hata bir daha tekrarlanmaz.</div><button class="btn small" data-bildir="${r.id}">📤 Okuma hatasını bildir</button></div>`}
 async function hataBildir(r){
-  const k=duzeltilen(r);let foto=null;try{foto=r.thumb&&r.thumb.startsWith('data:')?r.thumb:await IDB.get('imgs',r.id)}catch(e){}
+  const k=duzeltilen(r);let foto=null,asil=[];try{foto=r.thumb&&r.thumb.startsWith('data:')?r.thumb:await IDB.get('imgs',r.id)}catch(e){}
+  // fotoğrafın aslı saklıysa onu da ekle (test arşivi için en değerlisi)
+  try{const o=r.hasOrig?await IDB.get('orig',r.id):null;for(const b of o||[])asil.push(await new Promise((a,h)=>{const f=new FileReader();f.onload=()=>a(f.result);f.onerror=h;f.readAsDataURL(b)}))}catch(e){}
   const paket={tur:'zrapor-okuma-hatasi',surum:APP_VER,okuyucu:S.mode,olusturma:new Date().toISOString(),tarih:r.d.tarih,z_no:r.d.z_no,
     duzeltilen:Object.fromEntries(k.map(x=>[x,{okunan:r.oku[x],dogru:r.d[x]}])),dogru_degerler:okunanAnlik(r.d),okunan_degerler:r.oku,
-    okunan_metin:r.ocr||'',kalite:r.q||null,foto_kucuk:foto||null};
+    okunan_metin:r.ocr||'',kalite:r.q||null,foto_asil:asil,foto_kucuk:asil.length?null:foto||null};
   await offer(`okuma-hatasi_${(r.d.tarih||'tarihsiz').replace(/\./g,'-')}_Z${r.d.z_no||'-'}.json`,JSON.stringify(paket,null,1));
-  toast('Dosyayı fişin asıl fotoğrafıyla birlikte gönder');
+  toast(asil.length?'Dosyada fişin fotoğrafı da var; göndermen yeterli':'Dosyayı fişin asıl fotoğrafıyla birlikte gönder');
 }
 function render(){
   const L=$('#list');filtreUI();
@@ -39,6 +41,7 @@ function render(){
       <div class="head" data-tog="${r.id}">${headHTML(r)}</div>
       <div class="body">
         ${r.thumb?`<img class="big" src="${r.thumb}" data-zoom alt="Z raporu fotoğrafı (dokun: büyüt)">`:''}
+        ${r.src==='foto'||r.hasImg?`<div class="devam">${(r.sayfa||1)>1?`📄 ${r.sayfa} fotoğraftan birlikte okundu · `:''}<button class="lnk" data-devam="${r.id}">➕ Fiş uzunsa devamını ekle</button></div>`:''}
         ${kaliteHTML(r)}
         ${r.d.z_rapor_mu===false?'<div class="notice" style="display:block">Bu görüntü bir Z raporuna benzemiyor, değerleri dikkatle kontrol et.</div>':''}
         <div class="checks">${checksHTML(r)}</div>
@@ -82,7 +85,8 @@ function refreshCard(r){
 }
 
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr],[data-recam],[data-regal],[data-f],[data-aktsil],[data-bildir]');if(!t)return;
+  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr],[data-recam],[data-regal],[data-f],[data-aktsil],[data-bildir],[data-devam]');if(!t)return;
+  if(t.dataset.devam){devId=t.dataset.devam;const i=$('#devam');i.value='';i.click();return}
   if(t.dataset.f){FLT.f=t.dataset.f;render();return}
   if(t.dataset.aktsil){const r=rows.find(x=>x.id===t.dataset.aktsil);r.akt=null;save(r);render();toast('Bir sonraki Luca dosyasına yeniden girecek');return}
   if(t.dataset.bildir){hataBildir(rows.find(x=>x.id===t.dataset.bildir));return}

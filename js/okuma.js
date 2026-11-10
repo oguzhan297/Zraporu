@@ -30,14 +30,15 @@ async function extract(r){
   if(S.mode==='paddle')return extractPaddle(r);
   r.status='work';render();
   try{
-    const txt=await callClaude([{type:'image',source:{type:'base64',media_type:'image/jpeg',data:await b64(r.blob)}},{type:'text',text:PROMPT}],4000);const a=txt.indexOf('{'),b=txt.lastIndexOf('}');
+    const ps=sayfalar(r),imgs=[];for(let i=0;i<ps.length;i++)imgs.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await b64(i?(await shrink(ps[i])).blob:r.blob)}});
+    const txt=await callClaude([...imgs,{type:'text',text:PROMPT+(ps.length>1?`\nNot: Fiş uzun olduğu için ${ps.length} fotoğrafta, sırayla. Birleştirerek oku; iki fotoğrafta da görünen satırları bir kez say.`:'')}],4000);const a=txt.indexOf('{'),b=txt.lastIndexOf('}');
     if(a<0||b<a)throw new Error('Yanıt anlaşılamadı');
     const j=JSON.parse(txt.slice(a,b+1));
     const d={};
     for(const f of FIELDS){const v=j[f.k];d[f.k]=f.t==='text'?(v==null?'':String(v).trim()):(f.t==='int'?(pn(v)==null?null:Math.round(pn(v))):pn(v))}
     d.z_rapor_mu=j.z_rapor_mu;d.tarih=normDate(d.tarih);d.z_no=normZ(d.z_no);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
     r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];r.akt=null;r.oku=okunanAnlik(d);guessZ(r);
-    r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;
+    r.status='done';r.open=true;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     r.status='error';
@@ -48,6 +49,7 @@ async function extract(r){
 async function prep(r){   // küçük resmi ve yüklenecek kopyayı sırası gelince hazırla (seçim anında hepsini birden işleyip bekletme)
   if(r.blob||!r.file)return true;
   try{const s=await shrink(r.file);r.blob=s.blob;r.thumb=s.thumb;r._small=s.small}catch(e){r.status='error';r.err=e.message;render();return false}
+  saveOrig(r,r.pages||[r.file]);
   try{r.q=await fotoKalite(r.file);const k=kaliteSorun(r.q);if(k.length){toast('📷 '+KALITE[k[0]].m+' — okuma hatalı olabilir');setProg(r,KALITE[k[0]].m+'; yine de okunuyor…')}}catch(e){r.q=null}
   return true
 }
@@ -73,7 +75,7 @@ $('#cam').addEventListener('change',e=>{onFiles(e.target.files);e.target.value='
 let reId=null;
 function replacePhoto(file){const r=rows.find(x=>x.id===reId);reId=null;if(!r||!file)return;
   if(r.status==='work'||r.status==='queued'){toast('Bu rapor zaten okunuyor');return}
-  r.file=file;delete r.blob;r.thumb=null;r.q=null;r.status='queued';r.src='foto';r.open=false;r.prog='Yeni fotoğraf sırada';
+  r.file=file;r.pages=null;delete r.blob;r.thumb=null;r.q=null;r.status='queued';r.src='foto';r.open=false;r.prog='Yeni fotoğraf sırada';
   queue.push(r);render();pump()}
 $('#recam').addEventListener('change',e=>{replacePhoto(e.target.files[0]);e.target.value=''});
 $('#regal').addEventListener('change',e=>{replacePhoto(e.target.files[0]);e.target.value=''});
@@ -94,3 +96,27 @@ function addTexts(t){const parts=splitBulk(t),add=[];let dup=0;
   if(add.length){rows.forEach(x=>x.open=false);if(add.length===1)add[0].open=true;rows.unshift(...add.slice().reverse());for(const r of add)save(r);autoZ();render()}
   pm.hidden=true;
   toast(add.length?`${add.length} rapor eklendi${dup?`, ${dup} tanesi zaten listedeydi`:''} — kontrol et`:(dup?'Bu raporlar zaten listede':'Metinde rapor bulunamadı'))}
+
+// ---- Uzun fiş: devam fotoğrafı ----
+// Okunacak sayfalar (fotoğraflar): devam eklendiyse birden fazla
+const sayfalar=r=>r.pages&&r.pages.length?r.pages:[r.file||r.blob];
+// Sayfa metinlerini birleştir: iki fotoğrafın üst üste binen satırları bir kez sayılsın (aynı departman iki kez toplanmasın)
+function birlestir(metinler){
+  const nz=l=>l.toLocaleUpperCase('tr-TR').replace(/[^0-9A-ZÇĞİÖŞÜ%]/g,'');
+  let A=metinler[0].split('\n');
+  for(const m of metinler.slice(1)){const B=m.split('\n'),na=A.map(nz),nb=B.map(nz);let kes=0;
+    for(let j=Math.max(0,A.length-60);j<A.length;j++){const n=A.length-j;if(n>B.length)continue;let es=0,dolu=0;
+      for(let i=0;i<n;i++){if(na[j+i].length<3)continue;dolu++;if(na[j+i]===nb[i])es++}
+      if(dolu>=2&&es>=Math.max(2,dolu*.6)){kes=n;break}}
+    A=A.concat(B.slice(kes))}
+  return A.join('\n');
+}
+let devId=null;
+async function devamEkle(file){const r=rows.find(x=>x.id===devId);devId=null;if(!r||!file)return;
+  if(r.status==='work'||r.status==='queued'){toast('Bu rapor zaten okunuyor');return}
+  let onceki=null;try{onceki=r.hasOrig?await IDB.get('orig',r.id):null}catch(e){}
+  if(!onceki||!onceki.length){const k=r.thumb||await IDB.get('imgs',r.id).catch(()=>null);if(!k){toast('İlk fotoğraf bulunamadı; fişi baştan iki fotoğrafla eklemeyi dene');return}
+    onceki=[await (await fetch(k)).blob()];toast('İlk fotoğrafın aslı saklanmamış; küçük kopyası kullanılıyor')}
+  r.pages=[...onceki,file];r.file=r.pages[0];delete r.blob;r.status='queued';r.open=false;r.prog=`${r.pages.length} fotoğraf birlikte okunacak`;
+  queue.push(r);render();pump()}
+$('#devam').addEventListener('change',e=>{devamEkle(e.target.files[0]);e.target.value=''});

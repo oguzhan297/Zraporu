@@ -104,7 +104,7 @@ async function extractPaddle(r,ikinci){
     if(navigator.onLine===false||/indirilemedi/.test(e&&e.message||'')){r.status='error';r.err=e.message;delete r.prog;render();return}
     toast('PaddleOCR bu tarayıcıda çalışmadı, Tesseract ile okunuyor');return extractFree(r);
   }
-  const src=r.file||r.blob,t0=Date.now();let etiket='Okunuyor (PaddleOCR)…';
+  const ps=sayfalar(r),sid=i=>r.id+':'+i,t0=Date.now();let etiket='Okunuyor (PaddleOCR)…';
   // işçide okurken ekran serbest: geçen süreyi göster
   const sayac=setInterval(()=>setProg(r,`${etiket} ${Math.round((Date.now()-t0)/1000)} sn`),1000);
   try{
@@ -113,23 +113,23 @@ async function extractPaddle(r,ikinci){
     const passes=[{raw:1,full:1,tw:1600,maxSide:4000},{raw:1,tw:1280,maxSide:4000},{raw:1,full:1,tw:1800,maxSide:4000,gray:'max',sharp:1.5},
       {raw:1,full:1,tw:2000,maxSide:4000,sharp:1,p:{textDetThresh:.2,textDetBoxThresh:.45,textDetUnclipRatio:1.8}}];
     let best=null;const all=[],texts=[];
-    await motor.resim(r.id,src);
+    for(let i=0;i<ps.length;i++)await motor.resim(sid(i),ps[i]);
     try{
       for(let n=0;n<passes.length;n++){
         etiket=n?`Toplamlar tutmadı, tekrar okunuyor (${n+1}/${passes.length})…`:'Okunuyor (PaddleOCR)…';setProg(r,etiket);
-        const items=await motor.oku(r.id,src,passes[n]);
-        const text=paddleLines(items);
+        const sm=[];for(let i=0;i<ps.length;i++)sm.push(paddleLines(await motor.oku(sid(i),ps[i],passes[n])));
+        const text=birlestir(sm);
         const res=ZParse.parseZ(text),sc=ZParse.consistency(res);
         all.push(res);texts.push(text);
         if(!best||sc>best.sc)best={res,sc,text};
         if(sc>=6)break;
         if(all.length>=2){const mm=ZParse.merge(all);if(!mm.unsure.some(k=>k!=='z_no'&&k!=='diger'&&FIELDS.some(f=>f.k===k)))break}
       }
-    }finally{motor.birak(r.id)}
+    }finally{for(let i=0;i<ps.length;i++)motor.birak(sid(i))}
     // toplamları tam tutan bir okuma varsa onu al; yoksa okumaları alan alan birleştir
     const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
     applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
-    r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;delete r.prog;
+    r.status='done';r.open=true;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;delete r.prog;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     clearInterval(sayac);
