@@ -546,6 +546,8 @@
     if (d.genel != null && Math.abs(grp - d.genel) >= 0.006)
       { for (const x of ['tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'gp']) if (d[x]) unsure.push(x); if (!d.tekel) unsure.push('tekel'); }   // boş Tekel de şüpheli
     checkTk(d, unsure, notes);
+    if (d._belgePay) { const [bn, bk] = d._belgePay, ok = d.genel != null && Math.abs(bn + bk + (d.diger || 0) - d.genel) < 0.006;
+      if (ok && (d.nakit !== bn || d.kart !== bk)) { d.nakit = bn; d.kart = bk; for (const x of ['nakit', 'kart']) { let j; while ((j = unsure.indexOf(x)) >= 0) unsure.splice(j, 1); } } }
     knvTo1(L, d, unsure, notes, amtAt);
     if (ciroReport(L, d, unsure, notes)) { const u = [...new Set(unsure)]; return { d, unsure: u, notes: [...new Set(notes)], found: Object.keys(d).filter(k => d[k] != null).length, amts: allA }; }
     // zayıf kaynaklı genel toplam ödemelerle de tutmuyorsa gruplar dahil hiçbir şey "kesin" sayılmasın ("TOPLAM *724,00" genel sanıldı, diğer gruplar 0 yapıldı)
@@ -722,11 +724,11 @@
     if (gen == null && alt.length) d.genel = alt[0];
     else if (gen != null && alt.length && !alt.some(v => Math.abs(v - gen) < 0.006)) { const gv = variants(gen).find(v => alt.some(a => Math.abs(a - v) < 0.006)); if (gv != null) d.genel = gv; }
     // ÖDEME BİLGİLERİ yalnızca doğrulama için: nakit toplamı ve diğer tüm ödeme türlerinin (kredi + karekod…) toplamı
-    let qr = 0;   // karekod ile ödenen (kredi kartına eklenmez)
+    // ÖDEME BİLGİLERİ yalnız doğrulama içindir: kredi + karekod vb. toplamı = belge "-KREDİ"
     { let lab = null, n = null, k = 0, kn = 0, kl = 0;
       for (const l of L.filter(l => l.sec === 'odeme' && !/B[İI1]LG|---/.test(l.s))) {
-        if (/TOPLA/.test(l.s)) { if (l.a.length && lab) { const v = l.a[l.a.length - 1]; if (lab === 'n') n = v; else if (lab === 'q') qr = r2(qr + v); else { k += v; kn++; } } lab = null; }
-        else if (/N?AK[İI1]T/.test(l.s)) lab = 'n'; else if (/KAREK[O0]D|\bQR\b/.test(l.s)) lab = 'q'; else if (hasLetters(l.s)) { lab = 'k'; kl++; }
+        if (/TOPLA/.test(l.s)) { if (l.a.length && lab) { const v = l.a[l.a.length - 1]; if (lab === 'n') n = v; else { k += v; kn++; } } lab = null; }
+        else if (/N?AK[İI1]T/.test(l.s)) lab = 'n'; else if (hasLetters(l.s)) { lab = 'k'; kl++; }
       }
       if (n != null) d._payN = n; if (kn && kn === kl) d._payK = r2(k); }
     // Genel toplam: belge SATIŞ TOPLAMI, GÜNLÜK FİŞ DÖKÜMÜ TOPLAM, KASİYER toplamı, KDV grupları toplamı, ödemeler toplamı — en az iki kaynağın tuttuğu değer
@@ -737,8 +739,8 @@
       for (const l of L.filter(l => l.sec === 'kasiyer')) if (l.a.length) add(l.a[l.a.length - 1], 'kasiyer');
       if (Object.keys(groups).length) add(Object.values(groups).reduce((a, b) => a + b.g, 0), 'grup');
       if (d._dp) add(Object.values(d._dp).reduce((a, b) => a + b, 0), 'dept');
-      if (nk != null && kr != null) add(nk + kr + (dg || 0), 'odeme');      // belge KREDİ karekodu da içerir
-      if (d._payN != null && d._payK != null) add(d._payN + d._payK + qr, 'odeme2');
+      if (nk != null && kr != null) add(nk + kr + (dg || 0), 'odeme');
+      if (d._payN != null && d._payK != null) add(d._payN + d._payK, 'odeme2');
       const C = new Map();
       for (const x of src) for (const v of [x.v, ...variants(x.v)]) { const t = C.get(v) || new Set(); t.add(x.tag); C.set(v, t); }
       // aynı kaynağın kendi varyantı ikinci oy sayılmaz; en çok farklı kaynağın tuttuğu değer
@@ -748,11 +750,9 @@
       if (!best || best.n < 2) for (const [v, t] of C) if (!best || t.size > best.n) best = { v, n: t.size };
       if (best && best.n >= 2) { if (d.genel !== best.v) notes.push(`Genel toplam: ${String(d.genel ?? '—').replace('.', ',')} → ${best.v.toFixed(2).replace('.', ',')} (${best.n} ayrı satırla doğrulandı)`); d.genel = best.v; genOk = true; d._genWeak = false; clear('genel'); }
       else unsure.push('genel'); }
-    // Karekod ödemeleri kullanıcıyı ilgilendirmez, kredi kartına eklenmez: belge "-KREDİ" karekodu da içerir → ayır.
-    // Ayrılan tutar yalnız ödeme denkliği için d.diger'de tutulur (gösterilmez, Luca'ya aktarılmaz).
-    if (qr > 0 && d.kart != null && d.kart >= qr) {
-      d.kart = r2(d.kart - qr); d.diger = r2((d.diger || 0) + qr); d._qr = qr;
-    }
+    // Kullanıcı kuralı: nakit ve kredi kartı yalnız BELGE TİPLERİ altındaki "-NAKİT" ve "-KREDİ" satırlarından alınır
+    // ("-KREDİ" karekodu da içerir; ÖDEME BİLGİLERİ yalnız doğrulama içindir). Okunduysa sonraki adımlar değiştirmesin diye işaretle.
+    if (nk != null && kr != null) d._belgePay = [nk, kr];
     // bulunan gruplar genel toplamı TAM veriyorsa listede olmayan oranlar gerçekten 0'dır
     if (Object.keys(groups).length && d.genel != null && genOk) {
       const sum = Object.values(groups).reduce((a, b) => a + b.g, 0);
@@ -1088,5 +1088,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 50, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 51, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
