@@ -15,20 +15,21 @@ async function offer(name,data){
 }
 // Luca'ya aktarılacaklar: henüz aktarılmamış raporlar. Hepsi aktarıldıysa ikinci dokunuşta tümü yeniden indirilir (işaretler değişmez).
 function aktarilacak(btn,label){
-  const done=rows.filter(r=>r.status==='done'),yeni=done.filter(r=>!r.akt);
+  const done=rows.filter(r=>r.status==='done'),yeni=done.filter(r=>!r.akt),ilk=btn.dataset.html||(btn.dataset.html=btn.innerHTML);
   if(yeni.length)return {list:yeni,isaretle:true};
-  if(btn.dataset.armed==='hepsi'){btn.dataset.armed='';btn.textContent=label;return {list:done,isaretle:false}}
+  if(btn.dataset.armed==='hepsi'){btn.dataset.armed='';btn.innerHTML=ilk;return {list:done,isaretle:false}}
   btn.dataset.armed='hepsi';btn.textContent='Hepsini indir?';toast('Hepsi daha önce Luca’ya aktarıldı. Tekrar dokunursan tümü yeniden indirilir.');
-  setTimeout(()=>{if(btn.dataset.armed==='hepsi'){btn.dataset.armed='';btn.textContent=label}},4000);return null;
+  setTimeout(()=>{if(btn.dataset.armed==='hepsi'){btn.dataset.armed='';btn.innerHTML=ilk}},4000);return null;
 }
 function isaretle(list){const t=Date.now();for(const r of list){r.akt=t;save(r)}render();toast(`${list.length} rapor Luca’ya aktarıldı olarak işaretlendi`)}
 function guard(btn,label,list){
   const bad=(list||rows).filter(r=>r.status==='done'&&isBad(r)).length, pend=rows.filter(r=>r.status==='work'||r.status==='queued'||r.status==='error').length;
   if(!bad&&!pend)return true;
-  if(btn.dataset.armed==='1'){btn.dataset.armed='';btn.textContent=label;return true}
+  const ilk=btn.dataset.html||(btn.dataset.html=btn.innerHTML);
+  if(btn.dataset.armed==='1'){btn.dataset.armed='';btn.innerHTML=ilk;return true}
   btn.dataset.armed='1';btn.textContent='Yine de indir?';
   toast([bad?`${bad} raporda uyarı var`:'',pend?`${pend} rapor henüz okunmadı / hatalı, dosyaya girmez`:''].filter(Boolean).join(' · '));
-  setTimeout(()=>{btn.dataset.armed='';btn.textContent=label},4000);return false;
+  setTimeout(()=>{btn.dataset.armed='';btn.innerHTML=ilk},4000);return false;
 }
 $('#csv').onclick=async e=>{const b=e.currentTarget,a=aktarilacak(b,'⬇ Luca CSV');if(!a||!guard(b,'⬇ Luca CSV',a.list))return;
   if(await offer(fname('csv'),new Blob([enc1254(csvText(a.list)+'\r\n')]))&&a.isaretle)isaretle(a.list)};

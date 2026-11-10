@@ -12,7 +12,7 @@ const aktTarih=(t,uzun)=>{const d=new Date(t);return uzun?d.toLocaleDateString('
 function duzeltilen(r){if(!r.oku)return [];const n=v=>v==null||v===''?null:typeof v==='number'?Math.round(v*100):String(v).trim();
   return Object.keys(r.oku).filter(k=>n(r.oku[k])!==n(r.d[k])&&!(r.auto||[]).includes(k))}
 function duzeltmeHTML(r){const k=duzeltilen(r);if(!k.length)return '';const ad=x=>(FIELDS.find(f=>f.k===x)||{}).l||x;
-  return `<div class="duz">✎ Düzelttiğin alanlar: <b>${k.map(x=>esc(ad(x))).join(', ')}</b><div class="hint">Okuyucu bunları yanlış okumuş. Bildirirsen bu fiş test arşivine eklenir ve aynı hata bir daha tekrarlanmaz.</div><button class="btn small" data-bildir="${r.id}">📤 Okuma hatasını bildir</button></div>`}
+  return `<div class="duz">${ik('kalem')}Düzelttiğin alanlar: <b>${k.map(x=>esc(ad(x))).join(', ')}</b><div class="hint">Okuyucu bunları yanlış okumuş. Bildirirsen bu fiş test arşivine eklenir ve aynı hata bir daha tekrarlanmaz.</div><button class="btn small" data-bildir="${r.id}">${ik('paylas')}Okuma hatasını bildir</button></div>`}
 async function hataBildir(r){
   const k=duzeltilen(r);let foto=null,asil=[];try{foto=r.thumb&&r.thumb.startsWith('data:')?r.thumb:await IDB.get('imgs',r.id)}catch(e){}
   // fotoğrafın aslı saklıysa onu da ekle (test arşivi için en değerlisi)
@@ -41,12 +41,12 @@ function render(){
       <div class="head" data-tog="${r.id}">${headHTML(r)}</div>
       <div class="body">
         ${r.thumb?`<img class="big" src="${r.thumb}" data-zoom alt="Z raporu fotoğrafı (dokun: büyüt)">`:''}
-        ${r.src==='foto'||r.hasImg?`<div class="devam">${(r.sayfa||1)>1?`📄 ${r.sayfa} fotoğraftan birlikte okundu · `:''}<button class="lnk" data-devam="${r.id}">➕ Fiş uzunsa devamını ekle</button></div>`:''}
+        ${r.src==='foto'||r.hasImg?`<div class="devam">${(r.sayfa||1)>1?`${ik('sayfa')}${r.sayfa} fotoğraftan birlikte okundu · `:''}<button class="lnk" data-devam="${r.id}">${ik('arti')}Fiş uzunsa devamını ekle</button></div>`:''}
         ${kaliteHTML(r)}
         ${r.d.z_rapor_mu===false?'<div class="notice" style="display:block">Bu görüntü bir Z raporuna benzemiyor, değerleri dikkatle kontrol et.</div>':''}
         <div class="checks">${checksHTML(r)}</div>
         <div class="grps">${g}</div>
-        ${r.ocr!=null?`<details class="ocr"><summary>Okunan metin (düzeltip yeniden okutabilirsin)</summary><textarea rows="10" data-ocr="${r.id}">${esc(r.ocr)}</textarea><div class="set-row"><button class="btn small" data-copyocr="${r.id}">📋 Kopyala</button><button class="btn small" data-reparse="${r.id}">Metne göre yeniden oku</button></div></details>`:''}
+        ${r.ocr!=null?`<details class="ocr"><summary>Okunan metin (düzeltip yeniden okutabilirsin)</summary><textarea rows="10" data-ocr="${r.id}">${esc(r.ocr)}</textarea><div class="set-row"><button class="btn small" data-copyocr="${r.id}">${ik('kopya')}Kopyala</button><button class="btn small" data-reparse="${r.id}">Metne göre yeniden oku</button></div></details>`:''}
         ${duzeltmeHTML(r)}
         ${r.akt?`<div class="aktbar">✓ ${aktTarih(r.akt,1)} tarihinde Luca dosyasına aktarıldı. <button class="btn small" data-aktsil="${r.id}">Aktarılmadı yap</button></div>`:''}
         <div class="cardfoot"><button class="btn small danger" data-del="${r.id}">Sil</button><button class="btn small" data-tog="${r.id}">Kapat</button></div>
@@ -54,7 +54,7 @@ function render(){
   }).join('');
   renderSum();
 }
-function headHTML(r){const bad=isBad(r);return `${r.thumb?`<img class="thumb" src="${r.thumb}">`:`<div class="thumb empty">${r.src==='foto'?'📷':r.src==='metin'?'📋':'elle'}</div>`}
+function headHTML(r){const bad=isBad(r);return `${r.thumb?`<img class="thumb" src="${r.thumb}">`:`<div class="thumb empty">${ik(r.src==='foto'?'kamera':r.src==='metin'?'metin':'kalem')}</div>`}
         <div class="meta"><div class="t1"><span class="tt">${esc(r.d.tarih||'Tarih yok')} · Z ${esc(r.d.z_no||'—')}</span></div>
         <div class="t2">${r.akt?`<span class="akt" title="Luca dosyasına aktarıldı">✓ Luca ${aktTarih(r.akt)}</span> `:''}KDV ${fm(kdvT(r.d))} · Kart ${fm(r.d.kart)||'—'} · Nakit ${fm(r.d.nakit)||'—'}</div></div>
         <div class="amt">${fm(satis(r.d))||'—'}<span class="badge ${bad?'b-warn':'b-ok'}">${bad?'Kontrol et':'Tamam'}</span></div>`}
@@ -73,7 +73,7 @@ function renderSum(){
   const done=rows.filter(r=>r.status==='done');
   const tot=done.reduce((a,r)=>a+satis(r.d),0), kdv=done.reduce((a,r)=>a+kdvT(r.d),0);
   const yeni=done.filter(r=>!r.akt).length;
-  $('#sum').innerHTML=`<b>${done.length}</b> rapor · ${yeni===done.length?'hepsi yeni':yeni?`<b class="yeni">${yeni} yeni</b>`:'hepsi aktarıldı'}<br>Toplam <b>${fm(tot)}</b> · KDV ${fm(kdv)}`;
+  $('#sum').innerHTML=`<div class="s1"><b>${done.length}</b> rapor · ${yeni===done.length?'hepsi yeni':yeni?`<b class="yeni">${yeni} yeni</b>`:'hepsi aktarıldı'}</div><div class="s2"><b>${fm(tot)}</b> <span>KDV ${fm(kdv)}</span></div>`;
   $('#xlsx').disabled=!done.length;$('#csv').disabled=!done.length;$('#copy').disabled=!done.length;
 }
 function refreshCard(r){

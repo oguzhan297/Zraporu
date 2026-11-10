@@ -8,7 +8,7 @@ const IDB=(()=>{let p;
     all:st=>open().then(d=>req(d.transaction(st).objectStore(st).getAll())),get:(st,k)=>open().then(d=>req(d.transaction(st).objectStore(st).get(k)))};
 })();
 const ser=r=>({ocr:r.ocr??null,d:r.d||{},unsure:r.unsure||[],auto:r.auto||[],src:r.src||'',_ack:r._ack||'',hasImg:!!r.hasImg,created:r.created||Date.now(),_zAuto:!!r._zAuto,_zManual:!!r._zManual,_zRead:r._zRead||'',q:r.q||null,akt:r.akt||null,oku:r.oku||null,hasOrig:!!r.hasOrig,sayfa:r.sayfa||1});
-function setStore(st){const el=$('#sync');if(!el)return;el.textContent={ok:'📱 Bu telefonda kayıtlı',err:'⚠ Kaydedilemedi — CSV’yi indirmeden kapatma',wait:'Yükleniyor…'}[st]||'';el.className='sync s-'+st}
+function setStore(st){const el=$('#sync');if(!el)return;el.innerHTML=(st==='ok'?ik('telefon'):'')+({ok:'Bu telefonda kayıtlı',err:'⚠ Kaydedilemedi — CSV’yi indirmeden kapatma',wait:'Yükleniyor…'}[st]||'');el.className='sync s-'+st}
 function save(r){if(!r||r.status!=='done')return;IDB.put('rows',{id:r.id,...ser(r)}).then(()=>setStore('ok')).catch(()=>{setStore('err');toast('Kaydedilemedi: telefon hafızası dolu olabilir.')})}
 async function removeRows(list){
   const ids=new Set(list.map(x=>x.id));rows=rows.filter(x=>!ids.has(x.id));autoZ();render();

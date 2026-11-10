@@ -30,5 +30,5 @@ function kaliteSorun(o,okumaSorunlu){if(!o)return [];const k=[];
   if(okumaSorunlu){if(o.p95<110)k.push('karanlik');else if(o.kontrast<90&&o.p5>85)k.push('soluk')}
   return k}
 function kaliteHTML(r){const k=kaliteSorun(r.q,isBad(r));if(!k.length)return '';
-  return `<div class="qwarn"><div class="qw-h">📷 Fotoğraf kalitesi düşük — okuma hatalı olabilir</div>${k.map(x=>`<div class="qw-i"><b>${KALITE[x].m}.</b> ${KALITE[x].ip}</div>`).join('')}
-    <div class="set-row"><button class="btn small primary" data-recam="${r.id}">📷 Yeniden çek</button><button class="btn small" data-regal="${r.id}">🖼️ Galeriden değiştir</button></div></div>`}
+  return `<div class="qwarn"><div class="qw-h">${ik('uyari')}Fotoğraf kalitesi düşük — okuma hatalı olabilir</div>${k.map(x=>`<div class="qw-i"><b>${KALITE[x].m}.</b> ${KALITE[x].ip}</div>`).join('')}
+    <div class="set-row"><button class="btn small primary" data-recam="${r.id}">${ik('kamera')}Yeniden çek</button><button class="btn small" data-regal="${r.id}">${ik('foto')}Galeriden değiştir</button></div></div>`}

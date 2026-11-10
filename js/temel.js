@@ -1,6 +1,6 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=58;
+const APP_VER=59;
 const FIELDS=[
   {k:'tarih',l:'Tarih',c:'TARİH',t:'text',sec:'Genel'},
   {k:'z_no',l:'Z No',c:'Z NO',t:'text'},
@@ -58,6 +58,8 @@ const NUMK=FIELDS.filter(f=>f.t!=='text').map(f=>f.k);
 const LS='zrapor_rows_v2';
 let rows=[];let queue=[],busy=false;
 const $=s=>document.querySelector(s);
+const ik=a=>`<svg class="ik"><use href="#i-${a}"/></svg>`;   // ikon (index.html’deki SVG setinden)
+
 
 function pn(v){
   if(v===null||v===undefined)return null;
