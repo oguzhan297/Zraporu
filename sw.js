@@ -1,9 +1,9 @@
 // Uygulamayı internetsiz de açılabilir yapar. Sürüm değişince eski önbellek silinir.
-const V='zrapor-v53';
+const V='zrapor-v54';
 // PaddleOCR (paddle.js, ONNX Runtime, modeller) büyük dosyalar: ayrı önbellekte durur, uygulama sürümü değişince silinmez
 const OCR='zrapor-ocr-1';
 const isOcr=u=>u.hostname==='paddle-model-ecology.bj.bcebos.com'||(u.hostname==='cdn.jsdelivr.net'&&u.pathname.startsWith('/npm/onnxruntime-web@'))||(u.origin===self.location.origin&&u.pathname.endsWith('/paddle.js'));
-const SHELL=['./','./index.html','./parser.js?v=53','./goruntu.js?v=53','./paddle-worker.js?v=53','./manifest.webmanifest','./icon-192.png','./icon-512.png',
+const SHELL=['./','./index.html','./css/uygulama.css?v=54','./js/parser.js?v=54','./js/goruntu.js?v=54','./js/paddle-worker.js?v=54','./js/temel.js?v=54','./js/depo.js?v=54','./js/ayarlar.js?v=54','./js/kontrol.js?v=54','./js/kalite.js?v=54','./js/arayuz.js?v=54','./js/okuyucu-claude.js?v=54','./js/okuyucu-tesseract.js?v=54','./js/okuyucu-paddle.js?v=54','./js/okuma.js?v=54','./js/disari.js?v=54','./js/baslat.js?v=54','./manifest.webmanifest','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 // cache:'reload' → tarayıcının kendi önbelleğindeki eski kopyayı değil, sunucudaki güncel dosyayı al
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>Promise.all(SHELL.map(u=>c.add(new Request(u,u.startsWith('http')?{mode:'no-cors'}:{cache:'reload'})).catch(()=>{})))).then(()=>self.skipWaiting()))});

@@ -1,4 +1,4 @@
-// PaddleOCR.js'i (PP-OCRv6) tek dosyalık tarayıcı betiğine paketler → ../paddle.js
+// PaddleOCR.js'i (PP-OCRv6) tek dosyalık tarayıcı betiğine paketler → ../vendor/paddle.js
 // Derlemek için bu klasörde: npm install && npm run build
 // Hem sayfada (<script>) hem de modül işçide (import) çalışır. İşçide document olmadığından görüntü cv.Mat olarak verilir.
 import { PaddleOCR } from "@paddleocr/paddleocr-js";

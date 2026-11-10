@@ -1,0 +1,79 @@
+// Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
+// Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
+const APP_VER=54;
+const FIELDS=[
+  {k:'tarih',l:'Tarih',c:'TARİH',t:'text',sec:'Genel'},
+  {k:'z_no',l:'Z No',c:'Z NO',t:'text'},
+  {k:'aciklama',l:'Açıklama',c:'AÇIKLAMA',t:'text',full:true},
+  {k:'tekel',l:'Genel Toplam Tekel',c:'GENEL TOPLAM TEKEL',t:'num',sec:'Tekel',full:true},
+  {k:'g1',l:'Genel Toplam %1',c:'GENEL TOPLAM %1',t:'num',sec:'%1 KDV',full:true},
+  {k:'m1',l:'%1 Matrah',c:'%1 MATRAH',t:'num'},{k:'k1',l:'%1 KDV',c:'%1 KDV',t:'num'},
+  {k:'g10',l:'Genel Toplam %10',c:'GENEL TOPLAM %10',t:'num',sec:'%10 KDV',full:true},
+  {k:'m10',l:'%10 Matrah',c:'%10 MATRAH',t:'num'},{k:'k10',l:'%10 KDV',c:'%10 KDV',t:'num'},
+  {k:'g20',l:'Genel Toplam %20',c:'GENEL TOPLAM %20',t:'num',sec:'%20 KDV (poşet hariç)',full:true},
+  {k:'m20',l:'%20 Matrah',c:'%20 MATRAH',t:'num'},{k:'k20',l:'%20 KDV',c:'%20 KDV',t:'num'},
+  {k:'gp',l:'Genel Toplam Poşet',c:'GENEL TOPLAM POŞET',t:'num',sec:'Poşet (%20)',full:true},
+  {k:'mp',l:'%20 Poşet Matrah',c:'%20 POŞET MATRAH',t:'num'},{k:'kp',l:'%20 Poşet KDV',c:'%20 POŞET KDV',t:'num'},
+  {k:'kart',l:'Kredi Kartı',c:'KREDİ KARTI',t:'num',sec:'Ödeme'},
+  {k:'nakit',l:'Nakit',c:'NAKİT',t:'num'},
+  {k:'genel',l:'Fişteki Genel Toplam (sadece kontrol)',t:'num',sec:'Kontrol — Luca’ya aktarılmaz',full:true,x:true},
+  {k:'not',l:'Not (aktarılmaz)',t:'text',full:true,x:true}
+];
+const OUT=FIELDS.filter(f=>!f.x);
+const GROUPS=[['g1','m1','k1'],['g10','m10','k10'],['g20','m20','k20'],['gp','mp','kp']];
+const r2=n=>Math.round(n*100)/100;
+const RATE={g1:.01,g10:.10,g20:.20,gp:.20};
+function fillGroup(d,[g,m,k],auto){
+  const set=(key,v)=>{d[key]=r2(v);auto.push(key)};
+  if(d[g]!=null&&d[m]==null&&d[k]==null){set(m,d[g]/(1+RATE[g]));set(k,d[g]-d[m])}
+  else if(d[g]==null&&d[m]!=null&&d[k]!=null)set(g,d[m]+d[k]);
+  else if(d[m]==null&&d[g]!=null&&d[k]!=null)set(m,d[g]-d[k]);
+  else if(d[k]==null&&d[g]!=null&&d[m]!=null)set(k,d[g]-d[m]);
+  else if(d[g]==null&&d[m]!=null&&d[k]==null){set(k,d[m]*RATE[g]);set(g,d[m]+d[k])}
+}
+function fill(d,auto=[]){for(const G of GROUPS)fillGroup(d,G,auto);return auto}
+function refill(r,key){
+  r.auto=(r.auto||[]).filter(k=>k!==key);
+  const G=GROUPS.find(G=>G.includes(key));if(!G)return;
+  // Genel toplam elle yazıldıysa matrah ve KDV her zaman ondan yeniden hesaplanır
+  if(key===G[0]){const [g,m,k]=G;r.d[m]=r.d[k]=null;r.auto=r.auto.filter(x=>x!==m&&x!==k);
+    if(r.d[g]!=null){fillGroup(r.d,G,r.auto);if(r.unsure)r.unsure=r.unsure.filter(x=>x!==m&&x!==k)}return}
+  for(const k of G)if(r.auto.includes(k)){r.d[k]=null;r.auto=r.auto.filter(x=>x!==k)}
+  fillGroup(r.d,G,r.auto);
+}
+function normDate(s){
+  s=String(s||'').trim();let m;
+  if(m=s.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/))return `${m[3].padStart(2,'0')}.${m[2].padStart(2,'0')}.${m[1]}`;
+  if(m=s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/))return `${m[1].padStart(2,'0')}.${m[2].padStart(2,'0')}.${m[3].length===2?'20'+m[3]:m[3]}`;
+  return s;
+}
+function dateOk(s){const m=String(s||'').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);if(!m)return false;const d=new Date(+m[3],+m[2]-1,+m[1]);return d.getDate()===+m[1]&&d.getMonth()===+m[2]-1&&+m[3]>=2000&&d<=new Date(Date.now()+864e5)}
+const satis=d=>['tekel','g1','g10','g20','gp'].reduce((a,k)=>a+(d[k]||0),0);
+const kdvT=d=>['k1','k10','k20','kp'].reduce((a,k)=>a+(d[k]||0),0);
+let ACK='Z RAPORU';
+const normZ=z=>{z=String(z??'').trim();return /^\d+$/.test(z)?z.replace(/^0+(?=\d)/,''):z};
+try{const a=localStorage.getItem('zrapor_ack');if(a&&a!=='Z RAPORU {z}')ACK=a}catch(e){}
+const mkAck=d=>ACK.split('{z}').join(d.z_no||'').split('{tarih}').join(d.tarih||'').replace(/\s+/g,' ').trim();
+const NUMK=FIELDS.filter(f=>f.t!=='text').map(f=>f.k);
+const LS='zrapor_rows_v2';
+let rows=[];let queue=[],busy=false;
+const $=s=>document.querySelector(s);
+
+function pn(v){
+  if(v===null||v===undefined)return null;
+  if(typeof v==='number')return isFinite(v)?v:null;
+  let s=String(v).trim().replace(/\s|₺|TL|\*/gi,'');
+  if(!s)return null;
+  if(s.includes(',')) s=s.replace(/\./g,'').replace(',','.');
+  else if(/\.\d{3}$/.test(s)&&!/\.\d{3}\./.test(s)&&s.split('.').length>=2&&/^\d{1,3}(\.\d{3})+$/.test(s)) s=s.replace(/\./g,'');
+  const n=parseFloat(s);return isFinite(n)?n:null;
+}
+const fm=n=>n==null?'':n.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fv=(f,v)=>v==null?'':(f.t==='num'?fm(v):f.t==='int'?String(v):String(v));
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,10);
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)}
+function notice(m){const n=$('#notice');n.style.display=m?'block':'none';n.textContent=m||''}
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Yazı tanıma aracı indirilemedi. İnternet bağlantını kontrol et.'));document.head.appendChild(s)})}
+function openImage(src){return new Promise((res,rej)=>{const u=URL.createObjectURL(src),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);res(im)};im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('Fotoğraf açılamadı'))};im.src=u})}
+function setProg(r,txt){r.prog=txt;const el=document.querySelector(`#c_${r.id} .t2`);if(el)el.textContent=txt}

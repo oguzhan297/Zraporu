@@ -8,6 +8,6 @@ await build({
   external: ["fs", "path", "crypto"],                         // OpenCV.js'in Node yolları; tarayıcıda kullanılmaz
   define: { __ORT_VER__: JSON.stringify(ortVer) },
   banner: { js: `/* @paddleocr/paddleocr-js ${paddleVer} + onnxruntime-web ${ortVer} (Apache-2.0 / MIT) — paddle/ klasöründen derlendi */` },
-  outfile: "../paddle.js",
+  outfile: "../vendor/paddle.js",
 });
 console.log("paddle.js hazır — onnxruntime-web", ortVer);

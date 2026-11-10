@@ -1,9 +1,9 @@
 // PaddleOCR işçisi: model yükleme, görüntü hazırlama ve okuma sayfadan ayrı iş parçacığında çalışır → okurken ekran donmaz.
 // Sayfa (index.html) modelleri indirip (önbellekten) buraya aktarır, fotoğrafı yönü düzeltilmiş ImageBitmap olarak gönderir,
 // her okuma geçişinde yalnız ayarları yollar; buradan sadece bulunan metin kutuları (poly, text, score) döner.
-// paddle.js / goruntu.js sürümü değişince aşağıdaki ?p= / ?v= değerleri de değişmeli.
-import './paddle.js?p=2';
-import './goruntu.js?v=53';
+// vendor/paddle.js değişince ?p= elle; goruntu.js ?v= değerini arac/surum.mjs günceller.
+import '../vendor/paddle.js?p=2';
+import './goruntu.js?v=54';
 
 const L = globalThis.PaddleOCRLib, G = globalThis.ZGoruntu;
 let ocr = null, cv = null;

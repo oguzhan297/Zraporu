@@ -1,7 +1,7 @@
 {
   "name": "zrapor-paddle",
   "private": true,
-  "description": "PaddleOCR.js'i ../paddle.js olarak paketler",
+  "description": "PaddleOCR.js'i ../vendor/paddle.js olarak paketler",
   "scripts": {
     "build": "node build.mjs"
   },
