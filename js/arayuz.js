@@ -150,3 +150,17 @@ $('#pmclip').onclick=async()=>{try{const t=(await navigator.clipboard.readText()
   catch(e){toast('Panoya erişilemedi — kutuya uzun basıp “Yapıştır” de, sonra Oku ve ekle');$('#pmt').focus()}};
 if(/^#(toplu|tara)/.test(location.hash)){history.replaceState(null,'',location.pathname);setTimeout(()=>$('#paste').click(),300)}
 $('#ara').addEventListener('input',e=>{FLT.q=e.target.value.trim();render()});
+
+// ---- Klavye açıkken: alt çubuğu gizle, yazılan alanı (ve düğmelerini) klavyenin üstünde tut ----
+(()=>{
+  const yazilir=el=>!!el&&el.matches&&(el.matches('textarea,select,[contenteditable]')||el.matches('input')&&!/^(checkbox|radio|button|submit|file|range|color|reset)$/.test(el.type));
+  let zm;
+  const gorunurYap=()=>{const el=document.activeElement;if(!yazilir(el)||el.closest('.modal'))return;
+    const kutu=el.closest('.bildirkutu')||el,vv=window.visualViewport,ust=(vv?vv.offsetTop:0)+70,alt=(vv?vv.offsetTop+vv.height:innerHeight)-12,r=kutu.getBoundingClientRect();
+    let d=0;if(r.bottom>alt)d=r.bottom-alt;if(r.top-d<ust)d=r.top-ust;           // kutu sığmazsa üstü görünsün
+    if(Math.abs(d)>2)window.scrollBy({top:d,behavior:'smooth'})};
+  const sonra=ms=>{clearTimeout(zm);zm=setTimeout(gorunurYap,ms)};
+  document.addEventListener('focusin',e=>{if(!yazilir(e.target))return;document.body.classList.add('klavye');sonra(350)});
+  document.addEventListener('focusout',()=>setTimeout(()=>{if(!yazilir(document.activeElement))document.body.classList.remove('klavye')},80));
+  if(window.visualViewport)visualViewport.addEventListener('resize',()=>{if(document.body.classList.contains('klavye'))sonra(120)});
+})();

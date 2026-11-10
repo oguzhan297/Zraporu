@@ -289,3 +289,5 @@ body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none
 .bildirkutu label{display:block;font-size:13px;color:#e2e8f0;margin-bottom:6px}
 .bildirkutu textarea{width:100%;box-sizing:border-box;font:inherit;font-size:16px;color:var(--ink);background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 10px;resize:vertical}
 .bildirkutu .hint{margin:6px 0 8px}
+/* Klavye açıkken alt çubuk klavyenin üstüne binmesin */
+body.klavye .bar{display:none}
