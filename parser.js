@@ -748,10 +748,10 @@
       if (!best || best.n < 2) for (const [v, t] of C) if (!best || t.size > best.n) best = { v, n: t.size };
       if (best && best.n >= 2) { if (d.genel !== best.v) notes.push(`Genel toplam: ${String(d.genel ?? '—').replace('.', ',')} → ${best.v.toFixed(2).replace('.', ',')} (${best.n} ayrı satırla doğrulandı)`); d.genel = best.v; genOk = true; d._genWeak = false; clear('genel'); }
       else unsure.push('genel'); }
-    // Karekod ödemeleri kredi kartına eklenmez: belge "-KREDİ" karekodu da içerir → ayır, "diğer ödeme" olarak tut (Luca'ya aktarılmaz)
+    // Karekod ödemeleri kullanıcıyı ilgilendirmez, kredi kartına eklenmez: belge "-KREDİ" karekodu da içerir → ayır.
+    // Ayrılan tutar yalnız ödeme denkliği için d.diger'de tutulur (gösterilmez, Luca'ya aktarılmaz).
     if (qr > 0 && d.kart != null && d.kart >= qr) {
       d.kart = r2(d.kart - qr); d.diger = r2((d.diger || 0) + qr); d._qr = qr;
-      notes.push(`Karekod ödemesi (${qr.toFixed(2).replace('.', ',')}) kredi kartına eklenmedi; "Karekod / diğer ödeme" alanında.`);
     }
     // bulunan gruplar genel toplamı TAM veriyorsa listede olmayan oranlar gerçekten 0'dır
     if (Object.keys(groups).length && d.genel != null && genOk) {
@@ -1088,5 +1088,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 49, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 50, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);

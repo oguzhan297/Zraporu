@@ -15,7 +15,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=49"></script>
+<script src="parser.js?v=50"></script>
 <style>
 /* ===== Sade fintech teması: slate-900 zemin, soft zümrüt (emerald-600) + mavi (blue-600), Excel yeşili ===== */
 :root{
@@ -227,7 +227,6 @@ const FIELDS=[
   {k:'kart',l:'Kredi Kartı',c:'KREDİ KARTI',t:'num',sec:'Ödeme'},
   {k:'nakit',l:'Nakit',c:'NAKİT',t:'num'},
   {k:'genel',l:'Fişteki Genel Toplam (sadece kontrol)',t:'num',sec:'Kontrol — Luca’ya aktarılmaz',full:true,x:true},
-  {k:'diger',l:'Karekod / diğer ödeme (aktarılmaz)',t:'num',full:true,x:true},
   {k:'not',l:'Not (aktarılmaz)',t:'text',full:true,x:true}
 ];
 const OUT=FIELDS.filter(f=>!f.x);
@@ -361,8 +360,9 @@ function checks(r){
     if(ok.length)out.push({ok:true,m:`Departman bilgileriyle aynı (${ok.join(', ')}) ✓`});for(const b of bad)out.push(sumOk?{ok:true,m:'ⓘ '+b+' (toplamlar tuttuğu için departman satırı yanlış okunmuş olabilir)'}:{ok:false,m:b})}
   if(typeof d._topk==='number'){const sk=['k1','k10','k20','kp'].reduce((a,k)=>a+(d[k]||0),0),df=Math.abs(sk-d._topk);
     out.push({ok:df<0.006,m:df<0.006?'KDV’lerin toplamı fişteki toplam KDV ile aynı ✓':`KDV’lerin toplamı (${fm(sk)}) fişteki toplam KDV’den (${fm(d._topk)}) farklı, fark ${fm(df)} — en çok %20 KDV’yi kontrol et`})}
-  const dg=d.diger||0,pay=(d.kart||0)+(d.nakit||0)+dg,pl=dg?'Kart + Nakit + Karekod/diğer':'Kart + Nakit';
-  if(pay>0&&s>0){const df=Math.abs(pay-s);out.push({ok:df<0.006,m:df<0.006?(dg?'Kredi kartı + Nakit + Karekod/diğer = Satış toplamı ✓':'Kredi kartı + Nakit = Satış toplamı ✓'):`${pl} (${fm(pay)}) satış toplamıyla (${fm(s)}) tutmuyor, fark ${fm(df)}`})}
+  // karekod vb. diğer ödemeler (d.diger) kullanıcıyı ilgilendirmez: gösterilmez, aktarılmaz; yalnız bu kontrolde sessizce hesaba katılır
+  const pay=(d.kart||0)+(d.nakit||0)+(d.diger||0);
+  if(pay>0&&s>0){const df=Math.abs(pay-s);out.push({ok:df<0.006,m:df<0.006?'Kredi kartı + Nakit = Satış toplamı ✓':`Kart + Nakit (${fm(pay-(d.diger||0))}) satış toplamıyla (${fm(s)}) tutmuyor, fark ${fm(Math.abs(pay-(d.diger||0)-s))}`})}
   return out;
 }
 
@@ -401,7 +401,7 @@ function secHTML(t){const m=t.match(/^%(\d+)\s+KDV(.*)$/);if(m)return `<span cla
   const p=t.match(/^Poşet\s*\((%\d+)\)$/);if(p)return `<span class="rate">${p[1]}</span>Poşet`;
   const k=t.match(/^Kontrol\s*—\s*(.*)$/);if(k)return `Kontrol<span class="grp-note">${esc(k[1])}</span>`;return esc(t)}
 const SHORT={tekel:'Toplam (KDV dahil)',g1:'Toplam (KDV dahil)',g10:'Toplam (KDV dahil)',g20:'Toplam (KDV dahil)',gp:'Toplam (KDV dahil)',
-  m1:'Matrah',m10:'Matrah',m20:'Matrah',mp:'Matrah',k1:'KDV',k10:'KDV',k20:'KDV',kp:'KDV',kart:'Kredi kartı',genel:'Fişteki genel toplam',diger:'Karekod / diğer ödeme',not:'Not'};
+  m1:'Matrah',m10:'Matrah',m20:'Matrah',mp:'Matrah',k1:'KDV',k10:'KDV',k20:'KDV',kp:'KDV',kart:'Kredi kartı',genel:'Fişteki genel toplam',not:'Not'};
 const shortL=f=>SHORT[f.k]||f.l;
 const fcls=(r,f)=>[(r.unsure||[]).includes(f.k)?'unsure':'',(r.auto||[]).includes(f.k)?'calc':''].filter(Boolean).join(' ');
 function checksHTML(r){const L=checks(r),bad=L.filter(c=>!c.ok).length,un=(r.unsure||[]).length;
@@ -900,7 +900,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=49;
+const APP_VER=50;
 function showVer(){const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;$('#ver').style.color=pv===APP_VER?'':'var(--warn)';if(pv!==APP_VER)$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç';return pv===APP_VER}
 // Okuyucu yüklenemediyse (ör. GitHub güncellemesi yayılırken) kendiliğinden yeniden dene
 (function retryParser(n){if(showVer()||n>6)return;const sc=document.createElement('script');sc.src=`parser.js?v=${APP_VER}&r=${Date.now()}`;sc.onload=()=>{showVer();if(window.ZParse&&rows.length)render()};sc.onerror=()=>{};document.head.appendChild(sc);setTimeout(()=>retryParser(n+1),n<2?3000:15000)})(0);
