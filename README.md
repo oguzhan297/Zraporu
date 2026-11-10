@@ -26,6 +26,7 @@ js/                    uygulama kodu — sırası index.html'deki gibi yüklenir
   paddle-worker.js     PaddleOCR işçisi (modül Web Worker): okurken ekran donmaz
 vendor/paddle.js       derlenmiş PaddleOCR.js + ONNX Runtime (elle düzenlenmez)
 paddle/                vendor/paddle.js'in kaynağı: `cd paddle && npm install && npm run build`
+ikon.svg, icon-*.png  uygulama ikonu (ana ekran, sekme, başlık logosu); PNG'ler ikon.svg'den üretilir
 sw.js                  service worker: çevrimdışı açılış; PaddleOCR dosyaları ayrı, kalıcı önbellekte
 arac/surum.mjs         sürüm yükseltme
 ```

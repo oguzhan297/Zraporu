@@ -14,7 +14,7 @@ const yaz = (f, s) => fs.writeFileSync(path.join(KOK, f), s);
 
 // [dosya, desen (1. grup = sürüm), açıklama]
 const YERLER = [
-  ['index.html', /\.(?:js|css)\?v=(\d+)/g, 'betik ve stil bağlantıları'],
+  ['index.html', /\.(?:js|css|svg)\?v=(\d+)/g, 'betik, stil ve ikon bağlantıları'],
   ['js/temel.js', /const APP_VER=(\d+);/g, 'uygulama sürümü'],
   ['js/parser.js', /version: (\d+),/g, 'ayrıştırıcı sürümü (açılışta APP_VER ile karşılaştırılır)'],
   ['sw.js', /zrapor-v(\d+)/g, 'önbellek adı'],

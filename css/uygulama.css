@@ -13,7 +13,7 @@ html{touch-action:manipulation;background:var(--bg)}
 body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font:15px/1.5 var(--font);font-feature-settings:"cv11","ss01";-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
 .wrap{max-width:660px;margin:0 auto;padding:calc(22px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(124px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
 .brand{display:flex;align-items:center;gap:12px;margin:2px 0 6px}
-.logo{width:38px;height:38px;border-radius:10px;flex:none;display:grid;place-items:center;font-weight:700;font-size:16px;color:#fff;background:var(--em)}
+.logo{width:40px;height:40px;border-radius:10px;flex:none;display:block;box-shadow:0 0 0 1px rgba(148,163,184,.18)}   /* ana ekran ikonuyla aynı (ikon.svg) */
 h1{font-size:22px;line-height:1.15;margin:0;font-weight:700;letter-spacing:-.025em}
 h1 .to{color:var(--mut);font-weight:500}
 .tag{font-size:12px;color:var(--mut);margin-top:2px}
