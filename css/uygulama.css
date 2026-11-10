@@ -281,3 +281,11 @@ body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none
 @media (max-width:420px){.bar .btn{padding:11px 13px;font-size:14.5px}.bar #xlsx .ik{display:none}.bar .sum .s2 span{display:none}}
 
 .k-ust{gap:8px}.k-ust #ksay{margin-right:auto}.k-ust #ksay[hidden]{display:block;visibility:hidden}
+
+/* Hata bildir: kart altındaki bağlantı + not kutusu */
+.cardfoot .bildirlnk{margin:0 auto;font-size:13px;color:#94a3b8;display:inline-flex;align-items:center;gap:5px}
+.cardfoot .bildirlnk .ik{color:#fbbf24}
+.bildirkutu{margin-top:12px;padding:12px;border-radius:16px;border:1px solid rgba(251,191,36,.25);background:rgba(251,191,36,.06)}
+.bildirkutu label{display:block;font-size:13px;color:#e2e8f0;margin-bottom:6px}
+.bildirkutu textarea{width:100%;box-sizing:border-box;font:inherit;font-size:16px;color:var(--ink);background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 10px;resize:vertical}
+.bildirkutu .hint{margin:6px 0 8px}

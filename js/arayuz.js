@@ -12,17 +12,35 @@ const aktTarih=(t,uzun)=>{const d=new Date(t);return uzun?d.toLocaleDateString('
 function duzeltilen(r){if(!r.oku)return [];const n=v=>v==null||v===''?null:typeof v==='number'?Math.round(v*100):String(v).trim();
   return Object.keys(r.oku).filter(k=>n(r.oku[k])!==n(r.d[k])&&!(r.auto||[]).includes(k))}
 function duzeltmeHTML(r){const k=duzeltilen(r);if(!k.length)return '';const ad=x=>(FIELDS.find(f=>f.k===x)||{}).l||x;
-  return `<div class="duz">${ik('kalem')}Düzelttiğin alanlar: <b>${k.map(x=>esc(ad(x))).join(', ')}</b><div class="hint">Okuyucu bunları yanlış okumuş. Bildirirsen bu fiş test arşivine eklenir ve aynı hata bir daha tekrarlanmaz.</div><button class="btn small" data-bildir="${r.id}">${ik('paylas')}Okuma hatasını bildir</button></div>`}
-async function hataBildir(r){
+  return `<div class="duz">${ik('kalem')}Düzelttiğin alanlar: <b>${k.map(x=>esc(ad(x))).join(', ')}</b><div class="hint">Okuyucu bunları yanlış okumuş. Bildirirsen bu fiş test arşivine eklenir ve aynı hata bir daha tekrarlanmaz.</div><button class="btn small" data-bildirac="${r.id}">${ik('paylas')}Okuma hatasını bildir</button></div>`}
+// Her kartta: "Hata bildir" → kısa not kutusu → gönder (düzeltme yapılmasa da)
+function bildirKutuHTML(r){return `<div class="bildirkutu" id="bk-${r.id}" hidden><label>Ne yanlış okundu? (isteğe bağlı)</label><textarea rows="2" id="bn-${r.id}" placeholder="Örn. kredi kartı 1.250,00 olmalı"></textarea>
+  <div class="hint">${S.ghKey?'Fiş, fotoğrafıyla birlikte doğrudan gizli test gelen kutusuna gönderilir.':'Bildirim dosyası oluşturulur; sohbete gönder. (Ayarlar’a gelen kutusu anahtarı girersen doğrudan gönderilir.)'}</div>
+  <div class="set-row" style="justify-content:flex-end"><button class="btn small" data-bildirac="${r.id}">Vazgeç</button><button class="btn small primary" data-bildir="${r.id}">${ik('paylas')}Gönder</button></div></div>`}
+async function hataBildir(r,not='',dugme){
   const k=duzeltilen(r);let foto=null,asil=[];try{foto=r.thumb&&r.thumb.startsWith('data:')?r.thumb:await IDB.get('imgs',r.id)}catch(e){}
   // fotoğrafın aslı saklıysa onu da ekle (test arşivi için en değerlisi)
   try{const o=r.hasOrig?await IDB.get('orig',r.id):null;for(const b of o||[])asil.push(await new Promise((a,h)=>{const f=new FileReader();f.onload=()=>a(f.result);f.onerror=h;f.readAsDataURL(b)}))}catch(e){}
-  const paket={tur:'zrapor-okuma-hatasi',surum:APP_VER,okuyucu:S.mode,olusturma:new Date().toISOString(),tarih:r.d.tarih,z_no:r.d.z_no,
-    duzeltilen:Object.fromEntries(k.map(x=>[x,{okunan:r.oku[x],dogru:r.d[x]}])),dogru_degerler:okunanAnlik(r.d),okunan_degerler:r.oku,
+  const paket={tur:'zrapor-okuma-hatasi',surum:APP_VER,okuyucu:S.mode,olusturma:new Date().toISOString(),tarih:r.d.tarih,z_no:r.d.z_no,not:not||'',
+    duzeltilen:Object.fromEntries(k.map(x=>[x,{okunan:r.oku&&r.oku[x],dogru:r.d[x]}])),dogru_degerler:okunanAnlik(r.d),okunan_degerler:r.oku||null,
     okunan_metin:r.ocr||'',kalite:r.q||null,foto_asil:asil,foto_kucuk:asil.length?null:foto||null};
-  await offer(`okuma-hatasi_${(r.d.tarih||'tarihsiz').replace(/\./g,'-')}_Z${r.d.z_no||'-'}.json`,JSON.stringify(paket,null,1));
-  toast(asil.length?'Dosyada fişin fotoğrafı da var; göndermen yeterli':'Dosyayı fişin asıl fotoğrafıyla birlikte gönder');
+  const ad=`${(r.d.tarih||'tarihsiz').replace(/\./g,'-')}_Z${r.d.z_no||'-'}`;
+  if(S.ghKey){
+    // Doğrudan gelen kutusuna: bildirim.json (fotoğrafsız) + fotoğraflar ayrı jpg
+    const klasor=`${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}_${ad}_${Math.random().toString(36).slice(2,6)}`;
+    const fotolar=(asil.length?asil:foto&&foto.startsWith('data:')?[foto]:[]).map((u,i)=>({ad:`foto-${i+1}${asil.length?'':'-kucuk'}.jpg`,b64:u.slice(u.indexOf(',')+1)}));
+    const govde={...paket,foto_asil:undefined,foto_kucuk:undefined,fotolar:fotolar.map(f=>f.ad)};
+    const eski=dugme&&dugme.innerHTML;if(dugme){dugme.disabled=true;dugme.textContent='Gönderiliyor…'}
+    try{await ghGonder(klasor,[{ad:'bildirim.json',b64:b64Metin(JSON.stringify(govde,null,1))},...fotolar]);
+      r.bildirildi=Date.now();save(r);toast('✓ Bildirim gönderildi, teşekkürler');return true}
+    catch(e){toast('Gönderilemedi ('+(e.message==='Failed to fetch'?'bağlantı yok':e.message)+'); dosya olarak paylaşılıyor')}
+    finally{if(dugme){dugme.disabled=false;dugme.innerHTML=eski}}
+  }
+  const ok=await offer(`okuma-hatasi_${ad}.json`,JSON.stringify(paket,null,1));
+  if(ok){r.bildirildi=Date.now();save(r);toast(asil.length?'Dosyada fişin fotoğrafı da var; sohbete göndermen yeterli':'Dosyayı fişin asıl fotoğrafıyla birlikte gönder')}
+  return ok;
 }
+
 function render(){
   const L=$('#list');filtreUI();
   const goster=rows.filter(gorunur);
@@ -49,7 +67,8 @@ function render(){
         ${r.ocr!=null?`<details class="ocr"><summary>Okunan metin (düzeltip yeniden okutabilirsin)</summary><textarea rows="10" data-ocr="${r.id}">${esc(r.ocr)}</textarea><div class="set-row"><button class="btn small" data-copyocr="${r.id}">${ik('kopya')}Kopyala</button><button class="btn small" data-reparse="${r.id}">Metne göre yeniden oku</button></div></details>`:''}
         ${duzeltmeHTML(r)}
         ${r.akt?`<div class="aktbar">✓ ${aktTarih(r.akt,1)} tarihinde Luca dosyasına aktarıldı. <button class="btn small" data-aktsil="${r.id}">Aktarılmadı yap</button></div>`:''}
-        <div class="cardfoot"><button class="btn small danger" data-del="${r.id}">Sil</button><button class="btn small" data-tog="${r.id}">Kapat</button></div>
+        ${bildirKutuHTML(r)}
+        <div class="cardfoot"><button class="btn small danger" data-del="${r.id}">Sil</button><button class="lnk bildirlnk" data-bildirac="${r.id}">${ik('uyari')}${r.bildirildi?'Bildirildi · yeniden bildir':'Hata bildir'}</button><button class="btn small" data-tog="${r.id}">Kapat</button></div>
       </div></div>`;
   }).join('');
   renderSum();
@@ -85,11 +104,13 @@ function refreshCard(r){
 }
 
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr],[data-recam],[data-regal],[data-f],[data-aktsil],[data-bildir],[data-devam]');if(!t)return;
+  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr],[data-recam],[data-regal],[data-f],[data-aktsil],[data-bildir],[data-bildirac],[data-devam]');if(!t)return;
   if(t.dataset.devam){devId=t.dataset.devam;const i=$('#devam');i.value='';i.click();return}
   if(t.dataset.f){FLT.f=t.dataset.f;render();return}
   if(t.dataset.aktsil){const r=rows.find(x=>x.id===t.dataset.aktsil);r.akt=null;save(r);render();toast('Bir sonraki Luca dosyasına yeniden girecek');return}
-  if(t.dataset.bildir){hataBildir(rows.find(x=>x.id===t.dataset.bildir));return}
+  if(t.dataset.bildirac){const k=$('#bk-'+t.dataset.bildirac);if(k){k.hidden=!k.hidden;if(!k.hidden){k.scrollIntoView({block:'nearest',behavior:'smooth'});$('#bn-'+t.dataset.bildirac).focus({preventScroll:true})}}return}
+  if(t.dataset.bildir){const id=t.dataset.bildir,r=rows.find(x=>x.id===id);if(!r)return;const n=$('#bn-'+id);
+    hataBildir(r,n?n.value.trim():'',t).then(ok=>{if(ok){render()}});return}
   if(t.dataset.recam||t.dataset.regal){reId=t.dataset.recam||t.dataset.regal;const i=$(t.dataset.recam?'#recam':'#regal');i.value='';i.click();return}
   if(t.dataset.copyocr){const ta=document.querySelector(`[data-ocr="${t.dataset.copyocr}"]`);const txt=ta?ta.value:'';
     (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Okunan metin kopyalandı')).catch(()=>{try{ta.focus();ta.select();ta.setSelectionRange(0,txt.length);const ok=document.execCommand('copy');toast(ok?'Okunan metin kopyalandı':'Kopyalanamadı — metne uzun basıp “Tümünü Seç”')}catch(x){toast('Kopyalanamadı')}});return}

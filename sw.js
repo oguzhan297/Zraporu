@@ -1,9 +1,9 @@
 // Uygulamayı internetsiz de açılabilir yapar. Sürüm değişince eski önbellek silinir.
-const V='zrapor-v60';
+const V='zrapor-v61';
 // PaddleOCR (paddle.js, ONNX Runtime, modeller) büyük dosyalar: ayrı önbellekte durur, uygulama sürümü değişince silinmez
 const OCR='zrapor-ocr-1';
 const isOcr=u=>u.hostname==='paddle-model-ecology.bj.bcebos.com'||(u.hostname==='cdn.jsdelivr.net'&&u.pathname.startsWith('/npm/onnxruntime-web@'))||(u.origin===self.location.origin&&u.pathname.endsWith('/paddle.js'));
-const SHELL=['./','./index.html','./css/uygulama.css?v=60','./js/parser.js?v=60','./js/goruntu.js?v=60','./js/paddle-worker.js?v=60','./js/temel.js?v=60','./js/depo.js?v=60','./js/ayarlar.js?v=60','./js/kontrol.js?v=60','./js/kalite.js?v=60','./js/arayuz.js?v=60','./js/okuyucu-claude.js?v=60','./js/okuyucu-tesseract.js?v=60','./js/okuyucu-paddle.js?v=60','./js/okuma.js?v=60','./js/disari.js?v=60','./js/baslat.js?v=60','./ikon.svg?v=60','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
+const SHELL=['./','./index.html','./css/uygulama.css?v=61','./js/parser.js?v=61','./js/goruntu.js?v=61','./js/paddle-worker.js?v=61','./js/temel.js?v=61','./js/depo.js?v=61','./js/ayarlar.js?v=61','./js/kontrol.js?v=61','./js/kalite.js?v=61','./js/arayuz.js?v=61','./js/okuyucu-claude.js?v=61','./js/okuyucu-tesseract.js?v=61','./js/okuyucu-paddle.js?v=61','./js/okuma.js?v=61','./js/disari.js?v=61','./js/baslat.js?v=61','./ikon.svg?v=61','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 // cache:'reload' → tarayıcının kendi önbelleğindeki eski kopyayı değil, sunucudaki güncel dosyayı al
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>Promise.all(SHELL.map(u=>c.add(new Request(u,u.startsWith('http')?{mode:'no-cors'}:{cache:'reload'})).catch(()=>{})))).then(()=>self.skipWaiting()))});
@@ -11,7 +11,7 @@ self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.
 self.addEventListener('fetch',e=>{
   const r=e.request;if(r.method!=='GET')return;
   const u=new URL(r.url);
-  if(u.hostname==='api.anthropic.com')return;
+  if(u.hostname==='api.anthropic.com'||u.hostname==='api.github.com')return;
   // Modeller ve çalışma zamanı sayfa tarafından zrapor-ocr önbelleğine yazılır (indirme yüzdesi için); burada sadece önbellekten ver
   if(isOcr(u)){e.respondWith(caches.open(OCR).then(c=>c.match(r,{ignoreVary:true}).then(m=>m||fetch(r).then(res=>{if(res.ok&&!/\.(tar|wasm)$/.test(u.pathname)){const cl=res.clone();c.put(r,cl)}return res}))));return}
   // Sayfanın kendisi: önce internetten (güncelleme gelsin), yoksa önbellekten
