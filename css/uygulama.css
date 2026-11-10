@@ -137,3 +137,23 @@ h1 .to{color:var(--mut);font-weight:500}
 .toast.show{opacity:1}
 input[type=file]{display:none}
 body.dropping{outline:3px dashed #34d399;outline-offset:-8px}
+
+/* Luca'ya aktarıldı */
+.akt{display:inline-block;margin-right:2px;font-size:10.5px;font-weight:600;color:#93c5fd;background:rgba(59,130,246,.12);padding:1px 7px;border-radius:99px}
+.aktbar{margin-top:12px;font-size:12.5px;color:#93c5fd;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bar .sum b.yeni{color:#6ee7b7}
+/* kontrol listesinde bilgi satırı */
+.ck.info i{background:rgba(59,130,246,.16);color:#93c5fd;font-style:italic}
+.ck.info span{color:#bfdbfe}
+/* düzeltilen alanlar / hata bildirimi */
+.duz{margin-top:12px;padding:10px 12px;border:1px dashed rgba(148,163,184,.3);border-radius:10px;font-size:13px;color:#cbd5e1}
+.duz b{color:var(--ink);font-weight:600}.duz .hint{margin:4px 0 8px}
+/* arama ve süzgeç */
+.filtre{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}
+.filtre[hidden]{display:none}
+.filtre input{font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line2);border-radius:10px;background:var(--card);color:var(--ink);width:100%}
+.filtre input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.22)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{appearance:none;font:inherit;font-size:12.5px;font-weight:500;color:var(--mut);background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:99px;padding:5px 11px;cursor:pointer}
+.chip b{font-weight:600;color:var(--ink);margin-left:3px}
+.chip.on{color:#fff;background:rgba(5,150,105,.18);border-color:rgba(16,185,129,.45)}

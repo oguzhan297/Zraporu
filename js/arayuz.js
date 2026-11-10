@@ -1,8 +1,32 @@
 // Arayüz: rapor kartları, kontrol ekranı, alt özet çubuğu; kart üzerindeki tıklama ve düzenlemeler; metin yapıştırma penceresi
+// ---- Arama ve süzgeç (yalnız listeyi süzer; Luca dosyası etkilenmez) ----
+const FLT={q:'',f:'tum'};
+const SUZ={tum:r=>true,kontrol:r=>isBad(r),yeni:r=>!r.akt,akt:r=>!!r.akt};
+function araUyar(r,q){if(!q)return true;const d=r.d,t=[d.tarih,d.z_no,'z'+d.z_no,d.aciklama,fm(satis(d)),fm(d.kart),fm(d.nakit),fm(kdvT(d)),d.not].join(' ').toLocaleLowerCase('tr-TR');
+  return q.toLocaleLowerCase('tr-TR').split(/\s+/).filter(Boolean).every(w=>t.includes(w)||t.replace(/\./g,'').includes(w.replace(/\./g,'')))}
+const gorunur=r=>r.status!=='done'||(SUZ[FLT.f](r)&&araUyar(r,FLT.q));
+function filtreUI(){const done=rows.filter(r=>r.status==='done'),el=$('#filtre');if(!el)return;el.hidden=done.length<3;
+  for(const b of el.querySelectorAll('[data-f]')){const k=b.dataset.f;b.classList.toggle('on',FLT.f===k);b.querySelector('b').textContent=done.filter(SUZ[k]).length}}
+const aktTarih=(t,uzun)=>{const d=new Date(t);return uzun?d.toLocaleDateString('tr-TR'):`${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`};
+// Okuma hatası bildirimi: okunan ↔ şimdiki farkı
+function duzeltilen(r){if(!r.oku)return [];const n=v=>v==null||v===''?null:typeof v==='number'?Math.round(v*100):String(v).trim();
+  return Object.keys(r.oku).filter(k=>n(r.oku[k])!==n(r.d[k])&&!(r.auto||[]).includes(k))}
+function duzeltmeHTML(r){const k=duzeltilen(r);if(!k.length)return '';const ad=x=>(FIELDS.find(f=>f.k===x)||{}).l||x;
+  return `<div class="duz">✎ Düzelttiğin alanlar: <b>${k.map(x=>esc(ad(x))).join(', ')}</b><div class="hint">Okuyucu bunları yanlış okumuş. Bildirirsen bu fiş test arşivine eklenir ve aynı hata bir daha tekrarlanmaz.</div><button class="btn small" data-bildir="${r.id}">📤 Okuma hatasını bildir</button></div>`}
+async function hataBildir(r){
+  const k=duzeltilen(r);let foto=null;try{foto=r.thumb&&r.thumb.startsWith('data:')?r.thumb:await IDB.get('imgs',r.id)}catch(e){}
+  const paket={tur:'zrapor-okuma-hatasi',surum:APP_VER,okuyucu:S.mode,olusturma:new Date().toISOString(),tarih:r.d.tarih,z_no:r.d.z_no,
+    duzeltilen:Object.fromEntries(k.map(x=>[x,{okunan:r.oku[x],dogru:r.d[x]}])),dogru_degerler:okunanAnlik(r.d),okunan_degerler:r.oku,
+    okunan_metin:r.ocr||'',kalite:r.q||null,foto_kucuk:foto||null};
+  await offer(`okuma-hatasi_${(r.d.tarih||'tarihsiz').replace(/\./g,'-')}_Z${r.d.z_no||'-'}.json`,JSON.stringify(paket,null,1));
+  toast('Dosyayı fişin asıl fotoğrafıyla birlikte gönder');
+}
 function render(){
-  const L=$('#list');
+  const L=$('#list');filtreUI();
+  const goster=rows.filter(gorunur);
   if(!rows.length){L.innerHTML='<div class="empty-state">Henüz Z raporu yok.<br>Yukarıdan fotoğraf çekerek başla.</div>'}
-  else L.innerHTML=rows.map(r=>{
+  else if(!goster.length){L.innerHTML='<div class="empty-state">Bu aramaya / süzgece uyan rapor yok.</div>'}
+  else L.innerHTML=goster.map(r=>{
     if(r.status==='work'||r.status==='queued') return `<div class="card" id="c_${r.id}"><div class="head">${r.thumb?`<img class="thumb" src="${r.thumb}">`:'<div class="thumb empty"></div>'}<div class="meta"><div class="t1">${r.status==='work'?'Okunuyor…':'Sırada…'}</div><div class="t2">${esc(r.prog||'Z raporu inceleniyor')}</div></div><div class="spin"></div></div></div>`;
     if(r.status==='error') return `<div class="card"><div class="head">${r.thumb?`<img class="thumb" src="${r.thumb}">`:'<div class="thumb empty"></div>'}<div class="meta"><div class="t1" style="color:var(--err)">Okunamadı</div><div class="t2">${esc(r.err)}</div></div><button class="btn small" data-retry="${r.id}" ${r.blob||r.file?'':'disabled'}>Tekrar</button><button class="btn small danger" data-del="${r.id}">Sil</button></div></div>`;
     let g='',inSec=false;
@@ -20,6 +44,8 @@ function render(){
         <div class="checks">${checksHTML(r)}</div>
         <div class="grps">${g}</div>
         ${r.ocr!=null?`<details class="ocr"><summary>Okunan metin (düzeltip yeniden okutabilirsin)</summary><textarea rows="10" data-ocr="${r.id}">${esc(r.ocr)}</textarea><div class="set-row"><button class="btn small" data-copyocr="${r.id}">📋 Kopyala</button><button class="btn small" data-reparse="${r.id}">Metne göre yeniden oku</button></div></details>`:''}
+        ${duzeltmeHTML(r)}
+        ${r.akt?`<div class="aktbar">✓ ${aktTarih(r.akt,1)} tarihinde Luca dosyasına aktarıldı. <button class="btn small" data-aktsil="${r.id}">Aktarılmadı yap</button></div>`:''}
         <div class="cardfoot"><button class="btn small danger" data-del="${r.id}">Sil</button><button class="btn small" data-tog="${r.id}">Kapat</button></div>
       </div></div>`;
   }).join('');
@@ -27,7 +53,7 @@ function render(){
 }
 function headHTML(r){const bad=isBad(r);return `${r.thumb?`<img class="thumb" src="${r.thumb}">`:`<div class="thumb empty">${r.src==='foto'?'📷':r.src==='metin'?'📋':'elle'}</div>`}
         <div class="meta"><div class="t1"><span class="tt">${esc(r.d.tarih||'Tarih yok')} · Z ${esc(r.d.z_no||'—')}</span></div>
-        <div class="t2">KDV ${fm(kdvT(r.d))} · Kart ${fm(r.d.kart)||'—'} · Nakit ${fm(r.d.nakit)||'—'}</div></div>
+        <div class="t2">${r.akt?`<span class="akt" title="Luca dosyasına aktarıldı">✓ Luca ${aktTarih(r.akt)}</span> `:''}KDV ${fm(kdvT(r.d))} · Kart ${fm(r.d.kart)||'—'} · Nakit ${fm(r.d.nakit)||'—'}</div></div>
         <div class="amt">${fm(satis(r.d))||'—'}<span class="badge ${bad?'b-warn':'b-ok'}">${bad?'Kontrol et':'Tamam'}</span></div>`}
 // Kontrol ekranı: bölüm başlığı (oran rozeti), bölüm içinde kısa etiketler, alan durumu (şüpheli / hesaplandı)
 function secHTML(t){const m=t.match(/^%(\d+)\s+KDV(.*)$/);if(m)return `<span class="rate">%${m[1]}</span>KDV${esc(m[2])}`;
@@ -37,13 +63,14 @@ const SHORT={tekel:'Toplam (KDV dahil)',g1:'Toplam (KDV dahil)',g10:'Toplam (KDV
   m1:'Matrah',m10:'Matrah',m20:'Matrah',mp:'Matrah',k1:'KDV',k10:'KDV',k20:'KDV',kp:'KDV',kart:'Kredi kartı',genel:'Fişteki genel toplam',not:'Not'};
 const shortL=f=>SHORT[f.k]||f.l;
 const fcls=(r,f)=>[(r.unsure||[]).includes(f.k)?'unsure':'',(r.auto||[]).includes(f.k)?'calc':''].filter(Boolean).join(' ');
-function checksHTML(r){const L=checks(r),bad=L.filter(c=>!c.ok).length,un=(r.unsure||[]).length;
-  const head=bad||un?`<div class="ck-h bad">${bad?`${bad} uyarı`:''}${bad&&un?' · ':''}${un?`${un} şüpheli alan`:''}<span>kontrol et</span></div>`:`<div class="ck-h ok">Tüm kontroller tamam</div>`;
-  return head+L.map(c=>`<div class="ck ${c.ok?'ok':'bad'}"><i>${c.ok?'✓':'!'}</i><span>${esc(c.m.replace(/\s*✓$/,''))}</span></div>`).join('')+(un?`<div class="ck bad"><i>!</i><span>Emin olunamayan alanlar turuncu işaretli.</span></div>`:'')}
+function checksHTML(r){const L=checks(r),bad=L.filter(c=>!c.ok).length,un=(r.unsure||[]).length,inf=L.filter(c=>c.info).length;
+  const head=bad||un?`<div class="ck-h bad">${bad?`${bad} uyarı`:''}${bad&&un?' · ':''}${un?`${un} şüpheli alan`:''}<span>kontrol et</span></div>`:`<div class="ck-h ok">Tüm kontroller tamam${inf?` · ${inf} not`:''}</div>`;
+  return head+L.map(c=>`<div class="ck ${c.info?'info':c.ok?'ok':'bad'}"><i>${c.info?'i':c.ok?'✓':'!'}</i><span>${esc(c.m.replace(/\s*✓$/,''))}</span></div>`).join('')+(un?`<div class="ck bad"><i>!</i><span>Emin olunamayan alanlar turuncu işaretli.</span></div>`:'')}
 function renderSum(){
   const done=rows.filter(r=>r.status==='done');
   const tot=done.reduce((a,r)=>a+satis(r.d),0), kdv=done.reduce((a,r)=>a+kdvT(r.d),0);
-  $('#sum').innerHTML=`<b>${done.length}</b> rapor · Toplam <b>${fm(tot)}</b><br>KDV ${fm(kdv)}`;
+  const yeni=done.filter(r=>!r.akt).length;
+  $('#sum').innerHTML=`<b>${done.length}</b> rapor · ${yeni===done.length?'hepsi yeni':yeni?`<b class="yeni">${yeni} yeni</b>`:'hepsi aktarıldı'}<br>Toplam <b>${fm(tot)}</b> · KDV ${fm(kdv)}`;
   $('#xlsx').disabled=!done.length;$('#csv').disabled=!done.length;$('#copy').disabled=!done.length;
 }
 function refreshCard(r){
@@ -55,7 +82,10 @@ function refreshCard(r){
 }
 
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr],[data-recam],[data-regal]');if(!t)return;
+  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr],[data-recam],[data-regal],[data-f],[data-aktsil],[data-bildir]');if(!t)return;
+  if(t.dataset.f){FLT.f=t.dataset.f;render();return}
+  if(t.dataset.aktsil){const r=rows.find(x=>x.id===t.dataset.aktsil);r.akt=null;save(r);render();toast('Bir sonraki Luca dosyasına yeniden girecek');return}
+  if(t.dataset.bildir){hataBildir(rows.find(x=>x.id===t.dataset.bildir));return}
   if(t.dataset.recam||t.dataset.regal){reId=t.dataset.recam||t.dataset.regal;const i=$(t.dataset.recam?'#recam':'#regal');i.value='';i.click();return}
   if(t.dataset.copyocr){const ta=document.querySelector(`[data-ocr="${t.dataset.copyocr}"]`);const txt=ta?ta.value:'';
     (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Okunan metin kopyalandı')).catch(()=>{try{ta.focus();ta.select();ta.setSelectionRange(0,txt.length);const ok=document.execCommand('copy');toast(ok?'Okunan metin kopyalandı':'Kopyalanamadı — metne uzun basıp “Tümünü Seç”')}catch(x){toast('Kopyalanamadı')}});return}
@@ -79,6 +109,7 @@ document.addEventListener('change',e=>{
   if(f.t==='num')refill(r,f.k);
   if((f.k==='z_no'||f.k==='tarih')&&(!r.d.aciklama||r.d.aciklama===r._ack)){r.d.aciklama=mkAck(r.d);r._ack=r.d.aciklama}
   i.value=fv(f,r.d[f.k]);
+  if(r.akt){r.akt=null;toast('Rapor değişti: bir sonraki Luca dosyasına yeniden girecek')}
   save(r);
   if(f.k==='z_no'||f.k==='tarih')autoZ();
   rows.forEach(x=>{if(x.status==='done')refreshCard(x)});
@@ -93,3 +124,4 @@ $('#pmo').onclick=()=>{const t=$('#pmt').value.trim();if(!t){toast('Önce metni 
 $('#pmclip').onclick=async()=>{try{const t=(await navigator.clipboard.readText()||'').trim();if(!t){toast('Pano boş — önce kestirmeyi çalıştır');return}addTexts(t)}
   catch(e){toast('Panoya erişilemedi — kutuya uzun basıp “Yapıştır” de, sonra Oku ve ekle');$('#pmt').focus()}};
 if(/^#(toplu|tara)/.test(location.hash)){history.replaceState(null,'',location.pathname);setTimeout(()=>$('#paste').click(),300)}
+$('#ara').addEventListener('input',e=>{FLT.q=e.target.value.trim();render()});

@@ -20,8 +20,11 @@ function applyParse(r,text,pre){
   r.ocr=text;r.auto=fill(d);
   d.aciklama=keepAck||mkAck(d);if(!keepAck)r._ack=d.aciklama;
   r.d=d;r.unsure=res.unsure.filter(k=>FIELDS.some(f=>f.k===k));
+  r.akt=null;r.oku=okunanAnlik(d);   // yeni okuma: henüz aktarılmadı; okunan değerler hata bildirimi için saklanır
   guessZ(r);
 }
+// Okuyucunun bulduğu değerler (kullanıcı düzeltmeden önce): Luca alanları + fişteki genel toplam
+const okunanAnlik=d=>Object.fromEntries(FIELDS.filter(f=>f.k!=='aciklama'&&f.k!=='not').map(f=>[f.k,d[f.k]??null]));
 async function extract(r){
   if(S.mode==='free')return extractFree(r);
   if(S.mode==='paddle')return extractPaddle(r);
@@ -33,7 +36,7 @@ async function extract(r){
     const d={};
     for(const f of FIELDS){const v=j[f.k];d[f.k]=f.t==='text'?(v==null?'':String(v).trim()):(f.t==='int'?(pn(v)==null?null:Math.round(pn(v))):pn(v))}
     d.z_rapor_mu=j.z_rapor_mu;d.tarih=normDate(d.tarih);d.z_no=normZ(d.z_no);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
-    r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];guessZ(r);
+    r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];r.akt=null;r.oku=okunanAnlik(d);guessZ(r);
     r.status='done';r.open=true;r.created=r.created||Date.now();delete r.blob;delete r.file;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
