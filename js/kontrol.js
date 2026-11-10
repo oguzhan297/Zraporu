@@ -38,6 +38,7 @@ function checks(r){
   const pay=(d.kart||0)+(d.nakit||0)+(d.diger||0);
   if(pay>0&&s>0){const df=Math.abs(pay-s);out.push({ok:df<0.006,m:df<0.006?'Kredi kartı + Nakit = Satış toplamı ✓':`Kart + Nakit (${fm(pay-(d.diger||0))}) satış toplamıyla (${fm(s)}) tutmuyor, fark ${fm(Math.abs(pay-(d.diger||0)-s))}`})}
   out.push(...olagandisi(r));
+  out.push(...hesapKontrol(r),...kumKontrol(r));
   return out;
 }
 // Olağandışı değer: aynı yazar kasanın yakın günleri (Z sırası tarihle uyumlu olanlar) ile karşılaştır. Uyarı değil, bilgi (ⓘ).
@@ -103,3 +104,65 @@ function autoZ(){
     save(r);
   }
 }
+
+// ---- Kümülatif toplam (KÜMSAT/KÜMKDV): aynı kasanın ardışık Z'leri ----
+// İki Z'nin kümülatif farkı = sonrakinin satışı. Tutmazsa bir tutar yanlış okunmuştur; arada Z eksikse eksiklerin toplamı bulunur.
+// Aynı kasa: sicil no ikisinde de okunduysa eşit olmalı ('kesin'); okunmadıysa tarih ileri, kümülatif artan ve yakın olmalı ('olasi').
+function ayniKasa(a,b){
+  if(a.d.sicil&&b.d.sicil)return a.d.sicil===b.d.sicil?'kesin':false;
+  const ta=dnum(a.d.tarih),tb=dnum(b.d.tarih),gap=+b.d.z_no-+a.d.z_no;if(ta==null||tb==null||tb<=ta)return false;
+  if(b.d.kum_sat-a.d.kum_sat<-0.005||(a.d.kum_kdv!=null&&b.d.kum_kdv!=null&&b.d.kum_kdv-a.d.kum_kdv<-0.005))return false;
+  return tb-ta<=gap*7+7?'olasi':false}
+function kumOnceki(r){const z=+r.d.z_no;if(!(z>0)||r.d.kum_sat==null)return null;let en=null;
+  for(const x of rows){if(x===r||x.status!=='done'||x.d.kum_sat==null)continue;const zx=+x.d.z_no;if(!(zx>0)||zx>=z||z-zx>10)continue;
+    const k=ayniKasa(x,r);if(k&&(!en||zx>+en.x.d.z_no))en={x,k}}
+  return en}
+function kumKontrol(r){
+  const d=r.d,p=kumOnceki(r);if(!p)return [];
+  const pz=+p.x.d.z_no,z=+d.z_no,gap=z-pz,ds=r2(d.kum_sat-p.x.d.kum_sat),s=r2(satis(d)),dk=d.kum_kdv!=null&&p.x.d.kum_kdv!=null?r2(d.kum_kdv-p.x.d.kum_kdv):null,k=r2(kdvT(d)),sert=p.k==='kesin';
+  if(gap===1){
+    if(Math.abs(ds-s)>0.01)return [{ok:!sert,info:!sert,m:`Kümülatif satış Z ${pz}'den bu yana ${fm(ds)} artmış ama bu raporun satışı ${fm(s)} (fark ${fm(r2(ds-s))}). Bir tutar ya da kümülatif yanlış okunmuş olabilir.`}];
+    if(dk!=null&&Math.abs(dk-k)>0.05)return [{ok:!sert,info:!sert,m:`Kümülatif KDV Z ${pz}'den bu yana ${fm(dk)} artmış ama bu raporun KDV'si ${fm(k)}. Bir KDV tutarı yanlış okunmuş olabilir.`}];
+    return [{ok:true,m:`Kümülatif satış Z ${pz} ile tutuyor`}];
+  }
+  const eS=r2(ds-s),eK=dk==null?null:r2(dk-k);
+  if(eS<-0.01)return [{ok:!sert,info:!sert,m:`Kümülatif satış Z ${pz}'den bu yana ${fm(ds)} artmış; bu raporun satışından (${fm(s)}) az. Bir tutar yanlış okunmuş olabilir.`}];
+  // aradaki numaralardan biri listede varsa (kümülatifi okunmamış olsa da) eksik sayma
+  if(rows.some(x=>x!==r&&x.status==='done'&&+x.d.z_no>pz&&+x.d.z_no<z&&(!x.d.sicil||!d.sicil||x.d.sicil===d.sicil)))return [];
+  if(gap===2){const ez=pz+1;
+    if(Math.abs(eS)<=0.01)return [{info:true,ok:true,m:`Z ${ez} listede yok; kümülatife göre o raporda satış yok (0,00). Luca'ya girilecek tutar yok.`}];
+    return [{info:true,ok:true,m:`Z ${ez} listede yok. Kümülatife göre satışı ${fm(eS)}${eK!=null?`, KDV'si ${fm(eK)}`:''}.`,act:{l:`Z ${ez}'i hesaplayıp ekle`,a:`data-eksik="${r.id}"`}}]}
+  return [{info:true,ok:true,m:`Z ${pz+1}–${z-1} (${gap-1} rapor) listede yok. Kümülatife göre toplam satışları ${fm(eS)}${eK!=null?`, KDV'leri ${fm(eK)}`:''}. Ayrı ayrı hesaplanamaz; fişlerini ekle.`}];
+}
+// Toplam satış ve KDV'yi oranlara böl: en fazla iki oran (komşu raporlarda kullanılanlar) varsa kesin çözülür.
+function oranBol(S,K,oranlar){const pay=o=>o/(100+o),L=[...oranlar];
+  if(!L.length)return null;
+  if(L.length===1){const o=L[0];return Math.abs(S*pay(o)-K)<=0.05+S*0.0005?{[o]:r2(S)}:null}
+  if(L.length===2){const [a,b]=L,pa=pay(a),pb=pay(b);const ga0=(S*pb-K)/(pb-pa);if(ga0<-0.01||S-ga0<-0.01)return null;
+    // Fişte KDV'ler grup grup kuruşa yuvarlanır: ±1 TL içinde KDV'yi kuruşu kuruşuna tutturanlardan en yuvarlak tutarı seç
+    const yuv=x=>{const c=Math.round(Math.abs(x)*100);return c%100===0?3:c%50===0?2:c%10===0?1:0};let en=null;
+    for(let i=-100;i<=100;i++){const ga=r2(Math.round(ga0*100)/100+i/100),gb=r2(S-ga);if(ga<0||gb<0)continue;
+      if(Math.abs(r2(r2(ga*pa)+r2(gb*pb))-K)>0.005)continue;const p=[Math.min(yuv(ga),yuv(gb)),-Math.abs(i)];if(!en||p[0]>en.p[0]||(p[0]===en.p[0]&&p[1]>en.p[1]))en={ga,gb,p}}
+    return en?{[a]:en.ga,[b]:en.gb}:{[a]:r2(Math.max(0,ga0)),[b]:r2(Math.max(0,S-ga0))}}
+  return null}
+const kullanilanOranlar=(...ds)=>{const o=new Set();for(const d of ds){if(d.tekel>0)o.add(0);if(d.g1>0)o.add(1);if(d.g10>0)o.add(10);if(d.g20>0||d.gp>0)o.add(20)}return o};
+const gunStr=n=>{const t=new Date(n*864e5);return `${String(t.getUTCDate()).padStart(2,'0')}.${String(t.getUTCMonth()+1).padStart(2,'0')}.${t.getUTCFullYear()}`};
+function eksikZEkle(r){
+  const p=kumOnceki(r);if(!p||+r.d.z_no-+p.x.d.z_no!==2){toast('Eksik Z artık hesaplanamıyor');return}
+  const a=p.x.d,b=r.d,ez=+a.z_no+1,S=r2(b.kum_sat-a.kum_sat-satis(b)),K=b.kum_kdv!=null&&a.kum_kdv!=null?r2(b.kum_kdv-a.kum_kdv-kdvT(b)):null;
+  const bol=K==null?null:oranBol(S,K,kullanilanOranlar(a,b));
+  const ta=dnum(a.tarih),tb=dnum(b.tarih),tah=ta!=null&&tb!=null?gunStr(Math.min(ta+1,tb)):(b.tarih||'');
+  const d={tarih:tah,z_no:String(ez),tekel:0,g1:0,m1:null,k1:null,g10:0,m10:null,k10:null,g20:0,m20:null,k20:null,gp:null,mp:null,kp:null,kart:null,nakit:null,genel:S,
+    kum_sat:r2(a.kum_sat+S),kum_kdv:K==null?null:r2(a.kum_kdv+K),sicil:b.sicil||a.sicil||null};
+  const unsure=['tarih','kart','nakit'];
+  if(bol){d.tekel=bol[0]||0;d.g1=bol[1]||0;d.g10=bol[10]||0;d.g20=bol[20]||0}
+  else{for(const x of ['tekel','g1','g10','g20'])d[x]=null;unsure.push('tekel','g1','g10','g20')}
+  const auto=fill(d);
+  d.not=`Hesaplandı: Z ${a.z_no} ve Z ${b.z_no} kümülatif farkından (satış ${fm(S)}${K!=null?`, KDV ${fm(K)}`:''}).${bol?'':' Oran dağılımı hesaplanamadı (ikiden fazla oran ya da KDV tutmuyor); fişten gir.'} Tarih tahmini; nakit ve kart fişten girilmeli.`;
+  d.aciklama=mkAck(d);
+  const y={id:uid(),status:'done',d,unsure,auto,src:'hesap',created:Date.now(),open:true,_ack:d.aciklama,hesap:{onceki:a.z_no,sonraki:b.z_no,onay:false}};
+  rows.push(y);save(y);autoZ();render();toast(`Z ${ez} hesaplanıp eklendi; fişle doğrula`);
+}
+function hesapKontrol(r){if(!r.hesap)return [];
+  return r.hesap.onay?[{info:true,ok:true,m:`Z ${r.hesap.onceki} ve Z ${r.hesap.sonraki} kümülatiflerinden hesaplandı, sen doğruladın.`}]
+    :[{ok:false,m:'Bu rapor fişten okunmadı, kümülatiflerden hesaplandı. Tarihi, oranları, nakit ve kartı fişle karşılaştır, sonra doğrula. Doğrulanana kadar Luca’ya aktarılmaz.',act:{l:'Doğruladım',a:`data-hesaponay="${r.id}"`}}]}

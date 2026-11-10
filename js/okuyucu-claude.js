@@ -12,6 +12,8 @@ const PROMPT=`Bu fotoğraf Türkiye'de kullanılan bir yazar kasa / ÖKC "Z RAPO
  "kart": kredi / banka kartı ile tahsilat toplamı,
  "nakit": nakit tahsilat toplamı,
  "genel": fişte yazan günlük GENEL TOPLAM / TOPLAM (KDV dahil),
+ "kum_sat": fişteki KÜMÜLATİF satış toplamı (KÜMSAT / KÜM. TOPLAM satırı; yoksa null), "kum_kdv": KÜMÜLATİF KDV (KÜMKDV / KÜM. TOPKDV; yoksa null),
+ "sicil": cihaz sicil no (fişin altındaki "MF AS0000178255" gibi; yoksa null),
  "not": "kısa açıklama, yoksa boş metin",
  "belirsiz": [okuyamadığın veya emin olmadığın alan adları]
 }
@@ -21,7 +23,7 @@ Kurallar:
 - Departman / kısım satırlarında POŞET veya TEKEL/SİGARA görünüyorsa ve bunlar %20 grubunun içinde sayılmışsa, poşeti ve tekeli %20'den düşerek ayrı alanlara yaz; ne yaptığını "not" alanına kısaca yaz.
 - Poşetin matrah/KDV'si fişte ayrıca yoksa: mp = gp / 1.20, kp = gp - mp (2 haneye yuvarla).
 - Bir oran için yalnızca KDV dahil tutar ve KDV yazıyorsa matrah = KDV dahil tutar − KDV.
-- "KÜMÜLATİF" / "KÜM." gibi birikmiş toplamları değil, bu Z raporunun GÜNLÜK değerlerini kullan.
+- "KÜMÜLATİF" / "KÜM." gibi birikmiş toplamları yalnız kum_sat / kum_kdv alanlarına yaz; diğer bütün alanlarda bu Z raporunun GÜNLÜK değerlerini kullan.
 - Fişte başka KDV oranları (%0, %8, %18 gibi) varsa bunları "not" alanına oran ve tutarlarıyla yaz.
 - İptal / iade varsa net satışı kullan ve "not" alanında belirt.
 - "KNV" satırında tutar varsa (fişte %0 basılı olsa da) onu TEKEL'e değil %1 grubuna ekle: g1'e tutarı, k1'e tutar/101'i (2 haneye yuvarla) ekle.

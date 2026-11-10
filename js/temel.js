@@ -1,6 +1,6 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=63;
+const APP_VER=65;
 const FIELDS=[
   {k:'tarih',l:'Tarih',c:'TARİH',t:'text',sec:'Genel'},
   {k:'z_no',l:'Z No',c:'Z NO',t:'text'},
@@ -17,6 +17,7 @@ const FIELDS=[
   {k:'kart',l:'Kredi Kartı',c:'KREDİ KARTI',t:'num',sec:'Ödeme'},
   {k:'nakit',l:'Nakit',c:'NAKİT',t:'num'},
   {k:'genel',l:'Fişteki Genel Toplam (sadece kontrol)',t:'num',sec:'Kontrol — Luca’ya aktarılmaz',full:true,x:true},
+  {k:'kum_sat',l:'Kümülatif satış (KÜMSAT)',t:'num',x:true},{k:'kum_kdv',l:'Kümülatif KDV',t:'num',x:true},
   {k:'not',l:'Not (aktarılmaz)',t:'text',full:true,x:true}
 ];
 const OUT=FIELDS.filter(f=>!f.x);

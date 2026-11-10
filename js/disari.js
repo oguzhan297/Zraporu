@@ -15,7 +15,8 @@ async function offer(name,data){
 }
 // Luca'ya aktarılacaklar: henüz aktarılmamış raporlar. Hepsi aktarıldıysa ikinci dokunuşta tümü yeniden indirilir (işaretler değişmez).
 function aktarilacak(btn,label){
-  const done=rows.filter(r=>r.status==='done'),yeni=done.filter(r=>!r.akt),ilk=btn.dataset.html||(btn.dataset.html=btn.innerHTML);
+  const bek=rows.filter(r=>r.status==='done'&&r.hesap&&!r.hesap.onay).length;if(bek)toast(`${bek} hesaplanan Z doğrulanmadığı için aktarılmadı`);
+  const done=rows.filter(r=>r.status==='done'&&!(r.hesap&&!r.hesap.onay)),yeni=done.filter(r=>!r.akt),ilk=btn.dataset.html||(btn.dataset.html=btn.innerHTML);
   if(yeni.length)return {list:yeni,isaretle:true};
   if(btn.dataset.armed==='hepsi'){btn.dataset.armed='';btn.innerHTML=ilk;return {list:done,isaretle:false}}
   btn.dataset.armed='hepsi';btn.textContent='Hepsini indir?';toast('Hepsi daha önce Luca’ya aktarıldı. Tekrar dokunursan tümü yeniden indirilir.');
@@ -44,5 +45,5 @@ $('#xlsx').onclick=async e=>{const bt=e.currentTarget,a=aktarilacak(bt,'Excel');
   if(await offer(fname('xlsx'),new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})]))&&a.isaretle)isaretle(a.list);
 };
 $('#copy').onclick=async()=>{
-  try{await navigator.clipboard.writeText(csvText().replace(/;/g,'\t'));toast('Kopyalandı — Excel’de A1 hücresine yapıştır')}catch(e){toast('Kopyalanamadı')}
+  try{await navigator.clipboard.writeText(csvText(rows.filter(r=>r.status==='done'&&!(r.hesap&&!r.hesap.onay))).replace(/;/g,'\t'));toast('Kopyalandı — Excel’de A1 hücresine yapıştır')}catch(e){toast('Kopyalanamadı')}
 };

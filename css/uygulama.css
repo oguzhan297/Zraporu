@@ -291,3 +291,6 @@ body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none
 .bildirkutu .hint{margin:6px 0 8px}
 /* Klavye açıkken alt çubuk klavyenin üstüne binmesin */
 body.klavye .bar{display:none}
+
+/* Kontrol satırındaki eylem düğmesi (eksik Z ekle, doğruladım) */
+.ck .ck-btn{display:flex;margin-top:8px}

@@ -17,6 +17,7 @@ function applyParse(r,text,pre){
   const res=pre||ZParse.parseZ(text);const d=res.d;d.z_no=normZ(d.z_no);
   const keepAck=r.d&&r.d.aciklama&&r.d.aciklama!==r._ack?r.d.aciklama:null;
   d.not=res.notes.join(' · ');d.z_rapor_mu=res.found>=4?undefined:false;
+  {const km=ZParse.kumulatif?ZParse.kumulatif(text):{};for(const k of ['kum_sat','kum_kdv','sicil'])if(d[k]==null)d[k]=km[k]??null}   // kümülatif + kasa sicil no
   r.ocr=text;r.auto=fill(d);
   d.aciklama=keepAck||mkAck(d);if(!keepAck)r._ack=d.aciklama;
   r.d=d;r.unsure=res.unsure.filter(k=>FIELDS.some(f=>f.k===k));
@@ -36,7 +37,7 @@ async function extract(r){
     const j=JSON.parse(txt.slice(a,b+1));
     const d={};
     for(const f of FIELDS){const v=j[f.k];d[f.k]=f.t==='text'?(v==null?'':String(v).trim()):(f.t==='int'?(pn(v)==null?null:Math.round(pn(v))):pn(v))}
-    d.z_rapor_mu=j.z_rapor_mu;d.tarih=normDate(d.tarih);d.z_no=normZ(d.z_no);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
+    d.z_rapor_mu=j.z_rapor_mu;d.sicil=j.sicil?String(j.sicil).replace(/\s/g,'').toUpperCase():null;d.tarih=normDate(d.tarih);d.z_no=normZ(d.z_no);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
     r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];r.akt=null;r.oku=okunanAnlik(d);guessZ(r);
     r.status='done';r.open=true;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;
     save(r);autoZ();saveImg(r,r._small);delete r._small;

@@ -87,7 +87,7 @@ const shortL=f=>SHORT[f.k]||f.l;
 const fcls=(r,f)=>[(r.unsure||[]).includes(f.k)?'unsure':'',(r.auto||[]).includes(f.k)?'calc':''].filter(Boolean).join(' ');
 function checksHTML(r){const L=checks(r),bad=L.filter(c=>!c.ok).length,un=(r.unsure||[]).length,inf=L.filter(c=>c.info).length;
   const head=bad||un?`<div class="ck-h bad">${bad?`${bad} uyarı`:''}${bad&&un?' · ':''}${un?`${un} şüpheli alan`:''}<span>kontrol et</span></div>`:`<div class="ck-h ok">Tüm kontroller tamam${inf?` · ${inf} not`:''}</div>`;
-  return head+L.map(c=>`<div class="ck ${c.info?'info':c.ok?'ok':'bad'}"><i>${c.info?'i':c.ok?'✓':'!'}</i><span>${esc(c.m.replace(/\s*✓$/,''))}</span></div>`).join('')+(un?`<div class="ck bad"><i>!</i><span>Emin olunamayan alanlar turuncu işaretli.</span></div>`:'')}
+  return head+L.map(c=>`<div class="ck ${c.info?'info':c.ok?'ok':'bad'}"><i>${c.info?'i':c.ok?'✓':'!'}</i><span>${esc(c.m.replace(/\s*✓$/,''))}${c.act?`<button class="btn small ck-btn" ${c.act.a}>${c.act.l}</button>`:''}</span></div>`).join('')+(un?`<div class="ck bad"><i>!</i><span>Emin olunamayan alanlar turuncu işaretli.</span></div>`:'')}
 function renderSum(){
   const done=rows.filter(r=>r.status==='done');
   const tot=done.reduce((a,r)=>a+satis(r.d),0), kdv=done.reduce((a,r)=>a+kdvT(r.d),0);
@@ -104,10 +104,12 @@ function refreshCard(r){
 }
 
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr],[data-recam],[data-regal],[data-f],[data-aktsil],[data-bildir],[data-bildirac],[data-devam]');if(!t)return;
+  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr],[data-recam],[data-regal],[data-f],[data-aktsil],[data-bildir],[data-bildirac],[data-devam],[data-eksik],[data-hesaponay]');if(!t)return;
   if(t.dataset.devam){devId=t.dataset.devam;const i=$('#devam');i.value='';i.click();return}
   if(t.dataset.f){FLT.f=t.dataset.f;render();return}
   if(t.dataset.aktsil){const r=rows.find(x=>x.id===t.dataset.aktsil);r.akt=null;save(r);render();toast('Bir sonraki Luca dosyasına yeniden girecek');return}
+  if(t.dataset.eksik){const r=rows.find(x=>x.id===t.dataset.eksik);if(r)eksikZEkle(r);return}
+  if(t.dataset.hesaponay){const r=rows.find(x=>x.id===t.dataset.hesaponay);if(r&&r.hesap){r.hesap.onay=true;r.unsure=(r.unsure||[]).filter(k=>k!=='tarih');save(r);render();toast('Doğrulandı; Luca’ya aktarılabilir')}return}
   if(t.dataset.bildirac){const k=$('#bk-'+t.dataset.bildirac);if(k){k.hidden=!k.hidden;if(!k.hidden)$('#bn-'+t.dataset.bildirac).focus()}return}
   if(t.dataset.bildir){const id=t.dataset.bildir,r=rows.find(x=>x.id===id);if(!r)return;const n=$('#bn-'+id);
     hataBildir(r,n?n.value.trim():'',t).then(ok=>{if(ok){render()}});return}

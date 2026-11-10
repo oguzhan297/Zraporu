@@ -1088,5 +1088,22 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 63, parseZ, normLine, amounts, consistency, merge };
+  // Kümülatif toplamlar (KÜMSAT / KÜM. TOPLAM, KÜMKDV / KÜM. TOPKDV) ve cihaz sicil no (MF AS0000178255).
+  // Ardışık iki Z'nin kümülatif farkı = o günün satışı → yanlış okunan tutarı ve eksik Z'yi yakalar.
+  function kumulatif(text) {
+    const out = { kum_sat: null, kum_kdv: null, sicil: null };
+    const tutar = s => {                 // "*6.541 791,29" "1.575.087.06" "*2.228.081,36 01" → sayı
+      const m = s.match(/(\d[\d.\s]*?)[.,](\d{2})(?!\d)/); if (!m) return null;
+      const ip = m[1].trim(); if (/\s/.test(ip) && !/^\d{1,3}([.\s]\d{3})+$/.test(ip)) return null;
+      const v = +(ip.replace(/[.\s]/g, '') + '.' + m[2]); return isFinite(v) ? v : null; };
+    for (const ham of String(text || '').split(/\r?\n/)) {
+      const s = normLine(ham), k = s.toUpperCase().replace(/[ÜÛ]/g, 'U').replace(/[İÎ]/g, 'I').replace(/[^A-Z0-9]/g, '');
+      const sat = /^KUM(SAT|TOP[LI1]AM)/.test(k), kdv = /^KUM(KDV|TOPKDV)/.test(k);
+      if (sat || kdv) { const kw = s.match(/K\S*M\S*\s*(TOP\S*|SAT\S*|KDV\S*)/i); const v = tutar(kw ? s.slice(kw.index + kw[0].length) : s);
+        if (v != null) { if (sat && out.kum_sat == null) out.kum_sat = v; if (kdv && out.kum_kdv == null) out.kum_kdv = v; } continue; }
+      const m = s.trim().replace(/[-_.\s]+$/, '').match(/^(?:MF\s*)?([A-Z]{2})\s?(\d{10})$/); if (m) out.sicil = m[1] + m[2];
+    }
+    return out;
+  }
+  root.ZParse = { version: 65, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);
