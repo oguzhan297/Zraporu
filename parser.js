@@ -35,7 +35,8 @@
         const pre = m.trim()[0]; if (!/[%xX$#&»<>4125]/.test(pre) && !/^0/.test(r)) return m;   // çıplak "10,00" / "20,00" tutar olabilir: dokunma
         return sp + '%' + (+r); });
     s = s.replace(/([*'"“”«»]\d{0,3})([BOSZGĞD])(\d{0,2}[.,]\d{3}[.,\s]\d)/g, (m, a, b, c) => a + FIX[b] + c);   // "*2B.516,98" → "*28.516,98"
-    s = s.replace(/^\+\s?(?=\d)/, '*').replace(/(\s)\+\s?(?=\d)/g, '$1*');   // "+8.654,00" → "*8.654,00"
+    s = s.replace(/^\+\s?(?=\d)/, '*').replace(/(\s)\+\s?(?=\d)/g, '$1*');
+    s = s.replace(/(^|\s)[.·•](?=\d)/g, '$1*');   // soluk baskıda "*" nokta okunur: ".9 360,00" / "·12.990,00"   // "+8.654,00" → "*8.654,00"
     s = s.replace(/([*'"]\s?\d{1,3})\s(\d{3}[,.]\d{2})(?!\d)/g, '$1.$2'); // "*8 464,00" → "*8.464,00"
     {
       const kw = /TOPLAM|TOP\s?K[DO]V|\bKDV\b|N?AK[İI]T|D[İI][ĞG]ER|KART|KRED[İI]|SATI[ŞS]|C[İI]RO|BANKA|YEMEK/.test(s);
@@ -339,15 +340,17 @@
     else if (+d.tarih.slice(6) < new Date().getFullYear() - 1) unsure.push('tarih');   // "2021": yıl okuma hatası olabilir
 
     // --- Z No ---
-    m = all.match(/\bZ\s?(?:NO|NUMARASI|SIRA\s?NO|SAYISI|SAYA[ÇC])\s*[:.]?\s*(\d{1,6})\b/) ||
-        all.match(/(?:^|\n)[^\n]{0,3}RAPOR\s?(?:NO|N[O0D]|M[O0D]|NUMARASI)\s*[:.]?\s*(\d{1,6})\b/) ||
-        all.match(/(?:^|\n)[^\n]{0,4}RAPOR(?![UI])\s*[^\s\d]{0,4}\s*[:.]?\s*(\d{3,6})\s*(?:\n|$)/) ||
-        all.match(/(?:^|\n)[^\n]{0,3}[Z2]\s?SAYA[ÇC]\s*[:.]?\s*(\d{1,6})\b/) ||
-        (x => x && [x[0], x[1].replace(/[OCDQGÖ]/g, '0')])(all.match(/(?:^|\n)[^\n]{0,3}[Z2]\s?(?:SAYA[ÇC]|NO)\s*[:.]?\s*([0-9OCDQGÖ]{3,6})\b/)) ||
-        all.match(/(?:^|\n)[^\n]{0,2}Z\s?N[OU0]\s*[:.]\s*(\d{1,6})\b/) ||
-        all.match(/(?:^|\n)[^\n]{0,2}2\s?N[OU0]\s*[:.]\s*(\d{3,6})\b(?=[^\n]*EK[ÜU])/) ||
-        all.match(/\bZ\s?RAPOR[UI]?\s*(?:NO)?\s*[:.]\s*(\d{1,6})\b/) ||
-        all.match(/(?:^|\n)\s*Z\s*[:.]?\s*(\d{2,6})\s*(?:\n|$)/);
+    // binlik noktalı Z no: "Z NO: 3.069" → 3069
+    const allZ = all.replace(/(\b[Z2]\s?(?:NO|N[OU0]|SAYA[ÇC]|RAPOR\s?NO)\s*[:.]?\s*)(\d{1,3})[.,'](\d{3})(?![\d.,])/g, '$1$2$3');
+    m = allZ.match(/\bZ\s?(?:NO|NUMARASI|SIRA\s?NO|SAYISI|SAYA[ÇC])\s*[:.]?\s*(\d{1,6})\b/) ||
+        allZ.match(/(?:^|\n)[^\n]{0,3}RAPOR\s?(?:NO|N[O0D]|M[O0D]|NUMARASI)\s*[:.]?\s*(\d{1,6})\b/) ||
+        allZ.match(/(?:^|\n)[^\n]{0,4}RAPOR(?![UI])\s*[^\s\d]{0,4}\s*[:.]?\s*(\d{3,6})\s*(?:\n|$)/) ||
+        allZ.match(/(?:^|\n)[^\n]{0,3}[Z2]\s?SAYA[ÇC]\s*[:.]?\s*(\d{1,6})\b/) ||
+        (x => x && [x[0], x[1].replace(/[OCDQGÖ]/g, '0')])(allZ.match(/(?:^|\n)[^\n]{0,3}[Z2]\s?(?:SAYA[ÇC]|NO)\s*[:.]?\s*([0-9OCDQGÖ]{3,6})\b/)) ||
+        allZ.match(/(?:^|\n)[^\n]{0,2}Z\s?N[OU0]\s*[:.]\s*(\d{1,6})\b/) ||
+        allZ.match(/(?:^|\n)[^\n]{0,2}2\s?N[OU0]\s*[:.]\s*(\d{3,6})\b(?=[^\n]*EK[ÜU])/) ||
+        allZ.match(/\bZ\s?RAPOR[UI]?\s*(?:NO)?\s*[:.]\s*(\d{1,6})\b/) ||
+        allZ.match(/(?:^|\n)\s*Z\s*[:.]?\s*(\d{2,6})\s*(?:\n|$)/);
     if (m) d.z_no = m[1]; else unsure.push('z_no');
     if (d.z_no && d.z_no.length >= 4 && /^[689]/.test(d.z_no)) unsure.push('z_no');   // noktalı sıfır şüphesi
     if (d.z_no && d.z_no.length > 4) unsure.push('z_no');                                // fazladan rakam şüphesi ("20002")
@@ -366,7 +369,7 @@
     d.nakit = find(/NAK[İI]T/, /[ÜU]ST[ÜU]|SAYI|ADET|KASA/);
     d.kasa = find(/KASA\s?NAK[İI]T/, /SAYI|ADET/);
     if (d.nakit == null) d.nakit = d.kasa;
-    d.kart = find(/KRED[İI]|K\S{0,2}\s?KART|BANKA\s?KART|\bKART\b|POS\b/, /SAYI|ADET|NAK[İI]T|YEMEK/);
+    d.kart = find(/KRED[İI]|K\S{0,2}\s?KART|K\.?\s?KAR[TI1İ][IİL1]\b|BANKA\s?KART|\bKART\b|POS\b/, /SAYI|ADET|NAK[İI]T|YEMEK/);
     // Kart satırının altındaki banka dökümü (Ziraat, Vakıfbank…): toplamları kart tutarını doğrular
     { const ki = L.findIndex(l => /KRED[İI]|K\S{0,2}\s?KART|BANKA\s?KART/.test(l.s) && !/ADET|SAYI/.test(l.s));
       if (ki >= 0) { const b = []; let start = ki + 1; if (L[start] && !hasLetters(L[start].s)) start++;
@@ -606,6 +609,12 @@
     const grp = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
     if (Math.abs(grp - d.genel) >= 0.006) return;                 // genel toplam güvenilir değil
     const near = (a, b) => a != null && b != null && Math.abs(a - b) < 0.006;
+    // Tek ödeme türü (yalnız kart ya da yalnız nakit) ve tutarı genel toplama (= gruplar) eşit: diğeri kesinlikle 0
+    if (!d.diger && !extraN.length && !extraK.length) {
+      const clr = () => { for (const x of ['nakit', 'kart']) { let j; while ((j = unsure.indexOf(x)) >= 0) unsure.splice(j, 1); } };
+      if (near(d.kart, d.genel) && !d.nakit && !(d.kasa > 0)) { d.nakit = 0; clr(); return; }
+      if (near(d.nakit, d.genel) && !d.kart) { d.kart = 0; clr(); return; }
+    }
     const diger = d.diger || 0, amtSet = amts.filter(v => v > 0);
     const banks = (d._banks || []).flatMap(v => [v, ...variants(v)]);
     const bankSums = new Set(); const bs = [...new Set(d._banks || [])].slice(0, 6);
@@ -1051,5 +1060,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 47, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 48, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
