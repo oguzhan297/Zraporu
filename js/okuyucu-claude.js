@@ -14,6 +14,7 @@ const PROMPT=`Bu fotoğraf Türkiye'de kullanılan bir yazar kasa / ÖKC "Z RAPO
  "genel": fişte yazan günlük GENEL TOPLAM / TOPLAM (KDV dahil),
  "kum_sat": fişteki KÜMÜLATİF satış toplamı (KÜMSAT / KÜM. TOPLAM satırı; yoksa null), "kum_kdv": KÜMÜLATİF KDV (KÜMKDV / KÜM. TOPKDV; yoksa null),
  "sicil": cihaz sicil no (fişin altındaki "MF AS0000178255" gibi; yoksa null),
+ "slip": SLİP FİŞ SAYISI / ADETİ (tam sayı; yoksa null),
  "not": "kısa açıklama, yoksa boş metin",
  "belirsiz": [okuyamadığın veya emin olmadığın alan adları]
 }

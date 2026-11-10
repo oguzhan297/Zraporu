@@ -38,7 +38,7 @@ function checks(r){
   const pay=(d.kart||0)+(d.nakit||0)+(d.diger||0);
   if(pay>0&&s>0){const df=Math.abs(pay-s);out.push({ok:df<0.006,m:df<0.006?'Kredi kartı + Nakit = Satış toplamı ✓':`Kart + Nakit (${fm(pay-(d.diger||0))}) satış toplamıyla (${fm(s)}) tutmuyor, fark ${fm(Math.abs(pay-(d.diger||0)-s))}`})}
   out.push(...olagandisi(r));
-  out.push(...hesapKontrol(r),...kumKontrol(r));
+  out.push(...hesapKontrol(r),...kumKontrol(r),...slipKontrol(r));
   return out;
 }
 // Olağandışı değer: aynı yazar kasanın yakın günleri (Z sırası tarihle uyumlu olanlar) ile karşılaştır. Uyarı değil, bilgi (ⓘ).
@@ -166,3 +166,11 @@ function eksikZEkle(r){
 function hesapKontrol(r){if(!r.hesap)return [];
   return r.hesap.onay?[{info:true,ok:true,m:`Z ${r.hesap.onceki} ve Z ${r.hesap.sonraki} kümülatiflerinden hesaplandı, sen doğruladın.`}]
     :[{ok:false,m:'Bu rapor fişten okunmadı, kümülatiflerden hesaplandı. Tarihi, oranları, nakit ve kartı fişle karşılaştır, sonra doğrula. Doğrulanana kadar Luca’ya aktarılmaz.',act:{l:'Doğruladım',a:`data-hesaponay="${r.id}"`}}]}
+
+// ---- Slip / kartlı işlem sayısı ile kart tutarı çelişmesin (nakit ↔ kart karışmasını yakalar) ----
+function slipKontrol(r){const d=r.d,k=d.kart||0;if(r.hesap||d.kart==null)return [];
+  const kaynak=[[d.slip,'slip fiş sayısı'],[d.kart_adet,'kartlı işlem sayısı']].filter(([n])=>n!=null);if(!kaynak.length)return [];
+  const celisen=kaynak.filter(([n])=>(n===0&&k>0.005)||(n>0&&k<0.005));if(!celisen.length)return [];
+  const sert=celisen.length===2;   // tek satırdaki sayı yanlış okunmuş olabilir (Tesseract "0"ı "2"/"5" okuyor): o zaman yalnız not
+  const [n,ad]=celisen[0];
+  return [{ok:!sert,info:!sert,m:n===0?`Fişte ${ad} 0 ama kredi kartı ${fm(k)} okundu. Nakit ile kart karışmış olabilir.`:`Fişte ${ad} ${n} ama kredi kartı 0 okundu. Kart tutarı okunamamış ya da nakde yazılmış olabilir.`}]}

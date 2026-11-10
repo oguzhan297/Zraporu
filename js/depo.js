@@ -28,7 +28,7 @@ async function loadImg(r){
 const sortRows=()=>rows.sort((a,b)=>((a.status==='done')-(b.status==='done'))||((b.created||0)-(a.created||0)));
 async function load(){
   try{const all=await IDB.all('rows');rows=all.map(r=>({...r,status:'done',auto:r.auto||[],open:false}));
-    for(const r of rows)if(r.d&&r.d.kum_sat===undefined&&r.ocr&&window.ZParse&&ZParse.kumulatif){Object.assign(r.d,ZParse.kumulatif(r.ocr));if(r.oku){r.oku.kum_sat=r.d.kum_sat;r.oku.kum_kdv=r.d.kum_kdv}save(r)}   // v64 öncesi kayıtlar
+    for(const r of rows)if(r.d&&r.d.slip===undefined&&r.ocr&&window.ZParse&&ZParse.kumulatif){Object.assign(r.d,ZParse.kumulatif(r.ocr));if(r.oku){r.oku.kum_sat=r.d.kum_sat;r.oku.kum_kdv=r.d.kum_kdv}save(r)}   // v64 öncesi kayıtlar
     for(const r of rows){const d=r.d||(r.d={});let ch=false;
       const z=normZ(d.z_no);if(d.z_no!=null&&z!==d.z_no){d.z_no=z;ch=true}
       if(!d.aciklama||d.aciklama===r._ack||/^Z RAPORU\s*\d*$/.test(d.aciklama)){const a=mkAck(d);if(a!==d.aciklama){d.aciklama=a;ch=true}r._ack=a}
