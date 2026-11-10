@@ -161,3 +161,26 @@ body.dropping{outline:3px dashed #34d399;outline-offset:-8px}
 /* uzun fiş: devam fotoğrafı */
 .devam{margin:-4px 0 12px;font-size:12.5px;color:var(--mut)}
 .lnk{appearance:none;background:none;border:0;padding:4px 0;font:inherit;font-weight:600;color:#93c5fd;cursor:pointer}
+
+/* arka arkaya tarama */
+.btn.seri{width:100%;margin:0 0 10px;flex-direction:column;gap:1px;padding:11px 12px;background:rgba(5,150,105,.12);border-color:rgba(16,185,129,.35);color:#d1fae5}
+.btn.seri span{font-size:11.5px;font-weight:500;color:var(--mut)}
+.kamera{position:fixed;inset:0;z-index:40;background:#000;display:flex;align-items:center;justify-content:center}
+.kamera[hidden]{display:none}
+body.kamera-acik{overflow:hidden}
+.kamera video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.k-cerceve{position:absolute;left:14%;right:14%;top:calc(70px + env(safe-area-inset-top));bottom:calc(150px + env(safe-area-inset-bottom));border:2px solid rgba(255,255,255,.85);border-radius:14px;box-shadow:0 0 0 100vmax rgba(0,0,0,.35);pointer-events:none}
+.k-ipucu{position:absolute;left:0;right:0;bottom:-34px;text-align:center;font-size:12px;color:#e2e8f0;text-shadow:0 1px 2px #000}
+.k-ust{position:absolute;top:calc(14px + env(safe-area-inset-top));left:16px;right:16px;display:flex;justify-content:space-between;align-items:center;color:#fff;font-weight:600}
+.k-ust .btn{background:rgba(15,23,42,.7);border-color:rgba(255,255,255,.25)}
+.k-mesaj{position:absolute;top:calc(64px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:99px;font-size:13.5px;font-weight:600;opacity:0;transition:opacity .15s;white-space:nowrap}
+.k-mesaj.iyi{opacity:1;background:rgba(5,150,105,.9);color:#fff}.k-mesaj.kotu{opacity:1;background:rgba(220,38,38,.92);color:#fff}
+.k-alt{position:absolute;left:0;right:0;bottom:calc(26px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center;gap:44px}
+.k-alt img{width:52px;height:52px;border-radius:10px;object-fit:cover;border:2px solid rgba(255,255,255,.7);background:rgba(255,255,255,.1)}
+.k-alt img:not([src]){visibility:hidden}
+.k-dek{width:76px;height:76px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.25);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.k-dek:active{background:#fff}.k-dek:disabled{opacity:.5}
+.k-isik{width:52px;height:52px;border-radius:50%;border:0;background:rgba(15,23,42,.7);font-size:22px}.k-isik.on{background:#fbbf24}
+.k-isik[hidden]{visibility:hidden;display:block}
+.k-flas{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}.k-flas.on{animation:flas .25s ease-out}
+@keyframes flas{from{opacity:.7}to{opacity:0}}

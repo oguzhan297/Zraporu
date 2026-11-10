@@ -9,20 +9,20 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="ikon.svg?v=57" type="image/svg+xml">
+<link rel="icon" href="ikon.svg?v=58" type="image/svg+xml">
 <link rel="alternate icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="js/parser.js?v=57"></script>
-<script src="js/goruntu.js?v=57"></script>
-<link rel="stylesheet" href="css/uygulama.css?v=57">
+<script src="js/parser.js?v=58"></script>
+<script src="js/goruntu.js?v=58"></script>
+<link rel="stylesheet" href="css/uygulama.css?v=58">
 </head>
 <body>
 <div class="wrap">
-  <div class="brand"><img class="logo" src="ikon.svg?v=57" alt=""><div><h1>Z Raporu <span class="to">→</span> Luca</h1><div class="tag">Fiş tara · kontrol et · Luca’ya aktar</div></div></div>
+  <div class="brand"><img class="logo" src="ikon.svg?v=58" alt=""><div><h1>Z Raporu <span class="to">→</span> Luca</h1><div class="tag">Fiş tara · kontrol et · Luca’ya aktar</div></div></div>
   <p class="sub">Z raporunun fotoğrafını çek ya da metnini yapıştır; tarih, Z no, tekel, KDV grupları, poşet, kart ve nakit otomatik okunur. Kontrol et, sonra Luca şablonundaki CSV olarak indir.</p>
 
   <div class="sync s-wait" id="sync">Bağlanıyor…</div>
@@ -37,6 +37,7 @@
   <input type="file" id="recam" accept="image/*" capture="environment">
   <input type="file" id="regal" accept="image/*">
   <input type="file" id="devam" accept="image/*">
+  <button class="btn seri" id="seri" type="button">📸 Arka arkaya tara <span>çok fiş için, kamera açık kalır</span></button>
   <div class="row-links">
     <button class="btn small" id="paste">📋 Metinden ekle</button>
     <button class="btn small" id="manual">＋ Elle ekle</button>
@@ -77,6 +78,14 @@
   <button class="btn primary" id="csv">⬇ Luca CSV</button>
 </div></div>
 <div class="toast" id="toast"></div>
+<div class="kamera" id="kamera" hidden>
+  <video id="kvid" playsinline autoplay muted></video>
+  <div class="k-cerceve"><div class="k-ipucu">Fişi çerçeveye sığdır · uzunsa üst kısmı çek, sonra kartından devamını ekle</div></div>
+  <div class="k-ust"><span id="ksay">0 fiş</span><button class="btn small" id="kbitti" type="button">Bitti</button></div>
+  <div class="k-mesaj" id="kmesaj"></div>
+  <div class="k-alt"><img id="kson" alt=""><button class="k-dek" id="kdek" type="button" aria-label="Çek"></button><button class="k-isik" id="kisik" type="button" hidden>🔦</button></div>
+  <div class="k-flas" id="kflas"></div>
+</div>
 <div class="modal" id="pm" hidden><div class="mbox">
   <div class="mt">Z raporu metnini yapıştır</div>
   <div class="hint">Toplu: “Z Tara” kestirmesini çalıştır, sonra burada <b>📥 Panodan al</b>’a dokun (birden çok fiş tek seferde eklenir).<br>Tek fiş — iPhone: Fotoğraflar’da fişi aç → yazıya uzun bas → “Tümünü Seç” → “Kopyala”. Android: Google Lens → “Metin” → “Tümünü seç” → “Kopyala”.</div>
@@ -85,17 +94,17 @@
 </div></div>
 
 <!-- Uygulama: sıra önemli (tanımlar önce, açılış en son). Ayrıntı: README.md -->
-<script src="js/temel.js?v=57"></script>
-<script src="js/depo.js?v=57"></script>
-<script src="js/ayarlar.js?v=57"></script>
-<script src="js/kontrol.js?v=57"></script>
-<script src="js/kalite.js?v=57"></script>
-<script src="js/arayuz.js?v=57"></script>
-<script src="js/okuyucu-claude.js?v=57"></script>
-<script src="js/okuyucu-tesseract.js?v=57"></script>
-<script src="js/okuyucu-paddle.js?v=57"></script>
-<script src="js/okuma.js?v=57"></script>
-<script src="js/disari.js?v=57"></script>
-<script src="js/baslat.js?v=57"></script>
+<script src="js/temel.js?v=58"></script>
+<script src="js/depo.js?v=58"></script>
+<script src="js/ayarlar.js?v=58"></script>
+<script src="js/kontrol.js?v=58"></script>
+<script src="js/kalite.js?v=58"></script>
+<script src="js/arayuz.js?v=58"></script>
+<script src="js/okuyucu-claude.js?v=58"></script>
+<script src="js/okuyucu-tesseract.js?v=58"></script>
+<script src="js/okuyucu-paddle.js?v=58"></script>
+<script src="js/okuma.js?v=58"></script>
+<script src="js/disari.js?v=58"></script>
+<script src="js/baslat.js?v=58"></script>
 </body>
 </html>

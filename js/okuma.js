@@ -120,3 +120,46 @@ async function devamEkle(file){const r=rows.find(x=>x.id===devId);devId=null;if(
   r.pages=[...onceki,file];r.file=r.pages[0];delete r.blob;r.status='queued';r.open=false;r.prog=`${r.pages.length} fotoğraf birlikte okunacak`;
   queue.push(r);render();pump()}
 $('#devam').addEventListener('change',e=>{devamEkle(e.target.files[0]);e.target.value=''});
+
+// ---- Arka arkaya tarama: uygulama içi kamera (açık kalır; her kare kalite kontrolünden geçip sıraya girer) ----
+const KAM={akis:null,sayi:0,isik:false};
+async function kameraAc(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('Bu tarayıcıda uygulama içi kamera yok; 📷 Fotoğraf çek’i kullan');return}
+  try{KAM.akis=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:3840},height:{ideal:2160}}})}
+  catch(e){toast(e&&e.name==='NotAllowedError'?'Kamera izni verilmedi (Ayarlar › Safari › Kamera)':'Kamera açılamadı');return}
+  const v=$('#kvid');v.srcObject=KAM.akis;KAM.sayi=0;$('#ksay').textContent='0 fiş';$('#kson').removeAttribute('src');kMesaj('');
+  $('#kamera').hidden=false;document.body.classList.add('kamera-acik');
+  try{await v.play()}catch(e){}
+  const tr=KAM.akis.getVideoTracks()[0],cap=tr.getCapabilities?tr.getCapabilities():{};
+  $('#kisik').hidden=!cap.torch;KAM.isik=false;
+  // sürekli netleme destekleniyorsa aç
+  try{if(cap.focusMode&&cap.focusMode.includes('continuous'))await tr.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
+}
+function kameraKapat(){if(KAM.akis)KAM.akis.getTracks().forEach(t=>t.stop());KAM.akis=null;$('#kvid').srcObject=null;$('#kamera').hidden=true;document.body.classList.remove('kamera-acik');
+  if(KAM.sayi)toast(`${KAM.sayi} fiş eklendi; okumalar sırayla sürüyor`)}
+function kMesaj(m,tur){const el=$('#kmesaj');el.textContent=m;el.className='k-mesaj'+(tur?' '+tur:'');clearTimeout(el._t);if(m)el._t=setTimeout(()=>{el.textContent='';el.className='k-mesaj'},2600)}
+async function kareAl(){
+  const tr=KAM.akis&&KAM.akis.getVideoTracks()[0];if(!tr)return null;
+  // ImageCapture (Android Chrome) sensörün tam çözünürlüğünde çeker; yoksa video karesi
+  if(typeof ImageCapture!=='undefined'){try{const b=await new ImageCapture(tr).takePhoto();if(b&&b.size)return b}catch(e){}}
+  const v=$('#kvid'),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;if(!c.width)return null;
+  c.getContext('2d').drawImage(v,0,0);const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));c.width=c.height=1;return b;
+}
+$('#seri').onclick=kameraAc;
+$('#kbitti').onclick=kameraKapat;
+$('#kisik').onclick=async()=>{const tr=KAM.akis&&KAM.akis.getVideoTracks()[0];if(!tr)return;KAM.isik=!KAM.isik;try{await tr.applyConstraints({advanced:[{torch:KAM.isik}]})}catch(e){KAM.isik=false}$('#kisik').classList.toggle('on',KAM.isik)};
+$('#kdek').onclick=async()=>{
+  const d=$('#kdek');if(d.disabled)return;d.disabled=true;
+  try{
+    const f=$('#kflas');f.classList.remove('on');void f.offsetWidth;f.classList.add('on');navigator.vibrate&&navigator.vibrate(25);
+    const b=await kareAl();if(!b){kMesaj('Çekilemedi, tekrar dene','kotu');return}
+    const file=new File([b],`seri_${Date.now()}.jpg`,{type:'image/jpeg'});
+    // anında kalite kontrolü: bulanık / düşük çözünürlüklü kare sıraya girmez, yeniden çekilir
+    let q=null;try{q=await fotoKalite(file)}catch(e){}
+    const k=kaliteSorun(q);
+    if(k.includes('bulanik')){kMesaj('Bulanık — sabit tut, tekrar çek','kotu');return}
+    if(k.includes('kucuk')){kMesaj('Görüntü çok küçük — fişe yaklaş','kotu');return}
+    KAM.sayi++;$('#ksay').textContent=`${KAM.sayi} fiş`;$('#kson').src=URL.createObjectURL(b);kMesaj('✓ Eklendi, sıradaki fiş','iyi');
+    onFiles([file]);
+  }finally{d.disabled=false}
+};

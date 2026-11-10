@@ -18,7 +18,8 @@ js/                    uygulama kodu — sırası index.html'deki gibi yüklenir
   okuyucu-paddle.js    PaddleOCR (varsayılan): model indirme/önbellek, işçi + sayfa yedeği, kutuları satıra dizme
   okuyucu-tesseract.js Tesseract
   okuyucu-claude.js    Claude API
-  okuma.js             fotoğraf/metin ekleme, sıra, okuyucu seçimi, sonucu rapora yazma, yeniden çekme
+  okuma.js             fotoğraf/metin ekleme, sıra, okuyucu seçimi, sonucu rapora yazma, yeniden çekme,
+                       uzun fiş (devam fotoğrafı, sayfa birleştirme), arka arkaya tarama (uygulama içi kamera)
   disari.js            Luca CSV (Windows-1254), Excel, panoya kopyalama
   baslat.js            açılış: kayıtları yükle, sürüm kontrolü, service worker
   parser.js            Z raporu metin ayrıştırıcısı (ZParse) — tüm fiş düzenleri, okuma hatası onarımları
@@ -52,7 +53,7 @@ node calistir.mjs --uygulama ../zraporu --metin       # ayrıştırıcı, saniye
 node calistir.mjs --uygulama ../zraporu --mod paddle   # fotoğraftan PaddleOCR, ~7 dk
 ```
 
-"Yanlış ve işaretsiz" sütunu sıfır olmalı (uygulama emin göründüğü hâlde yanlış değer).
+`node arayuz.mjs --uygulama ../zraporu` ekran testleri (saniyeler). "Yanlış ve işaretsiz" sütunu sıfır olmalı (uygulama emin göründüğü hâlde yanlış değer).
 
 ## Kullanıcı kuralları (muhasebe)
 
