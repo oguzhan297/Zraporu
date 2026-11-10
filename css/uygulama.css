@@ -294,3 +294,9 @@ body.klavye .bar{display:none}
 
 /* Kontrol satırındaki eylem düğmesi (eksik Z ekle, doğruladım) */
 .ck .ck-btn{display:flex;margin-top:8px}
+
+/* Güncelleme bandı ve Yenilikler */
+.guncel{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top));z-index:30;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 16px;border-radius:999px;
+  background:rgba(15,23,42,.72);backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);border:1px solid rgba(255,255,255,.14);box-shadow:0 12px 30px -12px rgba(0,0,0,.6);font-size:13.5px;color:var(--ink);white-space:nowrap}
+.guncel[hidden]{display:none}
+ul.yenilik{margin:10px 0 14px;padding-left:20px;color:#cbd5e1;font-size:14px;line-height:1.5}ul.yenilik li{margin:4px 0}

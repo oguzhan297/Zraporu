@@ -1,6 +1,15 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=67;
+const APP_VER=68;
+// Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
+const YENILIK={
+  68:['Yeni sürüm yayınlanınca üstte “Yeni sürüm hazır” çıkar; dokununca güncellenir','Güncellemeden sonra bu “Yenilikler” listesi gösterilir','PaddleOCR okuyucusu önceden indirilebilir (Ayarlar ya da açılıştaki öneri)'],
+  67:['Slip fiş sayısı / kartlı işlem sayısı ile kredi kartı tutarı çelişirse uyarı'],
+  65:['Kümülatif toplam kontrolü: ardışık Z’lerin KÜMSAT farkı günün satışıyla karşılaştırılır','Eksik Z bulunur; tek eksik Z kümülatiflerden hesaplanıp eklenebilir (doğrulanmadan Luca’ya gitmez)'],
+  63:['Klavye açıkken alt çubuk gizlenir'],
+  61:['Her kartta “Hata bildir”; bildirim doğrudan gizli gelen kutusuna gider'],
+  60:['“Fotoğraf çek” uygulama içi kamerayla: çerçeve, fener, bulanıklık kontrolü']
+};
 const FIELDS=[
   {k:'tarih',l:'Tarih',c:'TARİH',t:'text',sec:'Genel'},
   {k:'z_no',l:'Z No',c:'Z NO',t:'text'},
