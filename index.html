@@ -15,7 +15,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Z Raporu">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="parser.js?v=51"></script>
+<script src="parser.js?v=52"></script>
 <style>
 /* ===== Sade fintech teması: slate-900 zemin, soft zümrüt (emerald-600) + mavi (blue-600), Excel yeşili ===== */
 :root{
@@ -68,6 +68,10 @@ h1 .to{color:var(--mut);font-weight:500}
 .mbox{background:var(--card);width:100%;max-width:660px;border-radius:16px 16px 0 0;border:1px solid var(--line);border-bottom:0;padding:18px 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px;box-shadow:0 -16px 40px -16px rgba(0,0,0,.7)}
 .mt{font-weight:700;font-size:16.5px;letter-spacing:-.01em}
 .mbox textarea,.ocr textarea{font:13px/1.45 ui-monospace,"SF Mono",Menlo,Consolas,monospace;width:100%;border:1px solid var(--line2);border-radius:10px;padding:10px;background:var(--bg);color:var(--ink)}
+.qwarn{margin:0 0 12px;padding:11px 12px;border-radius:10px;background:var(--warnbg);border:1px solid rgba(251,191,36,.3);font-size:13px;line-height:1.45;color:#fde68a}
+.qw-h{font-weight:600;color:var(--warn);margin-bottom:5px}
+.qw-i{margin:3px 0}.qw-i b{color:var(--warn);font-weight:600}
+.qwarn .set-row{margin-top:9px}
 .ocr{margin-top:12px;font-size:13px;color:var(--mut)}.ocr summary{cursor:pointer}
 .ocr .set-row{margin-top:8px}
 /* Ayarlar: akordeon (varsayılan kapalı) */
@@ -167,6 +171,8 @@ body.dropping{outline:3px dashed #34d399;outline-offset:-8px}
   </div>
   <input type="file" id="cam" accept="image/*" capture="environment">
   <input type="file" id="gal" accept="image/*" multiple>
+  <input type="file" id="recam" accept="image/*" capture="environment">
+  <input type="file" id="regal" accept="image/*">
   <div class="row-links">
     <button class="btn small" id="paste">📋 Metinden ekle</button>
     <button class="btn small" id="manual">＋ Elle ekle</button>
@@ -291,7 +297,7 @@ const IDB=(()=>{let p;
   return {put:(st,v,k)=>w(st,s=>k===undefined?s.put(v):s.put(v,k)),del:(st,k)=>w(st,s=>s.delete(k)),
     all:st=>open().then(d=>req(d.transaction(st).objectStore(st).getAll())),get:(st,k)=>open().then(d=>req(d.transaction(st).objectStore(st).get(k)))};
 })();
-const ser=r=>({ocr:r.ocr??null,d:r.d||{},unsure:r.unsure||[],auto:r.auto||[],src:r.src||'',_ack:r._ack||'',hasImg:!!r.hasImg,created:r.created||Date.now(),_zAuto:!!r._zAuto,_zManual:!!r._zManual,_zRead:r._zRead||''});
+const ser=r=>({ocr:r.ocr??null,d:r.d||{},unsure:r.unsure||[],auto:r.auto||[],src:r.src||'',_ack:r._ack||'',hasImg:!!r.hasImg,created:r.created||Date.now(),_zAuto:!!r._zAuto,_zManual:!!r._zManual,_zRead:r._zRead||'',q:r.q||null});
 function setStore(st){const el=$('#sync');if(!el)return;el.textContent={ok:'📱 Bu telefonda kayıtlı',err:'⚠ Kaydedilemedi — CSV’yi indirmeden kapatma',wait:'Yükleniyor…'}[st]||'';el.className='sync s-'+st}
 function save(r){if(!r||r.status!=='done')return;IDB.put('rows',{id:r.id,...ser(r)}).then(()=>setStore('ok')).catch(()=>{setStore('err');toast('Kaydedilemedi: telefon hafızası dolu olabilir.')})}
 async function removeRows(list){
@@ -382,6 +388,7 @@ function render(){
       <div class="head" data-tog="${r.id}">${headHTML(r)}</div>
       <div class="body">
         ${r.thumb?`<img class="big" src="${r.thumb}" data-zoom alt="Z raporu fotoğrafı (dokun: büyüt)">`:''}
+        ${kaliteHTML(r)}
         ${r.d.z_rapor_mu===false?'<div class="notice" style="display:block">Bu görüntü bir Z raporuna benzemiyor, değerleri dikkatle kontrol et.</div>':''}
         <div class="checks">${checksHTML(r)}</div>
         <div class="grps">${g}</div>
@@ -422,7 +429,8 @@ function refreshCard(r){
 }
 
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr]');if(!t)return;
+  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr],[data-recam],[data-regal]');if(!t)return;
+  if(t.dataset.recam||t.dataset.regal){reId=t.dataset.recam||t.dataset.regal;const i=$(t.dataset.recam?'#recam':'#regal');i.value='';i.click();return}
   if(t.dataset.copyocr){const ta=document.querySelector(`[data-ocr="${t.dataset.copyocr}"]`);const txt=ta?ta.value:'';
     (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Okunan metin kopyalandı')).catch(()=>{try{ta.focus();ta.select();ta.setSelectionRange(0,txt.length);const ok=document.execCommand('copy');toast(ok?'Okunan metin kopyalandı':'Kopyalanamadı — metne uzun basıp “Tümünü Seç”')}catch(x){toast('Kopyalanamadı')}});return}
   if(t.dataset.reparse){const r=rows.find(x=>x.id===t.dataset.reparse);const ta=document.querySelector(`[data-ocr="${r.id}"]`);r._zAuto=false;applyParse(r,ta.value);r.open=true;save(r);autoZ();render();toast('Metin yeniden okundu');return}
@@ -785,9 +793,44 @@ async function extract(r){
   }
   render();
 }
+// ---- Fotoğraf kalitesi: okumadan önce telefonda hızlı ölçüm (≈50 ms) ----
+// Eşikler test arşivindeki 23 gerçek fotoğraf ve bunların bulanık / karanlık / soluk / küçük kopyalarıyla ayarlandı.
+async function fotoKalite(src){
+  const im=await openImage(src),W=im.naturalWidth,H=im.naturalHeight;
+  const S=Math.min(1,1000/Math.max(W,H)),w=Math.max(1,Math.round(W*S)),h=Math.max(1,Math.round(H*S));
+  const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(im,0,0,w,h);
+  const p=x.getImageData(0,0,w,h).data,g=new Float32Array(w*h);c.width=c.height=1;
+  for(let i=0,j=0;i<p.length;i+=4,j++)g[j]=.299*p[i]+.587*p[i+1]+.114*p[i+2];
+  const G=new Float32Array(w*h),Lp=new Float32Array(w*h);
+  for(let y=1;y<h-1;y++)for(let xx=1;xx<w-1;xx++){const i=y*w+xx;
+    const gx=g[i-w+1]+2*g[i+1]+g[i+w+1]-g[i-w-1]-2*g[i-1]-g[i+w-1],gy=g[i+w-1]+2*g[i+w]+g[i+w+1]-g[i-w-1]-2*g[i-w]-g[i-w+1];
+    G[i]=Math.hypot(gx,gy);Lp[i]=Math.abs(4*g[i]-g[i-1]-g[i+1]-g[i-w]-g[i+w])}
+  const q=(a,f)=>{const s=Float32Array.from(a).sort();return s[Math.min(s.length-1,Math.floor(f*s.length))]};
+  const gT=q(G,.99);let sl=0,sg=0;for(let i=0;i<G.length;i++)if(G[i]>=gT&&G[i]>0){sl+=Lp[i];sg+=G[i]}
+  const p5=q(g,.05),p95=q(g,.95);
+  // keskinlik: en güçlü kenarlarda Laplace / gradyan oranı (bulanık kenar yayılır, oran düşer); ölçekten ve ışıktan büyük ölçüde bağımsız
+  return {min:Math.min(W,H),keskin:sg?sl/sg:0,p5,p95,kontrast:p95-p5};
+}
+const KALITE={
+  kucuk:{m:'Fotoğrafın çözünürlüğü düşük',ip:'Fişe yaklaş ya da fotoğrafı orijinal boyutunda gönder (sıkıştırılmış WhatsApp görüntüsü değil).'},
+  bulanik:{m:'Fotoğraf bulanık',ip:'Telefonu sabit tut, çekmeden önce ekranda fişe dokunup netlemesini bekle.'},
+  karanlik:{m:'Fotoğraf karanlık',ip:'Daha aydınlık bir yerde ya da flaşla çek.'},
+  soluk:{m:'Fotoğraf soluk / düşük kontrastlı',ip:'Işık yansımasından kaçın; baskının kendisi silikse değerleri elle kontrol et.'}
+};
+// Bulanık ve düşük çözünürlük okumayı bozar (testte bulanıkta doğru fiş 23/23 → 13/23): her zaman uyar.
+// Karanlık ve soluk fotoğrafları PaddleOCR çoğunlukla doğru okur: yalnız okumada da sorun varsa sebep olarak göster.
+function kaliteSorun(o,okumaSorunlu){if(!o)return [];const k=[];
+  if(o.min<900)k.push('kucuk');else if(o.keskin<0.07)k.push('bulanik');
+  if(okumaSorunlu){if(o.p95<110)k.push('karanlik');else if(o.kontrast<90&&o.p5>85)k.push('soluk')}
+  return k}
+function kaliteHTML(r){const k=kaliteSorun(r.q,isBad(r));if(!k.length)return '';
+  return `<div class="qwarn"><div class="qw-h">📷 Fotoğraf kalitesi düşük — okuma hatalı olabilir</div>${k.map(x=>`<div class="qw-i"><b>${KALITE[x].m}.</b> ${KALITE[x].ip}</div>`).join('')}
+    <div class="set-row"><button class="btn small primary" data-recam="${r.id}">📷 Yeniden çek</button><button class="btn small" data-regal="${r.id}">🖼️ Galeriden değiştir</button></div></div>`}
 async function prep(r){   // küçük resmi ve yüklenecek kopyayı sırası gelince hazırla (seçim anında hepsini birden işleyip bekletme)
   if(r.blob||!r.file)return true;
-  try{const s=await shrink(r.file);r.blob=s.blob;r.thumb=s.thumb;r._small=s.small;return true}catch(e){r.status='error';r.err=e.message;render();return false}
+  try{const s=await shrink(r.file);r.blob=s.blob;r.thumb=s.thumb;r._small=s.small}catch(e){r.status='error';r.err=e.message;render();return false}
+  try{r.q=await fotoKalite(r.file);const k=kaliteSorun(r.q);if(k.length){toast('📷 '+KALITE[k[0]].m+' — okuma hatalı olabilir');setProg(r,KALITE[k[0]].m+'; yine de okunuyor…')}}catch(e){r.q=null}
+  return true
 }
 async function pump(){if(busy)return;busy=true;
   while(queue.length){const r=queue.shift();if(!rows.includes(r))continue;if(await prep(r))await extract(r)}
@@ -807,6 +850,14 @@ async function onFiles(list){
   render();pump();
 }
 $('#cam').addEventListener('change',e=>{onFiles(e.target.files);e.target.value=''});
+// Yeniden çek: kartın fotoğrafını değiştirip yeniden oku (elle yapılan düzeltmeler yeni okumayla değişir)
+let reId=null;
+function replacePhoto(file){const r=rows.find(x=>x.id===reId);reId=null;if(!r||!file)return;
+  if(r.status==='work'||r.status==='queued'){toast('Bu rapor zaten okunuyor');return}
+  r.file=file;delete r.blob;r.thumb=null;r.q=null;r.status='queued';r.src='foto';r.open=false;r.prog='Yeni fotoğraf sırada';
+  queue.push(r);render();pump()}
+$('#recam').addEventListener('change',e=>{replacePhoto(e.target.files[0]);e.target.value=''});
+$('#regal').addEventListener('change',e=>{replacePhoto(e.target.files[0]);e.target.value=''});
 $('#gal').addEventListener('change',e=>{onFiles(e.target.files);e.target.value=''});
 // Bilgisayarda: fotoğrafları pencereye sürükleyip bırak
 document.addEventListener('dragover',e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){e.preventDefault();document.body.classList.add('dropping')}});
@@ -899,7 +950,7 @@ $('#bkin').addEventListener('change',async e=>{
   }catch(err){toast('Bu dosya geçerli bir yedek değil.')}
 });
 $('#ack').value=ACK;
-const APP_VER=51;
+const APP_VER=52;
 function showVer(){const pv=window.ZParse&&ZParse.version;$('#ver').textContent=`Sürüm: ${APP_VER} · okuyucu: ${pv||'yok'}`;$('#ver').style.color=pv===APP_VER?'':'var(--warn)';if(pv!==APP_VER)$('#ver').textContent+=' — okuyucu güncel değil, uygulamayı kapatıp yeniden aç';return pv===APP_VER}
 // Okuyucu yüklenemediyse (ör. GitHub güncellemesi yayılırken) kendiliğinden yeniden dene
 (function retryParser(n){if(showVer()||n>6)return;const sc=document.createElement('script');sc.src=`parser.js?v=${APP_VER}&r=${Date.now()}`;sc.onload=()=>{showVer();if(window.ZParse&&rows.length)render()};sc.onerror=()=>{};document.head.appendChild(sc);setTimeout(()=>retryParser(n+1),n<2?3000:15000)})(0);
