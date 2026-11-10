@@ -108,7 +108,7 @@ document.addEventListener('click',e=>{
   if(t.dataset.devam){devId=t.dataset.devam;const i=$('#devam');i.value='';i.click();return}
   if(t.dataset.f){FLT.f=t.dataset.f;render();return}
   if(t.dataset.aktsil){const r=rows.find(x=>x.id===t.dataset.aktsil);r.akt=null;save(r);render();toast('Bir sonraki Luca dosyasına yeniden girecek');return}
-  if(t.dataset.bildirac){const k=$('#bk-'+t.dataset.bildirac);if(k){k.hidden=!k.hidden;if(!k.hidden){k.scrollIntoView({block:'nearest',behavior:'smooth'});$('#bn-'+t.dataset.bildirac).focus({preventScroll:true})}}return}
+  if(t.dataset.bildirac){const k=$('#bk-'+t.dataset.bildirac);if(k){k.hidden=!k.hidden;if(!k.hidden)$('#bn-'+t.dataset.bildirac).focus()}return}
   if(t.dataset.bildir){const id=t.dataset.bildir,r=rows.find(x=>x.id===id);if(!r)return;const n=$('#bn-'+id);
     hataBildir(r,n?n.value.trim():'',t).then(ok=>{if(ok){render()}});return}
   if(t.dataset.recam||t.dataset.regal){reId=t.dataset.recam||t.dataset.regal;const i=$(t.dataset.recam?'#recam':'#regal');i.value='';i.click();return}
@@ -151,16 +151,15 @@ $('#pmclip').onclick=async()=>{try{const t=(await navigator.clipboard.readText()
 if(/^#(toplu|tara)/.test(location.hash)){history.replaceState(null,'',location.pathname);setTimeout(()=>$('#paste').click(),300)}
 $('#ara').addEventListener('input',e=>{FLT.q=e.target.value.trim();render()});
 
-// ---- Klavye açıkken: alt çubuğu gizle, yazılan alanı (ve düğmelerini) klavyenin üstünde tut ----
+// ---- Klavye açıkken: alt çubuğu gizle. Kaydırmayı iOS kendisi yapar (biz karışırsak sayfa iner-çıkar);
+// yalnız "Hata bildir" kutusunda düğmeler klavyenin altında kalırsa, klavye yerleştikten sonra BİR KEZ aşağı kaydır.
 (()=>{
   const yazilir=el=>!!el&&el.matches&&(el.matches('textarea,select,[contenteditable]')||el.matches('input')&&!/^(checkbox|radio|button|submit|file|range|color|reset)$/.test(el.type));
   let zm;
-  const gorunurYap=()=>{const el=document.activeElement;if(!yazilir(el)||el.closest('.modal'))return;
-    const kutu=el.closest('.bildirkutu')||el,vv=window.visualViewport,ust=(vv?vv.offsetTop:0)+70,alt=(vv?vv.offsetTop+vv.height:innerHeight)-12,r=kutu.getBoundingClientRect();
-    let d=0;if(r.bottom>alt)d=r.bottom-alt;if(r.top-d<ust)d=r.top-ust;           // kutu sığmazsa üstü görünsün
-    if(Math.abs(d)>2)window.scrollBy({top:d,behavior:'smooth'})};
-  const sonra=ms=>{clearTimeout(zm);zm=setTimeout(gorunurYap,ms)};
-  document.addEventListener('focusin',e=>{if(!yazilir(e.target))return;document.body.classList.add('klavye');sonra(350)});
+  document.addEventListener('focusin',e=>{const el=e.target;if(!yazilir(el))return;document.body.classList.add('klavye');clearTimeout(zm);
+    const kutu=el.closest('.bildirkutu');if(!kutu)return;
+    zm=setTimeout(()=>{if(document.activeElement!==el)return;const vv=window.visualViewport;if(!vv)return;
+      const alt=vv.offsetTop+vv.height-8,dib=kutu.getBoundingClientRect().bottom,ust=el.getBoundingClientRect().top,d=Math.min(dib-alt,ust-vv.offsetTop-16);
+      if(d>4)window.scrollBy(0,d)},650)});
   document.addEventListener('focusout',()=>setTimeout(()=>{if(!yazilir(document.activeElement))document.body.classList.remove('klavye')},80));
-  if(window.visualViewport)visualViewport.addEventListener('resize',()=>{if(document.body.classList.contains('klavye'))sonra(120)});
 })();
