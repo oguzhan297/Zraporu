@@ -546,6 +546,7 @@
     if (d.genel != null && Math.abs(grp - d.genel) >= 0.006)
       { for (const x of ['tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20', 'gp']) if (d[x]) unsure.push(x); if (!d.tekel) unsure.push('tekel'); }   // boş Tekel de şüpheli
     checkTk(d, unsure, notes);
+    knvTo1(L, d, unsure, notes, amtAt);
     if (ciroReport(L, d, unsure, notes)) { const u = [...new Set(unsure)]; return { d, unsure: u, notes: [...new Set(notes)], found: Object.keys(d).filter(k => d[k] != null).length, amts: allA }; }
     // zayıf kaynaklı genel toplam ödemelerle de tutmuyorsa gruplar dahil hiçbir şey "kesin" sayılmasın ("TOPLAM *724,00" genel sanıldı, diğer gruplar 0 yapıldı)
     if (d._genWeak && d.genel != null) { const pay = (d.nakit || 0) + (d.kart || 0) + (d.diger || 0); if (Math.abs(pay - d.genel) >= 0.006) unsure.push('genel', 'tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20'); }
@@ -721,10 +722,11 @@
     if (gen == null && alt.length) d.genel = alt[0];
     else if (gen != null && alt.length && !alt.some(v => Math.abs(v - gen) < 0.006)) { const gv = variants(gen).find(v => alt.some(a => Math.abs(a - v) < 0.006)); if (gv != null) d.genel = gv; }
     // ÖDEME BİLGİLERİ yalnızca doğrulama için: nakit toplamı ve diğer tüm ödeme türlerinin (kredi + karekod…) toplamı
+    let qr = 0;   // karekod ile ödenen (kredi kartına eklenmez)
     { let lab = null, n = null, k = 0, kn = 0, kl = 0;
       for (const l of L.filter(l => l.sec === 'odeme' && !/B[İI1]LG|---/.test(l.s))) {
-        if (/TOPLA/.test(l.s)) { if (l.a.length && lab) { const v = l.a[l.a.length - 1]; if (lab === 'n') n = v; else { k += v; kn++; } } lab = null; }
-        else if (/N?AK[İI1]T/.test(l.s)) lab = 'n'; else if (hasLetters(l.s)) { lab = 'k'; kl++; }
+        if (/TOPLA/.test(l.s)) { if (l.a.length && lab) { const v = l.a[l.a.length - 1]; if (lab === 'n') n = v; else if (lab === 'q') qr = r2(qr + v); else { k += v; kn++; } } lab = null; }
+        else if (/N?AK[İI1]T/.test(l.s)) lab = 'n'; else if (/KAREK[O0]D|\bQR\b/.test(l.s)) lab = 'q'; else if (hasLetters(l.s)) { lab = 'k'; kl++; }
       }
       if (n != null) d._payN = n; if (kn && kn === kl) d._payK = r2(k); }
     // Genel toplam: belge SATIŞ TOPLAMI, GÜNLÜK FİŞ DÖKÜMÜ TOPLAM, KASİYER toplamı, KDV grupları toplamı, ödemeler toplamı — en az iki kaynağın tuttuğu değer
@@ -735,8 +737,8 @@
       for (const l of L.filter(l => l.sec === 'kasiyer')) if (l.a.length) add(l.a[l.a.length - 1], 'kasiyer');
       if (Object.keys(groups).length) add(Object.values(groups).reduce((a, b) => a + b.g, 0), 'grup');
       if (d._dp) add(Object.values(d._dp).reduce((a, b) => a + b, 0), 'dept');
-      if (nk != null && kr != null) add(nk + kr + (dg || 0), 'odeme');
-      if (d._payN != null && d._payK != null) add(d._payN + d._payK, 'odeme2');
+      if (nk != null && kr != null) add(nk + kr + (dg || 0), 'odeme');      // belge KREDİ karekodu da içerir
+      if (d._payN != null && d._payK != null) add(d._payN + d._payK + qr, 'odeme2');
       const C = new Map();
       for (const x of src) for (const v of [x.v, ...variants(x.v)]) { const t = C.get(v) || new Set(); t.add(x.tag); C.set(v, t); }
       // aynı kaynağın kendi varyantı ikinci oy sayılmaz; en çok farklı kaynağın tuttuğu değer
@@ -746,6 +748,11 @@
       if (!best || best.n < 2) for (const [v, t] of C) if (!best || t.size > best.n) best = { v, n: t.size };
       if (best && best.n >= 2) { if (d.genel !== best.v) notes.push(`Genel toplam: ${String(d.genel ?? '—').replace('.', ',')} → ${best.v.toFixed(2).replace('.', ',')} (${best.n} ayrı satırla doğrulandı)`); d.genel = best.v; genOk = true; d._genWeak = false; clear('genel'); }
       else unsure.push('genel'); }
+    // Karekod ödemeleri kredi kartına eklenmez: belge "-KREDİ" karekodu da içerir → ayır, "diğer ödeme" olarak tut (Luca'ya aktarılmaz)
+    if (qr > 0 && d.kart != null && d.kart >= qr) {
+      d.kart = r2(d.kart - qr); d.diger = r2((d.diger || 0) + qr); d._qr = qr;
+      notes.push(`Karekod ödemesi (${qr.toFixed(2).replace('.', ',')}) kredi kartına eklenmedi; "Karekod / diğer ödeme" alanında.`);
+    }
     // bulunan gruplar genel toplamı TAM veriyorsa listede olmayan oranlar gerçekten 0'dır
     if (Object.keys(groups).length && d.genel != null && genOk) {
       const sum = Object.values(groups).reduce((a, b) => a + b.g, 0);
@@ -753,6 +760,27 @@
         if (!(0 in groups)) { d.tekel = 0; clear('tekel'); }
         for (const b of Object.values(groups)) if (b.sc >= 10) { if (b.r === 0) clear('tekel'); else clear(...KEY[b.r]); } }
     }
+  }
+  // KNV satırı (kantin raporlarında "KNV %0 Mktr 32 ↵ *17,65", altta "TOPLAM KNV *17,65"): kullanıcı kuralı —
+  // tutar varsa %0'dan (Tekel) çıkarılıp %1 grubuna eklenir, KDV'si %1 ile (KDV dahil tutardan) hesaplanıp %1 KDV'ye eklenir.
+  function knvTo1(L, d, unsure, notes, amtAt) {
+    let v = null;
+    for (let i = 0; i < L.length; i++) {
+      const l = L[i]; if (l.cum || !/\bKNV\b/.test(l.s)) continue;
+      const x = /TOPLAM/.test(l.s) ? (l.a.length ? l.a[l.a.length - 1] : null) : amtAt(i);
+      if (x != null && x > 0) { v = x; if (/TOPLAM/.test(l.s)) break; }
+    }
+    if (!(v > 0)) return;
+    const kv = r2(v / 101), f = x => x.toFixed(2).replace('.', ',');
+    if (d.tekel != null && d.tekel >= v - 0.005) d.tekel = r2(d.tekel - v);
+    d.g1 = r2((d.g1 || 0) + v); d.k1 = r2((d.k1 || 0) + kv); d.m1 = r2(d.g1 - d.k1);
+    if (d._vd && d._vd[1]) d._vd[1] = [r2(d._vd[1][0] + v), r2(d._vd[1][1] + kv)];
+    if (d._dp) { if (d._dp[0] != null) d._dp[0] = r2(d._dp[0] - v); d._dp[1] = r2((d._dp[1] || 0) + v); }
+    for (const k of ['_topk', '_tk', 'top_kdv']) if (typeof d[k] === 'number') d[k] = r2(d[k] + kv);
+    if (Array.isArray(d._mk)) d._mk = d._mk.map(x => r2(x + kv));
+    for (let i = notes.length - 1; i >= 0; i--) if (/%0[’']?l[ıi] satış Tekel|^%0 satış/.test(notes[i])) notes.splice(i, 1);
+    { let j; while ((j = unsure.indexOf('tekel')) >= 0) unsure.splice(j, 1); }
+    notes.push(`KNV ${f(v)} %1 grubuna eklendi; KDV'si ${f(kv)} (fişte %0 basılı).`);
   }
   // "FİŞ CİROSU" düzenli Z raporu (DEPARTMANLARA GÖRE / KDV ORANLARINA GÖRE FİŞ SATIŞ DÖKÜMLERİ, GÜNLÜK FİŞ CİROSU,
   // FİŞ ÖDEME DÖKÜMLERİ: NAKİT ÖDEME TUTARI, KREDİ-01…, KREDİ ÖDEMELER TOPLAMI, ÖDEMELER TOPLAMI).
@@ -1060,5 +1088,5 @@
     for (const k of ['genel', 'nakit', 'kart']) if (d[k] == null) unsure.push(k);
     return { d, unsure: [...new Set(unsure)], notes, found: Object.keys(d).filter(k => d[k] != null).length };
   }
-  root.ZParse = { version: 48, parseZ, normLine, amounts, consistency, merge };
+  root.ZParse = { version: 49, parseZ, normLine, amounts, consistency, merge };
 })(typeof window !== 'undefined' ? window : globalThis);
