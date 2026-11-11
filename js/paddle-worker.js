@@ -3,7 +3,7 @@
 // her okuma geçişinde yalnız ayarları yollar; buradan sadece bulunan metin kutuları (poly, text, score) döner.
 // vendor/paddle.js değişince ?p= elle; goruntu.js ?v= değerini arac/surum.mjs günceller.
 import '../vendor/paddle.js?p=2';
-import './goruntu.js?v=71';
+import './goruntu.js?v=72';
 
 const L = globalThis.PaddleOCRLib, G = globalThis.ZGoruntu;
 let ocr = null, cv = null;
