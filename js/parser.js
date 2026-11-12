@@ -14,6 +14,11 @@
     // "*1/00" ve "0/09" tutarlardır — "%" kuralından önce uygula
     s = s.replace(/(?<![\/\d])(\d{1,6})\/(\d{2})(?![\d\/])/g, '$1,$2');
     s = s.replace(/°\/O|0\/0|º\/O|°\/0/g, '%');
+    // "TOPLAM Z1 *30.399,00" / "TOPKDV 71 180,50": oran işareti "%" → "Z"/"7"/"2" okunmuş (yoksa 71 ile tutar birleşiyordu)
+    s = s.replace(/^(\W?TOPLAM|\W?TOP\s?KDV)\s+[Z7]\s?(1|10|20|8|18|0)(?=\s+[*·•.]?\s?\d)/, '$1 %$2');
+    // kuruş ayırıcısı ":" / ";" okunmuş: "*30.399:00" "*10.000;00", "TOPKDV 300;98"
+    s = s.replace(/(\d{1,3}(?:[.,]\d{3})+)[:;](\d{2})(?!\d)/g, '$1,$2');
+    if (/^\W?\*|TOPLAM|TOP\s?KDV|\bKDV\b|NAK[İI]T|KART|KRED/.test(s)) s = s.replace(/(^|[\s*·•])(\d{1,3})[:;](\d{2})\s*$/, '$1$2,$3');
     // rakamların arasındaki tipik yazı tanıma karışıklıkları
     s = s.replace(/(\d)[OÖ](?=[\d,.])/g, '$10').replace(/([\d,.])[OÖ](?=\d)/g, '$10');
     s = s.replace(/(\d)[İIL|](?=\d)/g, '$11');
@@ -261,7 +266,30 @@
     return true;
   }
 
+  // Fotoğrafta başka bir Z raporunun parçası da varsa (kağıt şeridi üst üste, alttaki / üstteki fişin sonu) yalnız bu raporu bırak.
+  // Rapor başlığındaki "Z NO: 2.712" ile aynı numaralı alt satır ("EKÜ NO: 1   Z NO: 2.712") raporun sonudur; ondan sonra gelen
+  // (yanındaki "NF AT ..." mali sicil satırı hariç) başka fişe aittir. Başlıktan önce başka numaralı bir alt satır varsa
+  // oraya kadar olan kısım da önceki fişin sonudur.
+  function tekFis(text) {
+    const L = String(text || '').split(/\r?\n/), U = L.map(l => l.toLocaleUpperCase('tr-TR'));
+    const zOf = u => { const m = u.match(/[Z2]\s?N[O0Ö]\s*[:.,]?\s*(\d{1,3}[.,]\d{3}|\d{1,6})\b/); return m ? m[1].replace(/[.,]/g, '').replace(/^0+(?=\d)/, '') : null; };
+    const alt = u => /^\W{0,2}E[KR]\s?[UÜ]\s?N[O0]/.test(u);
+    let bas = -1, z = null;
+    for (let i = 0; i < U.length; i++) if (!alt(U[i])) { const v = zOf(U[i]); if (v && v.length >= 2) { bas = i; z = v; break; } }
+    if (bas < 0) return text;
+    let son = -1;
+    for (let i = bas + 1; i < U.length; i++) if (alt(U[i]) && zOf(U[i]) === z) { son = i; break; }
+    let ilk = 0;
+    for (let i = bas - 1; i >= 0; i--) if (alt(U[i]) && zOf(U[i]) && zOf(U[i]) !== z) { ilk = i + 1; while (ilk < bas && /^\W{0,2}[MN]\s?F\s?A\s?T|^\W*\d{8,}\W*$/.test(U[ilk])) ilk++; break; }
+    if (son < 0 && ilk === 0) return text;
+    let bit = L.length;
+    if (son >= 0) { bit = son + 1; while (bit < L.length && /^\W{0,2}[MN]\s?F\s?A\s?T|^\W*\d{8,}\W*$/.test(U[bit])) bit++;
+      // sonrasında tutar yoksa kesmeye gerek yok
+      if (!L.slice(bit).some(l => /\d[.,]\d{2}\b/.test(l))) bit = L.length; }
+    return L.slice(ilk, bit).join('\n');
+  }
   function parseZ(text) {
+    text = tekFis(text);
     const raw = String(text || '').split(/\r?\n/).filter(l => l.trim());
     const L = [];                    // {s, a, rate, cum}
     for (let i = 0; i < raw.length; i++) {
@@ -371,6 +399,8 @@
     d.top_kdv = null;
     for (let i = 0; i < L.length; i++) { const l = L[i]; if (l.cum || l.rate != null) continue; if (/TOP\s?KDV|TOPLAM\s?KDV|KDV\s?TOPLAM|TOPKDV/.test(l.s)) { d.top_kdv = amtAt(i); break; } }
     d.nakit = find(/NAK[İI]T/, /[ÜU]ST[ÜU]|SAYI|ADET|KASA/);
+    // Kupon (hediye çeki / indirim kuponu) karşılığı tahsil edilen tutar: kullanıcı kuralı → nakde eklenir
+    { const kp = find(/\bKUPON/, /SAYI|ADET/); if (kp > 0) { d._kupon = kp; if (d.nakit != null) { d.nakit = Math.round((d.nakit + kp) * 100) / 100; notes.push(`Kupon ${String(kp).replace('.', ',')} nakde eklendi`); } } }
     d.kasa = find(/KASA\s?NAK[İI]T/, /SAYI|ADET/);
     if (d.nakit == null) d.nakit = d.kasa;
     d.kart = find(/KRED[İI]|K\S{0,2}\s?KART|K\.?\s?KAR[TI1İ][IİL1]\b|BANKA\s?KART|\bKART\b|POS\b/, /SAYI|ADET|NAK[İI]T|YEMEK/);
@@ -1096,6 +1126,7 @@
   // Kümülatif toplamlar (KÜMSAT / KÜM. TOPLAM, KÜMKDV / KÜM. TOPKDV) ve cihaz sicil no (MF AS0000178255).
   // Ardışık iki Z'nin kümülatif farkı = o günün satışı → yanlış okunan tutarı ve eksik Z'yi yakalar.
   function kumulatif(text) {
+    text = tekFis(text);
     const out = { kum_sat: null, kum_kdv: null, sicil: null, slip: null, kart_adet: null };
     const tutar = s => {                 // "*6.541 791,29" "1.575.087.06" "*2.228.081,36 01" → sayı
       const m = s.match(/(\d[\d.\s]*?)[.,](\d{2})(?!\d)/); if (!m) return null;
@@ -1114,5 +1145,5 @@
     }
     return out;
   }
-  root.ZParse = { version: 77, parseZ, normLine, amounts, consistency, merge, kumulatif };
+  root.ZParse = { version: 78, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);

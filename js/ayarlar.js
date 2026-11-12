@@ -33,7 +33,24 @@ const b64Metin=t=>{const u=new TextEncoder().encode(t);let s='';for(let i=0;i<u.
 async function ghYukle(yol,b64,mesaj){const r=await ghIstek('/contents/'+yol,{method:'PUT',body:JSON.stringify({message:mesaj,content:b64})});
   if(!r.ok){const m=r.status===401?'anahtar geçersiz ya da süresi dolmuş':r.status===403||r.status===404?'anahtarın gelen kutusuna yazma izni yok':'GitHub hatası '+r.status;throw new Error(m)}}
 // dosyalar: [{ad, b64}] → gelen/<klasör>/ad
-async function ghGonder(klasor,dosyalar){for(const d of dosyalar)await ghYukle(`gelen/${klasor}/${d.ad}`,d.b64,`Okuma hatası bildirimi: ${klasor}`)}
+// Tek işlemde gönder (Git Data API): dosyalar aynı anda yüklenir, tek kayıt (commit) açılır. Eskiden her dosya ayrı ayrı ve
+// sırayla gidiyordu. Olmazsa (anahtar izni vb.) eski yola döner.
+async function ghJson(yol,o){const r=await ghIstek(yol,o);if(!r.ok){const e=new Error(r.status===401?'anahtar geçersiz ya da süresi dolmuş':r.status===403||r.status===404?'anahtarın gelen kutusuna yazma izni yok':'GitHub hatası '+r.status);e.durum=r.status;throw e}return r.json()}
+async function ghGonder(klasor,dosyalar){const mesaj=`Okuma hatası bildirimi: ${klasor}`;
+  try{
+    const post=(y,b)=>ghJson(y,{method:'POST',body:JSON.stringify(b)});
+    const [depo,...bloblar]=await Promise.all([ghJson(''),...dosyalar.map(d=>post('/git/blobs',{content:d.b64,encoding:'base64'}))]);
+    if(!bloblar.every(b=>b&&b.sha))throw new Error('blob');const dal=depo.default_branch||'main';
+    for(let deneme=0;deneme<3;deneme++){
+      const ref=await ghJson(`/git/ref/heads/${dal}`),bas=ref.object.sha,ust=await ghJson(`/git/commits/${bas}`);
+      const agac=await post('/git/trees',{base_tree:ust.tree.sha,tree:dosyalar.map((d,i)=>({path:`gelen/${klasor}/${d.ad}`,mode:'100644',type:'blob',sha:bloblar[i].sha}))});
+      if(!agac.sha)throw new Error('ağaç');const kayit=await post('/git/commits',{message:mesaj,tree:agac.sha,parents:[bas]});if(!kayit.sha)throw new Error('kayıt');
+      try{await ghJson(`/git/refs/heads/${dal}`,{method:'PATCH',body:JSON.stringify({sha:kayit.sha})});return}
+      catch(e){if(e.durum!==422)throw e}   // aynı anda başka bildirim gitti: yeniden dene
+    }
+    throw new Error('GitHub hatası 422');
+  }catch(e){if(e.durum===401)throw e;
+    for(const d of dosyalar)await ghYukle(`gelen/${klasor}/${d.ad}`,d.b64,mesaj)}}
 $('#ghkey').value=S.ghKey||'';
 $('#ghkey').addEventListener('change',e=>{S.ghKey=e.target.value.trim();e.target.value=S.ghKey;saveS();$('#ghres').textContent=''});
 $('#ghpaylas').onclick=async()=>{const k=S.ghKey;if(!k){toast('Önce anahtarı gir');return}

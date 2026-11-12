@@ -17,10 +17,15 @@ function duzeltmeHTML(r){const k=duzeltilen(r);if(!k.length)return '';const ad=x
 function bildirKutuHTML(r){return `<div class="bildirkutu" id="bk-${r.id}" hidden><label>Ne yanlış okundu? (isteğe bağlı)</label><textarea rows="2" id="bn-${r.id}" placeholder="Örn. kredi kartı 1.250,00 olmalı"></textarea>
   <div class="hint">${S.ghKey?'Fiş, fotoğrafıyla birlikte doğrudan gizli test gelen kutusuna gönderilir.':'Bildirim dosyası oluşturulur; sohbete gönder. (Ayarlar’a gelen kutusu anahtarı girersen doğrudan gönderilir.)'}</div>
   <div class="set-row" style="justify-content:flex-end"><button class="btn small" data-bildirac="${r.id}">Vazgeç</button><button class="btn small primary" data-bildir="${r.id}">${ik('paylas')}Gönder</button></div></div>`}
+// Gönderim süresinin çoğu fotoğrafın boyutundan: 1,5 MB'tan büyük asıl fotoğraf aynı çözünürlükte %88 kaliteyle yeniden kaydedilir
+// (okuma testleri için çözünürlük korunur; telefon kamerasının 4–6 MB'lık dosyası ~1 MB'a iner)
+async function bildirFoto(b,u){if(!b||b.size<1.5e6)return u;try{const bm=await createImageBitmap(b,{imageOrientation:'from-image'});
+  const c=document.createElement('canvas');c.width=bm.width;c.height=bm.height;c.getContext('2d').drawImage(bm,0,0);bm.close&&bm.close();
+  const y=c.toDataURL('image/jpeg',.88);c.width=c.height=1;return y.length<u.length?y:u}catch(e){return u}}
 async function hataBildir(r,not='',dugme){
   const k=duzeltilen(r);let foto=null,asil=[];try{foto=r.thumb&&r.thumb.startsWith('data:')?r.thumb:await IDB.get('imgs',r.id)}catch(e){}
   // fotoğrafın aslı saklıysa onu da ekle (test arşivi için en değerlisi)
-  try{const o=r.hasOrig?await IDB.get('orig',r.id):null;for(const b of o||[])asil.push(await new Promise((a,h)=>{const f=new FileReader();f.onload=()=>a(f.result);f.onerror=h;f.readAsDataURL(b)}))}catch(e){}
+  try{const o=r.hasOrig?await IDB.get('orig',r.id):null;for(const b of o||[])asil.push(await new Promise((a,h)=>{const f=new FileReader();f.onload=()=>a(f.result);f.onerror=h;f.readAsDataURL(b)}).then(u=>bildirFoto(b,u)))}catch(e){}
   const paket={tur:'zrapor-okuma-hatasi',surum:APP_VER,okuyucu:S.mode,olusturma:new Date().toISOString(),tarih:r.d.tarih,z_no:r.d.z_no,not:not||'',
     duzeltilen:Object.fromEntries(k.map(x=>[x,{okunan:r.oku&&r.oku[x],dogru:r.d[x]}])),dogru_degerler:okunanAnlik(r.d),okunan_degerler:r.oku||null,
     okunan_metin:r.ocr||'',kalite:r.q||null,foto_asil:asil,foto_kucuk:asil.length?null:foto||null};
@@ -30,7 +35,7 @@ async function hataBildir(r,not='',dugme){
     const klasor=`${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}_${ad}_${Math.random().toString(36).slice(2,6)}`;
     const fotolar=(asil.length?asil:foto&&foto.startsWith('data:')?[foto]:[]).map((u,i)=>({ad:`foto-${i+1}${asil.length?'':'-kucuk'}.jpg`,b64:u.slice(u.indexOf(',')+1)}));
     const govde={...paket,foto_asil:undefined,foto_kucuk:undefined,fotolar:fotolar.map(f=>f.ad)};
-    const eski=dugme&&dugme.innerHTML;if(dugme){dugme.disabled=true;dugme.textContent='Gönderiliyor…'}
+    const eski=dugme&&dugme.innerHTML;if(dugme){dugme.disabled=true;dugme.textContent='Gönderiliyor…'}toast('Gönderiliyor… uygulamayı kullanmaya devam edebilirsin');
     try{await ghGonder(klasor,[{ad:'bildirim.json',b64:b64Metin(JSON.stringify(govde,null,1))},...fotolar]);
       r.bildirildi=Date.now();save(r);toast('✓ Bildirim gönderildi, teşekkürler');return true}
     catch(e){toast('Gönderilemedi ('+(e.message==='Failed to fetch'?'bağlantı yok':e.message)+'); dosya olarak paylaşılıyor')}
@@ -41,7 +46,7 @@ async function hataBildir(r,not='',dugme){
   return ok;
 }
 
-function render(){return ckToplu(render0)}
+function render(){const v=ckToplu(render0);if(window.kbDenetle)kbDenetle();return v}
 function render0(){
   const L=$('#list');filtreUI();
   const goster=rows.filter(gorunur);
@@ -53,7 +58,7 @@ function render0(){
     let g='',inSec=false;
     for(const f of FIELDS){
       if(f.sec){if(inSec)g+='</div></section>';g+=`<section class="grp${f.x?' grp-x':''}"><div class="grp-h">${secHTML(f.sec)}</div><div class="grid">`;inSec=true}
-      g+=`<div class="f${f.full?' full':''}${f.t==='num'?' num':''}"><label>${shortL(f)}</label><input data-id="${r.id}" data-k="${f.k}" ${f.t!=='text'?'inputmode="decimal"':''} class="${fcls(r,f)}" value="${esc(fv(f,r.d[f.k]))}" ${f.t==='num'?'placeholder="—"':''} aria-label="${esc(f.l)}"></div>`;
+      g+=`<div class="f${f.full?' full':''}${f.t==='num'?' num':''}"><label>${shortL(f)}</label><input data-id="${r.id}" data-k="${f.k}" ${f.k==='tarih'||f.k==='z_no'?'inputmode="numeric" pattern="[0-9]*" enterkeyhint="done"':f.t!=='text'?'inputmode="decimal"':''} class="${fcls(r,f)}" value="${esc(fv(f,r.d[f.k]))}" ${f.t==='num'?'placeholder="—"':''} aria-label="${esc(f.l)}"></div>`;
     }
     if(inSec)g+='</div></section>';
     return `<div class="card${r.open?' open':''}" id="c_${r.id}">
@@ -69,7 +74,7 @@ function render0(){
         ${duzeltmeHTML(r)}
         ${r.akt?`<div class="aktbar">✓ ${aktTarih(r.akt,1)} tarihinde Luca dosyasına aktarıldı. <button class="btn small" data-aktsil="${r.id}">Aktarılmadı yap</button></div>`:''}
         ${bildirKutuHTML(r)}
-        <div class="cardfoot"><button class="btn small danger" data-del="${r.id}">Sil</button><button class="lnk bildirlnk" data-bildirac="${r.id}">${ik('uyari')}${r.bildirildi?'Bildirildi · yeniden bildir':'Hata bildir'}</button><button class="btn small" data-tog="${r.id}">Kapat</button></div>`:''}
+        <div class="cardfoot"><button class="btn small danger" data-del="${r.id}">Sil</button>${r.kontrol?'':`<button class="btn small primary" data-kontrol="${r.id}">${ik('onay')}Kontrol edildi</button>`}<button class="lnk bildirlnk" data-bildirac="${r.id}">${ik('uyari')}${r.bildirildi?'Bildirildi · yeniden bildir':'Hata bildir'}</button><button class="btn small" data-tog="${r.id}">Kapat</button></div>`:''}
       </div></div>`;
   }).join('');
   renderSum();
@@ -77,7 +82,7 @@ function render0(){
 function headHTML(r){const bad=isBad(r);return `${r.thumb?`<img class="thumb" src="${r.thumb}">`:`<div class="thumb empty">${ik(r.src==='foto'?'kamera':r.src==='metin'?'metin':'kalem')}</div>`}
         <div class="meta"><div class="t1"><span class="tt">${esc(r.d.tarih||'Tarih yok')} · Z ${esc(r.d.z_no||'—')}</span></div>
         <div class="t2">${r.akt?`<span class="akt" title="Luca dosyasına aktarıldı">✓ Luca ${aktTarih(r.akt)}</span> `:''}KDV ${fm(kdvT(r.d))} · Kart ${fm(r.d.kart)||'—'} · Nakit ${fm(r.d.nakit)||'—'}</div></div>
-        <div class="amt">${fm(satis(r.d))||'—'}<span class="badge ${bad?'b-warn':'b-ok'}">${bad?'Kontrol et':'Tamam'}</span></div>`}
+        <div class="amt">${fm(satis(r.d))||'—'}<span class="badge ${bad?'b-warn':'b-ok'}">${bad?'Kontrol et':r.kontrol?'Kontrol edildi':'Tamam'}</span></div>`}
 // Kontrol ekranı: bölüm başlığı (oran rozeti), bölüm içinde kısa etiketler, alan durumu (şüpheli / hesaplandı)
 function secHTML(t){const m=t.match(/^%(\d+)\s+KDV(.*)$/);if(m)return `<span class="rate">%${m[1]}</span>KDV${esc(m[2])}`;
   const p=t.match(/^Poşet\s*\((%\d+)\)$/);if(p)return `<span class="rate">${p[1]}</span>Poşet`;
@@ -87,7 +92,7 @@ const SHORT={tekel:'Toplam (KDV dahil)',g1:'Toplam (KDV dahil)',g10:'Toplam (KDV
 const shortL=f=>SHORT[f.k]||f.l;
 const fcls=(r,f)=>[(r.unsure||[]).includes(f.k)?'unsure':'',(r.auto||[]).includes(f.k)?'calc':''].filter(Boolean).join(' ');
 function checksHTML(r){const L=checks(r),bad=L.filter(c=>!c.ok).length,un=(r.unsure||[]).length,inf=L.filter(c=>c.info).length;
-  const head=bad||un?`<div class="ck-h bad">${bad?`${bad} uyarı`:''}${bad&&un?' · ':''}${un?`${un} şüpheli alan`:''}<span>kontrol et</span></div>`:`<div class="ck-h ok">Tüm kontroller tamam${inf?` · ${inf} not`:''}</div>`;
+  const head=r.kontrol?`<div class="ck-h ok">${ik('onay')}Kontrol edildi · ${aktTarih(r.kontrol,1)}<button class="btn small ck-btn" data-kontrolgeri="${r.id}">Geri al</button></div>`:bad||un?`<div class="ck-h bad">${bad?`${bad} uyarı`:''}${bad&&un?' · ':''}${un?`${un} şüpheli alan`:''}<span>kontrol et</span></div>`:`<div class="ck-h ok">Tüm kontroller tamam${inf?` · ${inf} not`:''}</div>`;
   return head+L.map(c=>`<div class="ck ${c.info?'info':c.ok?'ok':'bad'}"><i>${c.info?'i':c.ok?'✓':'!'}</i><span>${esc(c.m.replace(/\s*✓$/,''))}${c.act?`<button class="btn small ck-btn" ${c.act.a}>${c.act.l}</button>`:''}</span></div>`).join('')+(un?`<div class="ck bad"><i>!</i><span>Emin olunamayan alanlar turuncu işaretli.</span></div>`:'')}
 function renderSum(){
   const done=rows.filter(r=>r.status==='done');
@@ -105,11 +110,14 @@ function refreshCard(r){
 }
 
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr],[data-recam],[data-regal],[data-f],[data-aktsil],[data-bildir],[data-bildirac],[data-devam],[data-eksik],[data-hesaponay]');if(!t)return;
+  const t=e.target.closest('[data-tog],[data-del],[data-retry],[data-zoom],[data-reparse],[data-copyocr],[data-recam],[data-regal],[data-f],[data-aktsil],[data-bildir],[data-bildirac],[data-devam],[data-eksik],[data-hesaponay],[data-kontrol],[data-kontrolgeri]');if(!t)return;
   if(t.dataset.devam){devId=t.dataset.devam;const i=$('#devam');i.value='';i.click();return}
   if(t.dataset.f){FLT.f=t.dataset.f;render();return}
   if(t.dataset.aktsil){const r=rows.find(x=>x.id===t.dataset.aktsil);r.akt=null;save(r);render();toast('Bir sonraki Luca dosyasına yeniden girecek');return}
   if(t.dataset.eksik){const r=rows.find(x=>x.id===t.dataset.eksik);if(r)eksikZEkle(r);return}
+  // Kontrol edildi: kullanıcı fişle karşılaştırıp (gerekirse elle düzeltip) onayladı → turuncular ve uyarılar kapanır, kart kapanır
+  if(t.dataset.kontrol){const r=rows.find(x=>x.id===t.dataset.kontrol);if(!r)return;r.kontrol=Date.now();r.unsure=[];if(r.hesap)r.hesap.onay=true;r.open=false;save(r);render();toast('Kontrol edildi olarak işaretlendi');return}
+  if(t.dataset.kontrolgeri){const r=rows.find(x=>x.id===t.dataset.kontrolgeri);if(!r)return;r.kontrol=null;save(r);render();toast('Kontrol işareti kaldırıldı');return}
   if(t.dataset.hesaponay){const r=rows.find(x=>x.id===t.dataset.hesaponay);if(r&&r.hesap){r.hesap.onay=true;r.unsure=(r.unsure||[]).filter(k=>k!=='tarih');save(r);render();toast('Doğrulandı; Luca’ya aktarılabilir')}return}
   if(t.dataset.bildirac){const k=$('#bk-'+t.dataset.bildirac);if(k){k.hidden=!k.hidden;if(!k.hidden)$('#bn-'+t.dataset.bildirac).focus()}return}
   if(t.dataset.bildir){const id=t.dataset.bildir,r=rows.find(x=>x.id===id);if(!r)return;const n=$('#bn-'+id);
@@ -137,6 +145,7 @@ document.addEventListener('change',e=>{
   if(f.t==='num')refill(r,f.k);
   if((f.k==='z_no'||f.k==='tarih')&&(!r.d.aciklama||r.d.aciklama===r._ack)){r.d.aciklama=mkAck(r.d);r._ack=r.d.aciklama}
   i.value=fv(f,r.d[f.k]);
+  if(r.kontrol){r.kontrol=null;setTimeout(render,0)}   // onaydan sonra değiştirildi: yeniden kontrol edilsin
   if(r.akt){r.akt=null;toast('Rapor değişti: bir sonraki Luca dosyasına yeniden girecek')}
   save(r);
   if(f.k==='z_no'||f.k==='tarih')autoZ();
@@ -164,5 +173,10 @@ $('#ara').addEventListener('input',e=>{FLT.q=e.target.value.trim();render()});
     zm=setTimeout(()=>{if(document.activeElement!==el)return;const vv=window.visualViewport;if(!vv)return;
       const alt=vv.offsetTop+vv.height-8,dib=kutu.getBoundingClientRect().bottom,ust=el.getBoundingClientRect().top,d=Math.min(dib-alt,ust-vv.offsetTop-16);
       if(d>4)window.scrollBy(0,d)},650)});
-  document.addEventListener('focusout',()=>setTimeout(()=>{if(!yazilir(document.activeElement))document.body.classList.remove('klavye')},80));
+  document.addEventListener('focusout',()=>setTimeout(kbDenetle,80));
+  // Odaktaki kutu çizim sırasında silinirse (kart yeniden çizildi / kapandı) iPhone "focusout" göndermiyor ve alt çubuk
+  // (Luca CSV) gizli kalıyordu: klavye kapanınca, dokununca ve her çizimden sonra yeniden denetle.
+  window.kbDenetle=()=>{const el=document.activeElement;if(!(yazilir(el)&&el.isConnected))document.body.classList.remove('klavye')};
+  if(window.visualViewport)visualViewport.addEventListener('resize',()=>setTimeout(kbDenetle,60));
+  document.addEventListener('touchstart',()=>setTimeout(kbDenetle,300),{passive:true});
 })();

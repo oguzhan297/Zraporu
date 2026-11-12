@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=77;
+const APP_VER=78;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  78:['Uygulama içi kamera yalnız çerçevenin içini çeker (yandaki / alttaki fiş okunmaz)','Fotoğrafta başka bir Z raporunun parçası da varsa yalnız asıl rapor okunur','Kartta “Kontrol edildi” düğmesi: fişle karşılaştırıp onayladığın rapor “Tamam” sayılır','Tarihi kısa yaz: 2910 → 29.10.2026; tarih ve Z No’da sayı klavyesi','Hata bildirimi daha hızlı gider','Alt çubuk (Luca CSV) artık kaybolmaz','KUPON ile ödenen tutar nakde eklenir'],
   77:['Luca/Excel dosyası çok raporla daha hızlı hazırlanır'],
   76:['Uygulama çok raporla çok daha hızlı açılır (kapalı kartlar çizilmez, kontroller bir kez hesaplanır, Excel kütüphanesi sonradan yüklenir)','Uzun seri okumada fişler arasında kısa ara: telefon daha az ısınır'],
   75:['Okunan raporların kartları kapalı gelir; görmek istediğine dokunup açarsın'],
@@ -62,7 +63,16 @@ function normDate(s){
   s=String(s||'').trim();let m;
   if(m=s.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/))return `${m[3].padStart(2,'0')}.${m[2].padStart(2,'0')}.${m[1]}`;
   if(m=s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/))return `${m[1].padStart(2,'0')}.${m[2].padStart(2,'0')}.${m[3].length===2?'20'+m[3]:m[3]}`;
-  return s;
+  // Elle kısa yazım (sayısal klavye): "2910" → 29.10.<yıl>, "29102026" / "291026" → tam tarih, "29,10" / "29.10" / "9 10" de olur.
+  // Yıl yazılmadıysa bu yıl; tarih ileriye düşerse (Ocak'ta 2912 yazılınca) geçen yıl.
+  let g,a,y=null;
+  if(m=s.match(/^(\d{1,2})[.,/\-\s](\d{1,2})$/)){g=+m[1];a=+m[2]}
+  else if(m=s.match(/^(\d{2})(\d{2})(\d{4}|\d{2})?$/)){g=+m[1];a=+m[2];if(m[3])y=m[3].length===2?2000+(+m[3]):+m[3]}
+  else if(m=s.match(/^(\d)(\d{2})$/)){g=+m[1];a=+m[2]}
+  else return s;
+  if(!(g>=1&&g<=31&&a>=1&&a<=12))return s;
+  if(y==null){const b=new Date();y=b.getFullYear();if(Date.UTC(y,a-1,g)>Date.UTC(y,b.getMonth(),b.getDate())+864e5)y--}
+  return `${String(g).padStart(2,'0')}.${String(a).padStart(2,'0')}.${y}`;
 }
 function dateOk(s){const m=String(s||'').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);if(!m)return false;const d=new Date(+m[3],+m[2]-1,+m[1]);return d.getDate()===+m[1]&&d.getMonth()===+m[2]-1&&+m[3]>=2000&&d<=new Date(Date.now()+864e5)}
 const satis=d=>['tekel','g1','g10','g20','gp'].reduce((a,k)=>a+(d[k]||0),0);

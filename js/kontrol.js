@@ -68,7 +68,8 @@ function olagandisi(r){
   return out;
 }
 
-const isBad=r=>checks(r).some(c=>!c.ok)||(r.unsure&&r.unsure.length>0)||r.d.z_rapor_mu===false;
+// Kullanıcı kartı "Kontrol edildi" diye onayladıysa uyarılar kalsa da rapor sorunlu sayılmaz (Luca'ya uyarısız aktarılır)
+const isBad=r=>!r.kontrol&&(checks(r).some(c=>!c.ok)||(r.unsure&&r.unsure.length>0)||r.d.z_rapor_mu===false);
 // Z No okunamadıysa: listedeki yakın tarihli raporlardan sırayla tahmin et (Z her gün bir artar) — turuncu kalır
 const dnum=s=>{const m=String(s||'').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);return m?Math.round(Date.UTC(+m[3],+m[2]-1,+m[1])/864e5):null};
 function guessZ(r){}   // yerini autoZ aldı

@@ -146,12 +146,19 @@ async function kameraAc(mod='seri'){
 function kameraKapat(){if(KAM.akis)KAM.akis.getTracks().forEach(t=>t.stop());KAM.akis=null;$('#kvid').srcObject=null;$('#kamera').hidden=true;document.body.classList.remove('kamera-acik');
   if(KAM.sayi)toast(KAM.mod==='tek'?'Fotoğraf eklendi, okunuyor':`${KAM.sayi} fiş eklendi; okumalar sırayla sürüyor`)}
 function kMesaj(m,tur){const el=$('#kmesaj');el.textContent=m;el.className='k-mesaj'+(tur?' '+tur:'');clearTimeout(el._t);if(m)el._t=setTimeout(()=>{el.textContent='';el.className='k-mesaj'},2600)}
+// Kare: yalnız ekrandaki çerçevenin içi alınır (yandaki / alttaki fiş, masa okunmasın), kenarlarda %6 pay kalır.
+// Ekranda görünen video (object-fit: cover) koordinatları video pikseline çevrilir.
 async function kareAl(){
-  const tr=KAM.akis&&KAM.akis.getVideoTracks()[0];if(!tr)return null;
-  // ImageCapture (Android Chrome) sensörün tam çözünürlüğünde çeker; yoksa video karesi
-  if(typeof ImageCapture!=='undefined'){try{const b=await new ImageCapture(tr).takePhoto();if(b&&b.size)return b}catch(e){}}
-  const v=$('#kvid'),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;if(!c.width)return null;
-  c.getContext('2d').drawImage(v,0,0);const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));c.width=c.height=1;return b;
+  const v=$('#kvid'),vw=v.videoWidth,vh=v.videoHeight;if(!vw)return null;
+  const V=v.getBoundingClientRect(),F=document.querySelector('#kamera .k-cerceve').getBoundingClientRect(),k=Math.max(V.width/vw,V.height/vh),ox=V.left+(V.width-vw*k)/2,oy=V.top+(V.height-vh*k)/2;
+  const px=F.width*.06/k,py=F.height*.06/k;
+  let x0=Math.max(0,(F.left-ox)/k-px),y0=Math.max(0,(F.top-oy)/k-py),x1=Math.min(vw,(F.right-ox)/k+px),y1=Math.min(vh,(F.bottom-oy)/k+py);
+  if(!(x1-x0>50&&y1-y0>50)){x0=0;y0=0;x1=vw;y1=vh}
+  const c=document.createElement('canvas');c.width=Math.round(x1-x0);c.height=Math.round(y1-y0);c.getContext('2d').drawImage(v,x0,y0,x1-x0,y1-y0,0,0,c.width,c.height);
+  // keskinlik eşikleri tam karenin 1000 px kopyasına göre ayarlı: ölçüm için tam kareyi de küçültüp sakla
+  const o=Math.min(1,1000/Math.max(vw,vh)),t=document.createElement('canvas');t.width=Math.round(vw*o);t.height=Math.round(vh*o);t.getContext('2d').drawImage(v,0,0,t.width,t.height);
+  KAM.tam=await new Promise(r=>t.toBlob(r,'image/jpeg',.92));t.width=t.height=1;
+  KAM.boy=Math.max(c.width,c.height);KAM.kisa=Math.min(c.width,c.height);KAM.tamKisa=Math.min(vw,vh);const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));c.width=c.height=1;return b;
 }
 // Son çekilen karenin küçük önizlemesi (videodan, ~120 px) — 4K fotoğrafın kendisi bu küçük kutuda gösterilince
 // iPhone dokunulduğunda tam boy açmaya çalışıp uygulamayı kapatıyordu.
@@ -170,10 +177,11 @@ $('#kdek').onclick=async()=>{
     const b=await kareAl();if(!b){kMesaj('Çekilemedi, tekrar dene','kotu');return}
     const file=new File([b],`seri_${Date.now()}.jpg`,{type:'image/jpeg'});
     // anında kalite kontrolü: bulanık / düşük çözünürlüklü kare sıraya girmez, yeniden çekilir
-    let q=null;try{q=await fotoKalite(file)}catch(e){}
-    const k=kaliteSorun(q);
+    let q=null;try{q=await fotoKalite(KAM.tam||file);if(KAM.tam)q.min=KAM.tamKisa}catch(e){}
+    const k=kaliteSorun(q);if(q&&KAM.tam)q.min=KAM.kisa;   // bulanıklık tam kareye göre; boyut kırpılmış kareye göre (aşağıda)
     if(k.includes('bulanik')){kMesaj('Bulanık — sabit tut, tekrar çek','kotu');return}
-    if(k.includes('kucuk')){kMesaj('Görüntü çok küçük — fişe yaklaş','kotu');return}
+    // kare çerçeveden kırpıldığı için kısa kenar küçük olabilir: yalnız gerçekten küçükse reddet
+    if(k.includes('kucuk')&&(KAM.boy||0)<700){kMesaj('Görüntü çok küçük — fişe yaklaş','kotu');return}
     KAM.sayi++;$('#ksay').textContent=`${KAM.sayi} fiş`;$('#kson').src=kucukKare()||$('#kson').src;   // tam boy fotoğraf değil: iPhone'da bellek doluyordu
     onFiles([file]);
     if(KAM.mod==='tek'){kameraKapat();return}
