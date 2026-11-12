@@ -1,4 +1,6 @@
 // Okuma akışı: fotoğraf / metin ekleme, sıra, okuyucu seçimi, ayrıştırma sonucu rapora yazma, yeniden çekme
+function miniResim(src){const w=src.naturalWidth||src.width,h=src.naturalHeight||src.height;if(!w||!h)return '';const o=120/Math.max(w,h),k=document.createElement('canvas');
+  k.width=Math.max(1,Math.round(w*o));k.height=Math.max(1,Math.round(h*o));k.getContext('2d').drawImage(src,0,0,k.width,k.height);const u=k.toDataURL('image/jpeg',.7);k.width=k.height=0;return u}
 async function shrink(file){
   const url=URL.createObjectURL(file);
   const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('Görüntü açılamadı'));im.src=url});
@@ -9,7 +11,11 @@ async function shrink(file){
   const s2=Math.min(1,1100/Math.max(c.width,c.height)),c2=document.createElement('canvas');
   c2.width=Math.round(c.width*s2);c2.height=Math.round(c.height*s2);c2.getContext('2d').drawImage(c,0,0,c2.width,c2.height);
   let small='';for(const q of [0.6,0.45,0.32]){small=c2.toDataURL('image/jpeg',q);if(small.length<190000)break;small=''}
-  return {blob,thumb:URL.createObjectURL(blob),small};
+  // listedeki küçük resim: ~120 px (kartlarda büyük fotoğraf göstermek, kaydırırken her birinin tam boy açılmasına yol açıp
+  // iPhone'da belleği dolduruyor ve uygulamayı kapatıyordu)
+  const mini=miniResim(c2);
+  URL.revokeObjectURL(url);c.width=c.height=0;c2.width=c2.height=0;
+  return {blob,thumb:URL.createObjectURL(blob),small,mini};
 }
 
 function applyParse(r,text,pre){
@@ -39,7 +45,7 @@ async function extract(r){
     for(const f of FIELDS){const v=j[f.k];d[f.k]=f.t==='text'?(v==null?'':String(v).trim()):(f.t==='int'?(pn(v)==null?null:Math.round(pn(v))):pn(v))}
     d.z_rapor_mu=j.z_rapor_mu;d.sicil=j.sicil?String(j.sicil).replace(/\s/g,'').toUpperCase():null;d.slip=Number.isInteger(j.slip)?j.slip:null;d.tarih=normDate(d.tarih);d.z_no=normZ(d.z_no);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
     r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];r.akt=null;r.oku=okunanAnlik(d);guessZ(r);
-    r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;
+    r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;resimBirak(r);
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     r.status='error';
@@ -49,7 +55,7 @@ async function extract(r){
 }
 async function prep(r){   // küçük resmi ve yüklenecek kopyayı sırası gelince hazırla (seçim anında hepsini birden işleyip bekletme)
   if(r.blob||!r.file)return true;
-  try{const s=await shrink(r.file);r.blob=s.blob;r.thumb=s.thumb;r._small=s.small}catch(e){r.status='error';r.err=e.message;render();return false}
+  try{const s=await shrink(r.file);r.blob=s.blob;r.thumb=s.thumb;r._small=s.small;r.mini=s.mini}catch(e){r.status='error';r.err=e.message;render();return false}
   saveOrig(r,r.pages||[r.file]);
   try{r.q=await fotoKalite(r.file);const k=kaliteSorun(r.q);if(k.length){toast('📷 '+KALITE[k[0]].m+' — okuma hatalı olabilir');setProg(r,KALITE[k[0]].m+'; yine de okunuyor…')}}catch(e){r.q=null}
   return true
@@ -66,6 +72,7 @@ async function onFiles(list){
   // kartları hemen göster (tek seferde), okuma ilk fotoğraftan başlasın
   const now=Date.now(),add=files.map((file,i)=>({id:uid(),status:'queued',d:{},unsure:[],src:'foto',created:now+i,_local:true,file}));
   rows.unshift(...add.slice().reverse());render();
+  kuyrukSakla(add);   // uygulama okurken kapanırsa (bellek, arka plan) fotoğraflar kaybolmasın: açılışta kaldığı yerden okunur
   for(const r of add){
     if(noKey){if(await prep(r)){r.status='done';r.d={aciklama:mkAck({})};r._ack=r.d.aciklama;r.open=true;save(r);saveImg(r,r._small);delete r._small}continue}
     queue.push(r);

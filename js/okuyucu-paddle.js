@@ -54,7 +54,9 @@ async function paddleDosyalari(){
 }
 // Fotoğrafı yönü düzeltilmiş (EXIF) ve iOS tuval sınırına (16 MP) indirilmiş ImageBitmap olarak hazırla
 async function fotoBitmap(src){
-  const im=await openImage(src),W=im.naturalWidth,H=im.naturalHeight,k=Math.min(1,Math.sqrt(16e6/(W*H)));
+  // Okuma geçişleri en çok ~2000 px genişlik kullanır: 24 MP (yeni iPhone) fotoğrafı tam boy taşımak belleği dolduruyordu.
+  // Alan 12 MP ile sınırlı: 12 MP fotoğraf olduğu gibi kalır, 24/48 MP olanlar 12 MP'ye iner (eskiden 16 MP).
+  const im=await openImage(src),W=im.naturalWidth,H=im.naturalHeight,k=Math.min(1,Math.sqrt(12.2e6/(W*H)));
   const c=document.createElement('canvas');c.width=Math.round(W*k);c.height=Math.round(H*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
   const b=await createImageBitmap(c);c.width=c.height=1;return b;
 }
@@ -149,7 +151,7 @@ async function extractPaddle(r,ikinci){
     // toplamları tam tutan bir okuma varsa onu al; yoksa okumaları alan alan birleştir
     const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
     applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
-    r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;delete r.prog;
+    r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;resimBirak(r);delete r.prog;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     clearInterval(sayac);

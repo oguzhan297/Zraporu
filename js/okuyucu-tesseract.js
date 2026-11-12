@@ -41,7 +41,7 @@ async function extractFree(r){
     // toplamları tam tutan bir okuma varsa onu al; yoksa okumaları alan alan birleştir
     const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
     applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
-    r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;delete r.prog;
+    r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;resimBirak(r);delete r.prog;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog}
   render();
