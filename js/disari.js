@@ -25,7 +25,7 @@ function aktarilacak(btn,label){
 }
 function isaretle(list){const t=Date.now();for(const r of list){r.akt=t;save(r)}render();toast(`${list.length} rapor Luca’ya aktarıldı olarak işaretlendi`)}
 function guard(btn,label,list){
-  const bad=(list||rows).filter(r=>r.status==='done'&&isBad(r)).length, pend=rows.filter(r=>r.status==='work'||r.status==='queued'||r.status==='error').length;
+  const bad=ckToplu(()=>(list||rows).filter(r=>r.status==='done'&&isBad(r)).length), pend=rows.filter(r=>r.status==='work'||r.status==='queued'||r.status==='error').length;
   if(!bad&&!pend)return true;
   const ilk=btn.dataset.html||(btn.dataset.html=btn.innerHTML);
   if(btn.dataset.armed==='1'){btn.dataset.armed='';btn.innerHTML=ilk;return true}

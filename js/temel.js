@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=76;
+const APP_VER=77;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  77:['Luca/Excel dosyası çok raporla daha hızlı hazırlanır'],
   76:['Uygulama çok raporla çok daha hızlı açılır (kapalı kartlar çizilmez, kontroller bir kez hesaplanır, Excel kütüphanesi sonradan yüklenir)','Uzun seri okumada fişler arasında kısa ara: telefon daha az ısınır'],
   75:['Okunan raporların kartları kapalı gelir; görmek istediğine dokunup açarsın'],
   74:['Okuyucu (PaddleOCR) kendiliğinden iner; ekran kapanıp indirme yarıda kalırsa uygulamaya dönünce kaldığı yerden sürer, indirirken ekran açık tutulur','Arka arkaya çekimde sol alttaki küçük resme dokununca uygulama kapanmaz; kamera kapanıp listeye döner'],
