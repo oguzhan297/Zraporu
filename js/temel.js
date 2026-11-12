@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=72;
+const APP_VER=73;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  73:['Fişte okunan Z numarası artık sıradan tahminle değiştirilmez (araya satışsız Z girince yanlış numara yazılıyordu); daha önce yanlış değiştirilenler kendiliğinden düzeldi','Kümülatifi arada kalan bir rapor varsa “eksik Z hesapla” önerilmez; satışsız Z’ye tutar eklenmez'],
   72:['Güncellemeler artık aynı adresteki Tahsilat uygulamasının internetsiz açılmasını bozmaz'],
   69:['PaddleOCR okuyucusu önceden indirilebilir: Ayarlar’da durumu görünür, açılışta tek dokunuşla indirme önerisi (Wi-Fi’da Android kendiliğinden indirir)'],
   68:['Yeni sürüm yayınlanınca üstte “Yeni sürüm hazır” çıkar; dokununca güncellenir','Güncellemeden sonra bu “Yenilikler” listesi gösterilir'],

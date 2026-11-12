@@ -352,7 +352,11 @@
         allZ.match(/\bZ\s?RAPOR[UI]?\s*(?:NO)?\s*[:.]\s*(\d{1,6})\b/) ||
         allZ.match(/(?:^|\n)\s*Z\s*[:.]?\s*(\d{2,6})\s*(?:\n|$)/);
     if (m) d.z_no = m[1]; else unsure.push('z_no');
-    if (d.z_no && d.z_no.length >= 4 && /^[689]/.test(d.z_no)) unsure.push('z_no');   // noktalı sıfır şüphesi
+    // Fişte Z no iki yerde basılıysa (başlık "Z NO: 3.234" + alttaki "EKÜ NO: 1 Z NO: 3.234") ve ikisi aynıysa kesindir:
+    // sıra tahmini (autoZ) buna dokunmaz — arada satışsız (sıfır) Z olabilir, fotoğrafı eklenmemiş Z olabilir.
+    if (d.z_no) { const zz = [...allZ.matchAll(/\b[Z2]\s?N[OU0]\s*[:.]?\s*(\d{1,6})\b/g)].map(x => x[1]);
+      if (zz.filter(x => x === d.z_no).length >= 2) d._zIki = true; }
+    if (d.z_no && d.z_no.length >= 4 && /^[689]/.test(d.z_no) && !d._zIki) unsure.push('z_no');   // noktalı sıfır şüphesi
     if (d.z_no && d.z_no.length > 4) unsure.push('z_no');                                // fazladan rakam şüphesi ("20002")
 
     // --- Toplamlar ve ödeme ---
@@ -1028,6 +1032,7 @@
     if (jointGenel != null) d.genel = jointGenel;
     else if (GC.length) { let b = null; for (const c of GC) { const sc = c.w + (near(c.v, grp) ? 3 : 0) + (near(c.v, pay) ? 3 : 0); if (!b || sc > b.sc) b = { sc, v: c.v }; } d.genel = b.v; }
     else if (grp > 0) { d.genel = r2(grp); unsure.push('genel'); }
+    if (d.z_no && list.some(r => r.d._zIki && r.d.z_no === d.z_no)) { d._zIki = true; for (let i = unsure.length - 1; i >= 0; i--) if (unsure[i] === 'z_no') unsure.splice(i, 1); } else delete d._zIki;
     { const vd = {}; for (const r of list) for (const [rt, p] of Object.entries(r.d._vd || {})) { const k = rt + '|' + p.join('|'); (vd[rt] = vd[rt] || {})[k] = ((vd[rt] || {})[k] || 0) + 1; }
       for (const rt in vd) { const best = Object.entries(vd[rt]).sort((a, b) => b[1] - a[1])[0][0].split('|'); (d._vd = d._vd || {})[rt] = [+best[1], +best[2]]; } }
     { const c = cands('_tk').filter(x => x.w >= 0.6); if (c.length) d._tk = c[0].v; }
@@ -1109,5 +1114,5 @@
     }
     return out;
   }
-  root.ZParse = { version: 72, parseZ, normLine, amounts, consistency, merge, kumulatif };
+  root.ZParse = { version: 73, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);

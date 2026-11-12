@@ -9,7 +9,7 @@ function checks(r){
   // Z sırası: yakın tarihli raporlara göre beklenen Z'ye çok benziyor ama farklıysa (eksik/yanlış hane) uyar.
   // Birden fazla firmanın fişleri aynı listede olabilir: beklenen Z en az iki ayrı raporla desteklenmeli (aynı kasanın sırası),
   // eksik/fazla hane tahmini yalnız 3+ haneli numaralarda yapılır (3 ↔ 3069 gibi kısa numaralar rastlantıyla benzer).
-  {const t=dnum(d.tarih),z=String(d.z_no||'');if(t!=null&&/^\d+$/.test(z)){
+  {const t=dnum(d.tarih),z=String(d.z_no||'');if(t!=null&&/^\d+$/.test(z)&&!(d._zIki&&!r._zAuto&&!r._zManual)){
     const say=new Map();
     for(const x of rows){if(x===r||x.status!=='done'||!/^\d+$/.test(String(x.d.z_no||'')))continue;const tx=dnum(x.d.tarih);if(tx==null||tx===t||Math.abs(tx-t)>3)continue;
       const e=+x.d.z_no-(tx-t);say.set(e,(say.get(e)||0)+1)}
@@ -63,8 +63,17 @@ function guessZ(r){}   // yerini autoZ aldı
 // Z No: listedeki raporlar tarihe göre sıralanır; Z'si okunamayan / şüpheli olan rapora bir önceki kesin raporun Z'si + sıra farkı yazılır.
 // Sonraki kesin rapor da varsa ikisi birbirini tutmalı (tutarsa kesin, tek taraftan ise turuncu). Elle yazılan Z'ye dokunulmaz.
 function autoZ(){
-  const done=rows.filter(r=>r.status==='done'&&dnum(r.d.tarih)!=null).sort((a,b)=>dnum(a.d.tarih)-dnum(b.d.tarih)||(a.created||0)-(b.created||0));
+  // Eski sürümlerin sıradan "düzelttiği" ama fişte iki yerde aynı basılı olan Z'leri geri al (ör. 3234 → 3233 yapılmıştı)
+  for(const r of rows){if(r.status!=='done'||!r._zAuto||r._zManual||!/^\d+$/.test(String(r._zRead||''))||!r.ocr)continue;
+    let iki=false;try{const p=ZParse.parseZ(r.ocr).d;iki=!!p._zIki&&normZ(p.z_no)===String(r._zRead)}catch(e){}
+    if(!iki)continue;
+    r.d.z_no=String(r._zRead);r.d._zIki=true;r._zAuto=false;r.unsure=(r.unsure||[]).filter(k=>k!=='z_no');
+    r.d.not=(r.d.not||'').split(' · ').filter(x=>!/^Z No (okunamadı|sıradan)/.test(x)).join(' · ');
+    if(r.d.aciklama===r._ack){r.d.aciklama=mkAck(r.d);r._ack=r.d.aciklama}
+    save(r)}
   const isNum=z=>/^\d+$/.test(String(z||''));
+  // aynı günün raporları Z sırasıyla (hesaplanan eksik Z ile okunan Z aynı tarihi alabilir; eklenme sırası yanıltır)
+  const done=rows.filter(r=>r.status==='done'&&dnum(r.d.tarih)!=null).sort((a,b)=>dnum(a.d.tarih)-dnum(b.d.tarih)||(isNum(a.d.z_no)&&isNum(b.d.z_no)?+a.d.z_no-+b.d.z_no:0)||(a.created||0)-(b.created||0));
   const sure0=r=>isNum(r.d.z_no)&&!r._zAuto&&!(r.unsure||[]).includes('z_no');
   // Kesin okunan Z'lerden en az bir başka kesin Z ile sırası tutanlar "dayanaklı"dır. Dayanaklı okuma varsa, hiçbiriyle tutmayan
   // kesin okuma (ör. 3934 → "3954") dayanak sayılmaz; komşularından düzeltilebilir (yine de yalnızca tek hane farkı varsa).
@@ -75,7 +84,10 @@ function autoZ(){
   const like=(a,z)=>{a=String(a);z=String(z||'');if(!z||a===z)return true;if(a.length!==z.length)return a.endsWith(z)||a.startsWith(z)||z.endsWith(a)||z.startsWith(a);let n=0;for(let i=0;i<a.length;i++)if(a[i]!==z[i])n++;return n===1};
   let cur0;
   for(let i=0;i<done.length;i++){
-    const r=done[i];if(r._zManual)continue;
+    const r=done[i];if(r._zManual||r.hesap)continue;
+    // Fişte okunan, emin olunan Z'ye dokunma: sıra farkı çoğu zaman satışsız (sıfır) Z'den ya da fotoğrafı eklenmemiş Z'den gelir
+    // (29.10'da Z 3234 okunmuşken araya giren satışsız Z 3233 yüzünden 3233 yazılıyordu). Gerçek okuma hatasını checks() uyarır.
+    if(sure0(r))continue;
     let p=null,n=null;
     for(let j=i-1;j>=0;j--)if(sure(done[j])){p=j;break}
     for(let j=i+1;j<done.length;j++)if(sure(done[j])){n=j;break}
@@ -85,6 +97,8 @@ function autoZ(){
     if(fp!=null&&fn!=null&&fp!==fn)continue;          // komşular tutmuyor (araya rapor eksik / farklı firma): dokunma
     const z=fp??fn;if(z==null||z<1)continue;
     const cur=r.d.z_no;
+    // aynı numara listede başka bir günün raporunda varsa yazma (aynı Z iki rapora verilmesin)
+    if(rows.some(x=>x!==r&&x.status==='done'&&String(+x.d.z_no)===String(z)&&x.d.tarih!==r.d.tarih&&(!x.d.sicil||!r.d.sicil||x.d.sicil===r.d.sicil)))continue;
     if(sure(r)&&(+cur===fp||+cur===fn))continue;      // okunan Z sırayla tutuyor
     // arada fotoğrafı eklenmemiş gün olabilir: kesin okunan Z'yi ancak günler de ardışıksa (gün farkı = sıra farkı) düzelt
     // iki kesin okuma çelişiyor ve hiçbiri başka bir okumayla desteklenmiyorsa hangisinin yanlış olduğu bilinemez: dokunma (kontrol uyarısı çıkar)
@@ -125,6 +139,9 @@ function kumKontrol(r){
     if(dk!=null&&Math.abs(dk-k)>0.05)return [{ok:!sert,info:!sert,m:`Kümülatif KDV Z ${pz}'den bu yana ${fm(dk)} artmış ama bu raporun KDV'si ${fm(k)}. Bir KDV tutarı yanlış okunmuş olabilir.`}];
     return [{ok:true,m:`Kümülatif satış Z ${pz} ile tutuyor`}];
   }
+  // kümülatifi ikisinin arasında olan başka bir rapor varsa "eksik" o rapordur ama Z numarası tutmuyor: hesaplayıp ekleme önerme
+  const ara=rows.find(x=>x!==r&&x!==p.x&&x.status==='done'&&x.d.kum_sat!=null&&x.d.kum_sat>p.x.d.kum_sat+0.005&&x.d.kum_sat<d.kum_sat-0.005&&(!x.d.sicil||!d.sicil||x.d.sicil===d.sicil));
+  if(ara)return [{ok:false,m:`Z ${pz} ile bu rapor arasında kümülatifi tutan bir rapor var (${ara.d.tarih}, Z ${ara.d.z_no||'—'}) ama Z numaraları sırayla gitmiyor. Z numaralarını fişle kontrol et.`}];
   const eS=r2(ds-s),eK=dk==null?null:r2(dk-k);
   if(eS<-0.01)return [{ok:!sert,info:!sert,m:`Kümülatif satış Z ${pz}'den bu yana ${fm(ds)} artmış; bu raporun satışından (${fm(s)}) az. Bir tutar yanlış okunmuş olabilir.`}];
   // aradaki numaralardan biri listede varsa (kümülatifi okunmamış olsa da) eksik sayma
@@ -149,6 +166,8 @@ const kullanilanOranlar=(...ds)=>{const o=new Set();for(const d of ds){if(d.teke
 const gunStr=n=>{const t=new Date(n*864e5);return `${String(t.getUTCDate()).padStart(2,'0')}.${String(t.getUTCMonth()+1).padStart(2,'0')}.${t.getUTCFullYear()}`};
 function eksikZEkle(r){
   const p=kumOnceki(r);if(!p||+r.d.z_no-+p.x.d.z_no!==2){toast('Eksik Z artık hesaplanamıyor');return}
+  if(rows.some(x=>x!==r&&x!==p.x&&x.status==='done'&&x.d.kum_sat!=null&&x.d.kum_sat>p.x.d.kum_sat+0.005&&x.d.kum_sat<r.d.kum_sat-0.005)){toast('Aradaki rapor listede var; önce Z numaralarını kontrol et');return}
+  if(Math.abs(r2(r.d.kum_sat-p.x.d.kum_sat-satis(r.d)))<=0.01){toast(`Z ${+p.x.d.z_no+1}'de satış yok; eklenecek tutar yok`);return}
   const a=p.x.d,b=r.d,ez=+a.z_no+1,S=r2(b.kum_sat-a.kum_sat-satis(b)),K=b.kum_kdv!=null&&a.kum_kdv!=null?r2(b.kum_kdv-a.kum_kdv-kdvT(b)):null;
   const bol=K==null?null:oranBol(S,K,kullanilanOranlar(a,b));
   const ta=dnum(a.tarih),tb=dnum(b.tarih),tah=ta!=null&&tb!=null?gunStr(Math.min(ta+1,tb)):(b.tarih||'');
