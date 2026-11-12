@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=74;
+const APP_VER=75;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  75:['Okunan raporların kartları kapalı gelir; görmek istediğine dokunup açarsın'],
   74:['Okuyucu (PaddleOCR) kendiliğinden iner; ekran kapanıp indirme yarıda kalırsa uygulamaya dönünce kaldığı yerden sürer, indirirken ekran açık tutulur','Arka arkaya çekimde sol alttaki küçük resme dokununca uygulama kapanmaz; kamera kapanıp listeye döner'],
   73:['Fişte okunan Z numarası artık sıradan tahminle değiştirilmez (araya satışsız Z girince yanlış numara yazılıyordu); daha önce yanlış değiştirilenler kendiliğinden düzeldi','Kümülatifi arada kalan bir rapor varsa “eksik Z hesapla” önerilmez; satışsız Z’ye tutar eklenmez'],
   72:['Güncellemeler artık aynı adresteki Tahsilat uygulamasının internetsiz açılmasını bozmaz'],

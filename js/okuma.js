@@ -39,7 +39,7 @@ async function extract(r){
     for(const f of FIELDS){const v=j[f.k];d[f.k]=f.t==='text'?(v==null?'':String(v).trim()):(f.t==='int'?(pn(v)==null?null:Math.round(pn(v))):pn(v))}
     d.z_rapor_mu=j.z_rapor_mu;d.sicil=j.sicil?String(j.sicil).replace(/\s/g,'').toUpperCase():null;d.slip=Number.isInteger(j.slip)?j.slip:null;d.tarih=normDate(d.tarih);d.z_no=normZ(d.z_no);r.auto=fill(d);d.aciklama=mkAck(d);r._ack=d.aciklama;
     r.d=d;r.unsure=Array.isArray(j.belirsiz)?j.belirsiz.filter(k=>FIELDS.some(f=>f.k===k)):[];r.akt=null;r.oku=okunanAnlik(d);guessZ(r);
-    r.status='done';r.open=true;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;
+    r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     r.status='error';
@@ -94,7 +94,7 @@ function sameReport(a,b){const n=v=>v==null?null:Math.round(+v*100);
 function addTexts(t){const parts=splitBulk(t),add=[];let dup=0;
   for(const p of parts){const r={id:uid(),status:'done',d:{},unsure:[],auto:[],src:'metin',created:Date.now(),open:false};applyParse(r,p);
     if(rows.concat(add).some(x=>x.status==='done'&&sameReport(x.d,r.d))){dup++;continue}add.push(r)}
-  if(add.length){rows.forEach(x=>x.open=false);if(add.length===1)add[0].open=true;rows.unshift(...add.slice().reverse());for(const r of add)save(r);autoZ();render()}
+  if(add.length){rows.forEach(x=>x.open=false);rows.unshift(...add.slice().reverse());for(const r of add)save(r);autoZ();render()}
   pm.hidden=true;
   toast(add.length?`${add.length} rapor eklendi${dup?`, ${dup} tanesi zaten listedeydi`:''} — kontrol et`:(dup?'Bu raporlar zaten listede':'Metinde rapor bulunamadı'))}
 
