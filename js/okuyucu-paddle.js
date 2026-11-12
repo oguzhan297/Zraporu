@@ -56,7 +56,7 @@ async function paddleDosyalari(){
 async function fotoBitmap(src){
   // Okuma geçişleri en çok ~2000 px genişlik kullanır: 24 MP (yeni iPhone) fotoğrafı tam boy taşımak belleği dolduruyordu.
   // Alan 12 MP ile sınırlı: 12 MP fotoğraf olduğu gibi kalır, 24/48 MP olanlar 12 MP'ye iner (eskiden 16 MP).
-  const im=await openImage(src),W=im.naturalWidth,H=im.naturalHeight,k=Math.min(1,Math.sqrt(12.2e6/(W*H)));
+  const im=await openImage(src),W=im.naturalWidth,H=im.naturalHeight,k=Math.min(1,Math.sqrt(12.2e6/(W*H)));kutu('bitmap',{w:W,h:H,k:+k.toFixed(2)});
   const c=document.createElement('canvas');c.width=Math.round(W*k);c.height=Math.round(H*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
   const b=await createImageBitmap(c);c.width=c.height=1;return b;
 }
@@ -127,6 +127,7 @@ async function extractPaddle(r,ikinci){
     toast('PaddleOCR bu tarayıcıda çalışmadı, Tesseract ile okunuyor');return extractFree(r);
   }
   const ps=sayfalar(r),sid=i=>r.id+':'+i,t0=Date.now();let etiket='Okunuyor (PaddleOCR)…';
+  kutu('oku',{id:r.id.slice(-4),sayfa:ps.length,mb:+((ps[0]&&ps[0].size||0)/1e6).toFixed(1),motor:motor.tur});
   // işçide okurken ekran serbest: geçen süreyi göster
   const sayac=setInterval(()=>setProg(r,`${etiket} ${Math.round((Date.now()-t0)/1000)} sn`),1000);
   try{
@@ -139,6 +140,7 @@ async function extractPaddle(r,ikinci){
     try{
       for(let n=0;n<passes.length;n++){
         etiket=n?`Toplamlar tutmadı, tekrar okunuyor (${n+1}/${passes.length})…`:'Okunuyor (PaddleOCR)…';setProg(r,etiket);
+        kutu('gecis',{n:n+1});
         const sm=[];for(let i=0;i<ps.length;i++)sm.push(paddleLines(await motor.oku(sid(i),ps[i],passes[n])));
         const text=birlestir(sm);
         const res=ZParse.parseZ(text),sc=ZParse.consistency(res);
@@ -152,12 +154,14 @@ async function extractPaddle(r,ikinci){
     const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
     applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
     r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;resimBirak(r);delete r.prog;
+    kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     clearInterval(sayac);
     // işçi çöktüyse (bellek vb.) bu raporu bir kez de sayfada oku
+    if(motor.tur==='isci'&&motor.olu())kutu('isciCoktu',{m:String(e&&e.message||e).slice(0,120)});
     if(motor.tur==='isci'&&motor.olu()&&!ikinci){isciYok=true;pdl=null;console.warn('PaddleOCR işçisi çöktü, sayfada okunuyor:',e);return extractPaddle(r,true)}
-    r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog;
+    r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog;kutu('okumaHata',{m:String(r.err).slice(0,120),isci:motor.tur});
   }
   clearInterval(sayac);
   render();

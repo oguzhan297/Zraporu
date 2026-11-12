@@ -127,7 +127,7 @@ document.addEventListener('click',e=>{
     (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Okunan metin kopyalandı')).catch(()=>{try{ta.focus();ta.select();ta.setSelectionRange(0,txt.length);const ok=document.execCommand('copy');toast(ok?'Okunan metin kopyalandı':'Kopyalanamadı — metne uzun basıp “Tümünü Seç”')}catch(x){toast('Kopyalanamadı')}});return}
   if(t.dataset.reparse){const r=rows.find(x=>x.id===t.dataset.reparse);const ta=document.querySelector(`[data-ocr="${r.id}"]`);r._zAuto=false;applyParse(r,ta.value);r.open=true;save(r);autoZ();render();toast('Metin yeniden okundu');return}
   if(t.dataset.zoom!==undefined){t.classList.toggle('zoom');return}
-  if(t.dataset.tog){const r=rows.find(x=>x.id===t.dataset.tog);r.open=!r.open;if(r.open)loadImg(r);else if(r.hasImg&&r.status==='done'&&!String(r.thumb||'').startsWith('blob:'))r.thumb=null;   /* kapanan kartın büyük fotoğrafı bellekte kalmasın */render();if(r.open)document.getElementById('c_'+r.id)?.scrollIntoView({behavior:'smooth',block:'start'});return}
+  if(t.dataset.tog){const r=rows.find(x=>x.id===t.dataset.tog);r.open=!r.open;kutu(r.open?'kartAc':'kartKapat');if(r.open)loadImg(r);else if(r.hasImg&&r.status==='done'&&!String(r.thumb||'').startsWith('blob:'))r.thumb=null;   /* kapanan kartın büyük fotoğrafı bellekte kalmasın */render();if(r.open)document.getElementById('c_'+r.id)?.scrollIntoView({behavior:'smooth',block:'start'});return}
   if(t.dataset.del){
     if(t.dataset.armed!=='1'){t.dataset.armed='1';t.textContent='Emin misin?';setTimeout(()=>{if(t.isConnected){t.dataset.armed='';t.textContent='Sil'}},3000);return}
     removeRows(rows.filter(x=>x.id===t.dataset.del));return}

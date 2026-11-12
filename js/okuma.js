@@ -4,7 +4,7 @@ function miniResim(src){const w=src.naturalWidth||src.width,h=src.naturalHeight|
 async function shrink(file){
   const url=URL.createObjectURL(file);
   const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('Görüntü açılamadı'));im.src=url});
-  const max=1568,sc=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+  const max=1568,sc=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));kutu('hazirla',{w:img.naturalWidth,h:img.naturalHeight,mb:+(file.size/1e6).toFixed(1)});
   const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*sc);c.height=Math.round(img.naturalHeight*sc);
   c.getContext('2d').drawImage(img,0,0,c.width,c.height);
   const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.86));
@@ -66,7 +66,7 @@ async function pump(){if(busy)return;busy=true;
   busy=false}
 
 async function onFiles(list){
-  const files=[...list];if(!files.length)return;
+  const files=[...list];if(!files.length)return;kutu('ekle',{n:files.length});
   const noKey=S.mode==='api'&&!S.key;
   if(noKey){notice('Claude API ile okuma için ⚙️ Ayarlar’dan API anahtarını gir ya da yöntemi “Ücretsiz” yap. Şimdilik fotoğraflar eklendi; değerleri elle girebilirsin.');$('#settings').open=true}
   // kartları hemen göster (tek seferde), okuma ilk fotoğraftan başlasın
@@ -135,7 +135,7 @@ $('#devam').addEventListener('change',e=>{devamEkle(e.target.files[0]);e.target.
 // Uygulama içi kamera yoksa ya da izin verilmediyse telefonun kendi kamerası (#cam) açılır.
 const KAM={akis:null,sayi:0,isik:false,mod:'seri',yerel:false};
 const yerelKamera=()=>{const i=$('#cam');i.value='';i.click()};
-async function kameraAc(mod='seri'){
+async function kameraAc(mod='seri'){kutu('kamera',{mod});
   KAM.mod=mod;
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||(KAM.yerel&&mod==='tek')){if(mod==='tek')return yerelKamera();toast('Bu tarayıcıda uygulama içi kamera yok; Fotoğraf çek’i kullan');return}
   try{KAM.akis=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:3840},height:{ideal:2160}}})}
