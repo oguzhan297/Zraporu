@@ -176,6 +176,8 @@ body.kamera-acik{overflow:hidden}
 .k-mesaj{position:absolute;top:calc(64px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:99px;font-size:13.5px;font-weight:600;opacity:0;transition:opacity .15s;white-space:nowrap}
 .k-mesaj.iyi{opacity:1;background:rgba(5,150,105,.9);color:#fff}.k-mesaj.kotu{opacity:1;background:rgba(220,38,38,.92);color:#fff}
 .k-alt{position:absolute;left:0;right:0;bottom:calc(26px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center;gap:44px}
+.kamera video{pointer-events:none}
+.kamera img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
 .k-alt img{width:52px;height:52px;border-radius:10px;object-fit:cover;border:2px solid rgba(255,255,255,.7);background:rgba(255,255,255,.1)}
 .k-alt img:not([src]){visibility:hidden}
 .k-dek{width:76px;height:76px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.25);cursor:pointer;-webkit-tap-highlight-color:transparent}

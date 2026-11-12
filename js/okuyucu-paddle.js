@@ -6,19 +6,36 @@
 const PADDLE={js:'vendor/paddle.js?p=2',ort:'1.31.1',det:'PP-OCRv6_small_det',rec:'PP-OCRv6_small_rec',
   base:'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/',mb:{det:9.9,rec:21.3,wasm:14.8}};
 const OCR_CACHE='zrapor-ocr-1';
+// Büyük dosya indirme: yarıda kalırsa (ekran kapandı, uygulama arka plana geçti, bağlantı koptu) kaldığı yerden sürer.
+// iPhone arka planda indirmeye izin vermez; uygulama yeniden öne gelince Range ile kalan kısım istenir (sunucu desteklemezse baştan).
+const gorunurBekle=()=>document.visibilityState!=='hidden'?Promise.resolve():new Promise(r=>{const f=()=>{if(document.visibilityState!=='hidden'){document.removeEventListener('visibilitychange',f);r()}};document.addEventListener('visibilitychange',f)});
 async function fetchBig(url,onBytes){
   let cache=null;
   try{cache=await caches.open(OCR_CACHE);const m=await cache.match(url);if(m){const b=await m.arrayBuffer();onBytes(b.byteLength,b.byteLength);return b}}catch(e){}
-  let res;try{res=await fetch(url,{mode:'cors'})}catch(e){throw new Error('PaddleOCR dosyaları indirilemedi. İnternet bağlantını kontrol et.')}
-  if(!res.ok)throw new Error(`PaddleOCR dosyası indirilemedi (${res.status}). Biraz sonra tekrar dene.`);
-  const total=+res.headers.get('content-length')||0;let buf;
-  if(res.body&&res.body.getReader){const rd=res.body.getReader(),parts=[];let n=0;
-    for(;;){const {done,value}=await rd.read();if(done)break;parts.push(value);n+=value.length;onBytes(n,total)}
-    buf=await new Blob(parts).arrayBuffer()}
-  else{buf=await res.arrayBuffer();onBytes(buf.byteLength,buf.byteLength)}
+  const parts=[];let n=0,total=0,hata=null;
+  for(let deneme=0;deneme<12;deneme++){
+    await gorunurBekle();
+    let res;
+    try{res=await fetch(url,n?{mode:'cors',headers:{Range:`bytes=${n}-`}}:{mode:'cors'})}
+    catch(e){hata=e;if(n){try{res=await fetch(url,{mode:'cors'})}catch(e2){}}if(!res){if(!n&&deneme>=2)break;await new Promise(r=>setTimeout(r,1500));continue}}   // hiç inmiyorsa (internet yok) çabuk vazgeç; sonra kendiliğinden yeniden denenir
+    if(!res.ok){if(res.status>=500||res.status===429){hata=new Error(String(res.status));await new Promise(r=>setTimeout(r,2000));continue}throw new Error(`PaddleOCR dosyası indirilemedi (${res.status}). Biraz sonra tekrar dene.`)}
+    if(n&&res.status!==206){parts.length=0;n=0}   // sunucu kaldığı yerden vermedi: baştan
+    if(!total){const cr=res.headers.get('content-range'),m=cr&&cr.match(/\/(\d+)/);total=m?+m[1]:(+res.headers.get('content-length')||0)}
+    try{
+      if(res.body&&res.body.getReader){const rd=res.body.getReader();for(;;){const {done,value}=await rd.read();if(done)break;parts.push(value);n+=value.length;onBytes(n,total)}}
+      else{const b=new Uint8Array(await res.arrayBuffer());parts.push(b);n+=b.length;onBytes(n,total)}
+      if(!total||n>=total){hata=null;break}
+    }catch(e){hata=e;await new Promise(r=>setTimeout(r,800))}   // yarıda kesildi: elde olanla devam
+  }
+  if(hata||(total&&n<total))throw new Error('PaddleOCR dosyaları indirilemedi. İnternet bağlantını kontrol et; uygulama açıkken kaldığı yerden sürer.');
+  const buf=await new Blob(parts).arrayBuffer();
   if(cache)try{await cache.put(url,new Response(new Blob([buf])))}catch(e){}
   return buf;
 }
+// İndirme sürerken ekran kapanmasın (iPhone ekran kapanınca indirmeyi durdurur)
+let ekranKilit=null;
+async function ekranAcikTut(ac){try{if(ac){if(!ekranKilit&&navigator.wakeLock)ekranKilit=await navigator.wakeLock.request('screen')}else if(ekranKilit){await ekranKilit.release();ekranKilit=null}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&onIndir&&!ekranKilit)ekranAcikTut(true)});
 // Okuma motoru: önce işçide (ekran donmaz), işçi açılamazsa / çökerse sayfada (eski yol).
 // motor = { tur:'isci'|'ana', resim(id,src), oku(id,src,opt) → kutular, birak(id) }
 let pdl=null,pdlLoading=null,pdlProg=null,isciYok=false;
@@ -30,8 +47,10 @@ async function paddleDosyalari(){
   let last=-1;
   const tick=()=>{const a=Object.values(got).reduce((x,y)=>x+y,0),b=Object.values(tot).reduce((x,y)=>x+y,0),p=Math.min(100,Math.round(a*100/b));
     if(p!==last){last=p;pdlProg&&pdlProg(p>=100?'Okuyucu hazırlanıyor…':`İlk kullanım: okuyucu indiriliyor %${p} (bir kez)`)}};
-  const [det,rec,wasm]=await Promise.all(['det','rec','wasm'].map(k=>fetchBig(urls[k],(n,t)=>{if(t)tot[k]=t;got[k]=n;tick()})));
-  return {det,rec,wasm,wasmDir};
+  ekranAcikTut(true);
+  try{const [det,rec,wasm]=await Promise.all(['det','rec','wasm'].map(k=>fetchBig(urls[k],(n,t)=>{if(t)tot[k]=t;got[k]=n;tick()})));
+    return {det,rec,wasm,wasmDir}}
+  finally{if(!onIndir)ekranAcikTut(false)}
 }
 // Fotoğrafı yönü düzeltilmiş (EXIF) ve iOS tuval sınırına (16 MP) indirilmiş ImageBitmap olarak hazırla
 async function fotoBitmap(src){
@@ -144,22 +163,24 @@ async function extractPaddle(r,ikinci){
 
 // ---- Okuyucuyu önceden indirme: ilk fiş beklemesin, internetsiz de okusun ----
 // Wi-Fi bilinen cihazda (Android) kendiliğinden; bağlantı türü bilinmiyorsa (iPhone) tek dokunuşluk öneri, 3 günde bir.
-let onIndir=null;
+let onIndir=null,okYarim=false;
 const okDosyalar=()=>{const w=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${PADDLE.ort}/dist/`;
   return [{u:new URL(PADDLE.js,location.href).href,mb:10.6,js:true},{u:PADDLE.base+PADDLE.det+'_onnx_infer.tar',mb:PADDLE.mb.det},{u:PADDLE.base+PADDLE.rec+'_onnx_infer.tar',mb:PADDLE.mb.rec},{u:w+'ort-wasm-simd-threaded.wasm',mb:PADDLE.mb.wasm}]};
 async function okuyucuHazirMi(){try{const c=await caches.open(OCR_CACHE);for(const f of okDosyalar())if(!await c.match(f.u,{ignoreVary:true}))return false;return true}catch(e){return null}}
-function okuyucuIndir(){if(onIndir)return onIndir;
+function okuyucuIndir(oto=false){if(onIndir)return onIndir;
   const fs=okDosyalar(),got=fs.map(()=>0),tot=fs.map(f=>f.mb*1e6);let son=-1;
   const yaz=m=>{$('#okdurum').textContent=m;if(!$('#okoneri').hidden)$('#okoneriyazi').textContent=m};
   const tik=()=>{const p=Math.min(99,Math.floor(got.reduce((a,b)=>a+b,0)*100/tot.reduce((a,b)=>a+b,0)));if(p!==son){son=p;yaz(`Okuyucu indiriliyor %${p}…`)}};
   $('#okindir').hidden=true;$('#okoneridugme').hidden=true;tik();
+  ekranAcikTut(true);try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}   // telefon yer açarken silmesin
   onIndir=(async()=>{const c=await caches.open(OCR_CACHE);
     await Promise.all(fs.map(async(f,i)=>{if(await c.match(f.u,{ignoreVary:true})){got[i]=tot[i];tik();return}
-      if(f.js){const r=await fetch(f.u,{cache:'reload'});if(!r.ok)throw new Error('indirilemedi '+r.status);await c.put(f.u,r.clone());const b=await r.arrayBuffer();got[i]=tot[i]=b.byteLength||tot[i];tik();return}   // başlıklarıyla sakla (işçi modül olarak yükler)
+      if(f.js){let r=null;for(let k=0;k<6&&!r;k++){await gorunurBekle();try{r=await fetch(f.u,{cache:'reload'})}catch(e){await new Promise(z=>setTimeout(z,1500))}}
+        if(!r||!r.ok)throw new Error('indirilemedi '+(r?r.status:''));await c.put(f.u,r.clone());const b=await r.arrayBuffer();got[i]=tot[i]=b.byteLength||tot[i];tik();return}   // başlıklarıyla sakla (işçi modül olarak yükler)
       await fetchBig(f.u,(n,t)=>{if(t)tot[i]=t;got[i]=n;tik()})}))})();
   onIndir.then(()=>{toast('Okuyucu hazır; artık internetsiz de okur');$('#okoneri').hidden=true;okDurumUI()},
-    e=>{toast('Okuyucu indirilemedi; bağlantıyı kontrol edip tekrar dene');$('#okindir').hidden=false;$('#okoneridugme').hidden=false;$('#okoneriyazi').textContent='İndirme yarıda kaldı. Tekrar denemek için dokun.';okDurumUI()})
-    .finally(()=>{onIndir=null});
+    e=>{okYarim=true;if(!oto)toast('Okuyucu indirilemedi; internet gelince ya da uygulamaya dönünce kendiliğinden sürer');$('#okindir').hidden=false;$('#okoneridugme').hidden=false;$('#okoneriyazi').textContent='İndirme yarıda kaldı; uygulamaya dönünce kendiliğinden sürer (ya da dokun).';okDurumUI()})
+    .finally(()=>{onIndir=null;ekranAcikTut(false)});
   return onIndir}
 async function okDurumUI(){const h=await okuyucuHazirMi(),el=$('#okhazir');if(S.mode!=='paddle'||h==null){el.hidden=true;return h}
   el.hidden=false;if(onIndir)return h;$('#okdurum').textContent=h?'Okuyucu bu telefonda hazır ✓ (internetsiz de okur)':'Okuyucu henüz indirilmedi (bir kez ~57 MB)';$('#okindir').hidden=!!h;return h}
@@ -167,6 +188,11 @@ $('#okindir').onclick=()=>okuyucuIndir();
 $('#okoneriindir').onclick=()=>okuyucuIndir();
 $('#okonerisonra').onclick=()=>{$('#okoneri').hidden=true;try{localStorage.setItem('zr_okoneri',String(Date.now()))}catch(e){}};
 $('#mode').addEventListener('change',()=>{okDurumUI();if(S.mode!=='paddle')$('#okoneri').hidden=true});
-setTimeout(async()=>{const h=await okDurumUI();if(h!==false||S.mode!=='paddle'||onIndir)return;const c=navigator.connection;
-  if(c&&(c.type==='wifi'||c.type==='ethernet')&&!c.saveData){okuyucuIndir();return}
-  let sonra=0;try{sonra=+localStorage.getItem('zr_okoneri')||0}catch(e){}if(Date.now()-sonra<3*864e5)return;$("#okoneri").hidden=false},400);   // hemen: sonradan eklenip düğmeleri kaydırmasın
+// Okuyucu hazır değilse kendiliğinden indir (her telefonda; veri tasarrufu açıksa ya da hücresel bağlantı biliniyorsa sorar).
+// Yarıda kaldıysa uygulama öne gelince / internet gelince kendiliğinden sürer. Dosyalar güncellemelerde silinmez.
+function okOtomatik(){if(S.mode!=='paddle'||onIndir)return;okuyucuHazirMi().then(h=>{if(h!==false||onIndir)return;const c=navigator.connection;
+  if(c&&(c.saveData||c.type==='cellular')&&!okYarim){let sonra=0;try{sonra=+localStorage.getItem('zr_okoneri')||0}catch(e){}if(Date.now()-sonra>=3*864e5)$('#okoneri').hidden=false;return}
+  if(navigator.onLine===false)return;$('#okoneri').hidden=false;okuyucuIndir(true)})}
+setTimeout(async()=>{await okDurumUI();okOtomatik()},400);   // hemen: sonradan eklenip düğmeleri kaydırmasın
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(okOtomatik,600)});
+window.addEventListener('online',()=>setTimeout(okOtomatik,600));

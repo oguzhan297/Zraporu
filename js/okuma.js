@@ -152,6 +152,11 @@ async function kareAl(){
   const v=$('#kvid'),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;if(!c.width)return null;
   c.getContext('2d').drawImage(v,0,0);const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));c.width=c.height=1;return b;
 }
+// Son çekilen karenin küçük önizlemesi (videodan, ~120 px) — 4K fotoğrafın kendisi bu küçük kutuda gösterilince
+// iPhone dokunulduğunda tam boy açmaya çalışıp uygulamayı kapatıyordu.
+function kucukKare(){const v=$('#kvid');if(!v.videoWidth)return '';const o=120/Math.max(v.videoWidth,v.videoHeight),c=document.createElement('canvas');
+  c.width=Math.round(v.videoWidth*o);c.height=Math.round(v.videoHeight*o);c.getContext('2d').drawImage(v,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.7)}
+$('#kson').onclick=e=>{e.preventDefault();e.stopPropagation();if(KAM.sayi)kameraKapat()};   // önizlemeye dokun: kamerayı kapat, listeye dön (telefon kamerasındaki gibi)
 $('#seri').onclick=()=>kameraAc('seri');
 $('#tekcek').onclick=()=>kameraAc('tek');
 $('#kyerel').onclick=()=>{KAM.sayi=0;kameraKapat();yerelKamera()};   // en yüksek çözünürlük: telefonun kendi kamerası
@@ -168,9 +173,11 @@ $('#kdek').onclick=async()=>{
     const k=kaliteSorun(q);
     if(k.includes('bulanik')){kMesaj('Bulanık — sabit tut, tekrar çek','kotu');return}
     if(k.includes('kucuk')){kMesaj('Görüntü çok küçük — fişe yaklaş','kotu');return}
-    KAM.sayi++;$('#ksay').textContent=`${KAM.sayi} fiş`;$('#kson').src=URL.createObjectURL(b);
+    KAM.sayi++;$('#ksay').textContent=`${KAM.sayi} fiş`;$('#kson').src=kucukKare()||$('#kson').src;   // tam boy fotoğraf değil: iPhone'da bellek doluyordu
     onFiles([file]);
     if(KAM.mod==='tek'){kameraKapat();return}
     kMesaj('✓ Eklendi, sıradaki fiş','iyi');
   }finally{d.disabled=false}
 };
+// Kamera açıkken ekran kilitlenir / uygulama arka plana geçerse görüntü akışı durur (iPhone'da siyah ekran kalıyordu): kamerayı kapat
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&KAM.akis)kameraKapat()});
