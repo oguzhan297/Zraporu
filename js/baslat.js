@@ -26,3 +26,4 @@ setTimeout(surumDenetle,4000);setInterval(surumDenetle,30*60*1000);
   setTimeout(()=>{$('#yenilik').hidden=false},800)})();
 $('#yeniliktamam').onclick=()=>{$('#yenilik').hidden=true};
 $('#yenilik').addEventListener('click',e=>{if(e.target.id==='yenilik')$('#yenilik').hidden=true});
+setTimeout(()=>{if(typeof XLSX==='undefined')loadScript(XLSX_URL).catch(()=>{})},6000);   // Excel kütüphanesi açılıştan sonra, boşta yüklenir

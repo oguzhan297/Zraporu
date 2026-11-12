@@ -41,7 +41,8 @@ async function hataBildir(r,not='',dugme){
   return ok;
 }
 
-function render(){
+function render(){return ckToplu(render0)}
+function render0(){
   const L=$('#list');filtreUI();
   const goster=rows.filter(gorunur);
   if(!rows.length){L.innerHTML='<div class="empty-state">Henüz Z raporu yok.<br>Yukarıdan fotoğraf çekerek başla.</div>'}
@@ -57,7 +58,7 @@ function render(){
     if(inSec)g+='</div></section>';
     return `<div class="card${r.open?' open':''}" id="c_${r.id}">
       <div class="head" data-tog="${r.id}">${headHTML(r)}</div>
-      <div class="body">
+      <div class="body">${r.open?`
         ${r.thumb?`<img class="big" src="${r.thumb}" data-zoom alt="Z raporu fotoğrafı (dokun: büyüt)">`:''}
         ${r.src==='foto'||r.hasImg?`<div class="devam">${(r.sayfa||1)>1?`${ik('sayfa')}${r.sayfa} fotoğraftan birlikte okundu · `:''}<button class="lnk" data-devam="${r.id}">${ik('arti')}Fiş uzunsa devamını ekle</button></div>`:''}
         ${kaliteHTML(r)}
@@ -68,7 +69,7 @@ function render(){
         ${duzeltmeHTML(r)}
         ${r.akt?`<div class="aktbar">✓ ${aktTarih(r.akt,1)} tarihinde Luca dosyasına aktarıldı. <button class="btn small" data-aktsil="${r.id}">Aktarılmadı yap</button></div>`:''}
         ${bildirKutuHTML(r)}
-        <div class="cardfoot"><button class="btn small danger" data-del="${r.id}">Sil</button><button class="lnk bildirlnk" data-bildirac="${r.id}">${ik('uyari')}${r.bildirildi?'Bildirildi · yeniden bildir':'Hata bildir'}</button><button class="btn small" data-tog="${r.id}">Kapat</button></div>
+        <div class="cardfoot"><button class="btn small danger" data-del="${r.id}">Sil</button><button class="lnk bildirlnk" data-bildirac="${r.id}">${ik('uyari')}${r.bildirildi?'Bildirildi · yeniden bildir':'Hata bildir'}</button><button class="btn small" data-tog="${r.id}">Kapat</button></div>`:''}
       </div></div>`;
   }).join('');
   renderSum();
@@ -98,7 +99,7 @@ function renderSum(){
 function refreshCard(r){
   const c=document.getElementById('c_'+r.id);if(!c){render();return}
   c.querySelector('.head').innerHTML=headHTML(r);
-  c.querySelector('.checks').innerHTML=checksHTML(r);
+  const ck=c.querySelector('.checks');if(ck)ck.innerHTML=checksHTML(r);   // kapalı kartın gövdesi çizilmez (açılınca çizilir)
   c.querySelectorAll('input[data-k]').forEach(i=>{const f=FIELDS.find(x=>x.k===i.dataset.k);if(i!==document.activeElement)i.value=fv(f,r.d[f.k]);i.classList.toggle('unsure',!!(r.unsure&&r.unsure.includes(f.k)));i.classList.toggle('calc',!!(r.auto&&r.auto.includes(f.k)))});
   renderSum();
 }
@@ -139,7 +140,7 @@ document.addEventListener('change',e=>{
   if(r.akt){r.akt=null;toast('Rapor değişti: bir sonraki Luca dosyasına yeniden girecek')}
   save(r);
   if(f.k==='z_no'||f.k==='tarih')autoZ();
-  rows.forEach(x=>{if(x.status==='done')refreshCard(x)});
+  ckToplu(()=>rows.forEach(x=>{if(x.status==='done')refreshCard(x)}));
 });
 
 const pm=$('#pm');

@@ -55,7 +55,8 @@ async function prep(r){   // küçük resmi ve yüklenecek kopyayı sırası gel
   return true
 }
 async function pump(){if(busy)return;busy=true;
-  while(queue.length){const r=queue.shift();if(!rows.includes(r))continue;if(await prep(r))await extract(r)}
+  // Uzun seride işlemci aralıksız çalışınca telefon ısınıyor (ısınınca da yavaşlıyor): fişler arasında kısa nefes
+  while(queue.length){const r=queue.shift();if(!rows.includes(r))continue;if(await prep(r))await extract(r);if(queue.length&&S.mode!=='api')await new Promise(a=>setTimeout(a,1200))}
   busy=false}
 
 async function onFiles(list){

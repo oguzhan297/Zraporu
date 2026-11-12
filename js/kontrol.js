@@ -1,5 +1,17 @@
 // Kontroller: toplamların, KDV'lerin, ödemelerin tutarlılığı; Z no sırası (autoZ)
-function checks(r){
+// Bir çizim (render) boyunca her raporun kontrolleri bir kez hesaplanır: kontroller tüm listeye baktığı için
+// her kartta yeniden hesaplamak yüzlerce raporda saniyeler sürüyordu (açılış yavaşlığı).
+let CK=null;
+function ckToplu(fn){const ic=!CK;if(ic)CK=new Map();try{return fn()}finally{if(ic)CK=null}}
+// Tarihe göre sıralı rapor dizini (komşu günleri ikili aramayla bulmak için); bir çizim boyunca bir kez kurulur
+const dnumC=new Map();const dn=s=>{let v=dnumC.get(s);if(v===undefined){v=dnum(s);dnumC.set(s,v)}return v};
+function gunDizin(){const k='__dizin';if(CK&&CK.has(k))return CK.get(k);
+  const L=rows.filter(x=>x.status==='done').map(x=>({x,t:dn(x.d.tarih),z:/^\d+$/.test(String(x.d.z_no||''))?+x.d.z_no:null})).filter(o=>o.t!=null).sort((a,b)=>a.t-b.t);
+  if(CK)CK.set(k,L);return L}
+function gunAralik(t0,t1){const L=gunDizin();let lo=0,hi=L.length;while(lo<hi){const m=(lo+hi)>>1;if(L[m].t<t0)lo=m+1;else hi=m}
+  const out=[];for(let i=lo;i<L.length&&L[i].t<=t1;i++)out.push(L[i]);return out}
+function checks(r){if(CK){let v=CK.get(r);if(!v){v=checks0(r);CK.set(r,v)}return v}return checks0(r)}
+function checks0(r){
   const d=r.d,out=[];
   const names={g1:'%1',g10:'%10',g20:'%20',gp:'Poşet'};
   if(!d.tarih)out.push({ok:false,m:'Tarih boş'});
@@ -11,8 +23,8 @@ function checks(r){
   // eksik/fazla hane tahmini yalnız 3+ haneli numaralarda yapılır (3 ↔ 3069 gibi kısa numaralar rastlantıyla benzer).
   {const t=dnum(d.tarih),z=String(d.z_no||'');if(t!=null&&/^\d+$/.test(z)&&!(d._zIki&&!r._zAuto&&!r._zManual)){
     const say=new Map();
-    for(const x of rows){if(x===r||x.status!=='done'||!/^\d+$/.test(String(x.d.z_no||'')))continue;const tx=dnum(x.d.tarih);if(tx==null||tx===t||Math.abs(tx-t)>3)continue;
-      const e=+x.d.z_no-(tx-t);say.set(e,(say.get(e)||0)+1)}
+    for(const o of gunAralik(t-3,t+3)){const x=o.x;if(x===r||o.z==null||o.t===t)continue;
+      const e=o.z-(o.t-t);say.set(e,(say.get(e)||0)+1)}
     const like=e=>{const a=String(e);if(a===z)return false;if(a.length!==z.length)return Math.min(a.length,z.length)>=3&&(a.startsWith(z)||a.endsWith(z)||z.startsWith(a)||z.endsWith(a));let n=0;for(let i=0;i<a.length;i++)if(a[i]!==z[i])n++;return n===1};
     const e=[...say].filter(([,c])=>c>=2).map(([e])=>e).find(like);if(e!=null&&!say.has(+z))out.push({ok:false,m:`Z No ${z} şüpheli: yakın tarihli raporlara göre ${e} olmalı`})}}
   if(satis(d)===0)out.push({ok:false,m:'Hiç satış tutarı yok'});
@@ -44,8 +56,8 @@ function checks(r){
 // Olağandışı değer: aynı yazar kasanın yakın günleri (Z sırası tarihle uyumlu olanlar) ile karşılaştır. Uyarı değil, bilgi (ⓘ).
 function olagandisi(r){
   const d=r.d,t=dnum(d.tarih),z=+d.z_no,s=satis(d);if(t==null||!(z>0)||!(s>0))return [];
-  const kom=rows.filter(x=>x!==r&&x.status==='done'&&satis(x.d)>0&&/^\d+$/.test(String(x.d.z_no||''))&&dnum(x.d.tarih)!=null).filter(x=>{
-    const dt=dnum(x.d.tarih)-t,dz=+x.d.z_no-z;return dt!==0&&Math.abs(dt)<=45&&Math.abs(dz-dt)<=Math.max(3,Math.abs(dt)*.3)});
+  const kom=gunAralik(t-45,t+45).filter(o=>{const x=o.x;if(x===r||o.z==null||!(satis(x.d)>0))return false;
+    const dt=o.t-t,dz=o.z-z;return dt!==0&&Math.abs(dz-dt)<=Math.max(3,Math.abs(dt)*.3)}).map(o=>o.x);
   if(kom.length<4)return [];
   const med=a=>{const s=a.slice().sort((p,q)=>p-q),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
   const out=[],ms=med(kom.map(x=>satis(x.d)));
@@ -64,7 +76,7 @@ function guessZ(r){}   // yerini autoZ aldı
 // Sonraki kesin rapor da varsa ikisi birbirini tutmalı (tutarsa kesin, tek taraftan ise turuncu). Elle yazılan Z'ye dokunulmaz.
 function autoZ(){
   // Eski sürümlerin sıradan "düzelttiği" ama fişte iki yerde aynı basılı olan Z'leri geri al (ör. 3234 → 3233 yapılmıştı)
-  for(const r of rows){if(r.status!=='done'||!r._zAuto||r._zManual||!/^\d+$/.test(String(r._zRead||''))||!r.ocr)continue;
+  for(const r of rows){if(r.status!=='done'||!r._zAuto||r._zManual||r._zBak||!/^\d+$/.test(String(r._zRead||''))||!r.ocr)continue;r._zBak=1;   // her rapor oturumda bir kez denetlenir
     let iki=false;try{const p=ZParse.parseZ(r.ocr).d;iki=!!p._zIki&&normZ(p.z_no)===String(r._zRead)}catch(e){}
     if(!iki)continue;
     r.d.z_no=String(r._zRead);r.d._zIki=true;r._zAuto=false;r.unsure=(r.unsure||[]).filter(k=>k!=='z_no');
@@ -78,8 +90,9 @@ function autoZ(){
   // Kesin okunan Z'lerden en az bir başka kesin Z ile sırası tutanlar "dayanaklı"dır. Dayanaklı okuma varsa, hiçbiriyle tutmayan
   // kesin okuma (ör. 3934 → "3954") dayanak sayılmaz; komşularından düzeltilebilir (yine de yalnızca tek hane farkı varsa).
   const anch=new Set();
-  for(let i=0;i<done.length;i++)for(let j=i+1;j<done.length;j++){const a=done[i],b=done[j];if(!sure0(a)||!sure0(b))continue;
-    const dd=dnum(b.d.tarih)-dnum(a.d.tarih);if(dd>0&&dd<=10&&+b.d.z_no-+a.d.z_no===j-i){anch.add(a);anch.add(b)}}
+  for(let i=0;i<done.length;i++){if(!sure0(done[i]))continue;const ta=dn(done[i].d.tarih);
+    for(let j=i+1;j<done.length;j++){const a=done[i],b=done[j];const dd=dn(b.d.tarih)-ta;if(dd>10)break;if(!sure0(b))continue;
+      if(dd>0&&+b.d.z_no-+a.d.z_no===j-i){anch.add(a);anch.add(b)}}}
   const sure=r=>sure0(r)&&(!anch.size||anch.has(r));
   const like=(a,z)=>{a=String(a);z=String(z||'');if(!z||a===z)return true;if(a.length!==z.length)return a.endsWith(z)||a.startsWith(z)||z.endsWith(a)||z.startsWith(a);let n=0;for(let i=0;i<a.length;i++)if(a[i]!==z[i])n++;return n===1};
   let cur0;

@@ -1,3 +1,4 @@
+const XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 // Dışa aktarma: Luca CSV (Windows-1254), Excel, panoya tablo
 function sorted(list){return (list||rows.filter(r=>r.status==='done')).slice().sort((a,b)=>{const p=s=>{const m=String(s||'').match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);return m?(+(m[3].length===2?'20'+m[3]:m[3]))*10000+(+m[2])*100+(+m[1]):0};return p(a.d.tarih)-p(b.d.tarih)||String(a.d.z_no).localeCompare(String(b.d.z_no),'tr',{numeric:true})})}
 const cell=(f,v)=>v==null||v===''?'':f.t==='num'?(Math.round((v+Number.EPSILON*Math.sign(v||1))*100)/100+0).toFixed(2).replace('.',','):String(v).replace(/[;\r\n\t]/g,' ');
@@ -35,6 +36,8 @@ function guard(btn,label,list){
 $('#csv').onclick=async e=>{const b=e.currentTarget,a=aktarilacak(b,'⬇ Luca CSV');if(!a||!guard(b,'⬇ Luca CSV',a.list))return;
   if(await offer(fname('csv'),new Blob([enc1254(csvText(a.list)+'\r\n')]))&&a.isaretle)isaretle(a.list)};
 $('#xlsx').onclick=async e=>{const bt=e.currentTarget,a=aktarilacak(bt,'Excel');if(!a||!guard(bt,'Excel',a.list))return;
+  // Excel kütüphanesi (~900 KB) açılışı yavaşlatmasın: yalnız Excel istenince yüklenir (service worker önbelleğinden)
+  if(typeof XLSX==='undefined'){try{await loadScript(XLSX_URL)}catch(e){}}
   if(typeof XLSX==='undefined'){toast('Excel kütüphanesi yüklenemedi; CSV’yi kullan.');return}
   const body=sorted(a.list).map(r=>OUT.map(f=>r.d[f.k]??(f.t==='text'?'':null)));
   const ws=XLSX.utils.aoa_to_sheet([OUT.map(f=>f.c),...body]);

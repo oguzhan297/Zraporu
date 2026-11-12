@@ -27,7 +27,8 @@ async function loadImg(r){
 }
 const sortRows=()=>rows.sort((a,b)=>((a.status==='done')-(b.status==='done'))||((b.created||0)-(a.created||0)));
 async function load(){
-  try{const all=await IDB.all('rows');rows=all.map(r=>({...r,status:'done',auto:r.auto||[],open:false}));
+  // yükleme sürerken eklenen fotoğraflar / raporlar kaybolmasın: bellektekileri koru
+  try{const all=await IDB.all('rows'),ids=new Set(all.map(r=>r.id)),simdi=rows.filter(r=>!ids.has(r.id));rows=[...simdi,...all.map(r=>({...r,status:'done',auto:r.auto||[],open:false}))];
     for(const r of rows)if(r.d&&r.d.slip===undefined&&r.ocr&&window.ZParse&&ZParse.kumulatif){Object.assign(r.d,ZParse.kumulatif(r.ocr));if(r.oku){r.oku.kum_sat=r.d.kum_sat;r.oku.kum_kdv=r.d.kum_kdv}save(r)}   // v64 öncesi kayıtlar
     for(const r of rows){const d=r.d||(r.d={});let ch=false;
       const z=normZ(d.z_no);if(d.z_no!=null&&z!==d.z_no){d.z_no=z;ch=true}
@@ -35,7 +36,7 @@ async function load(){
       if(ch)save(r)}
     setStore('ok');autoZ()}
   catch(e){setStore('err');notice('Bu tarayıcı veri saklamaya izin vermiyor (gizli sekme olabilir). Raporlar kaydedilmez; CSV’yi indirmeyi unutma.')}
-  sortRows();render();
+  sortRows();render();window.yuklendi=true;   // testler kayıtlar yüklenene kadar bekler
 }
 
 // ---- Yedek ----
