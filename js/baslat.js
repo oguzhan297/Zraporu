@@ -27,3 +27,7 @@ setTimeout(surumDenetle,4000);setInterval(surumDenetle,30*60*1000);
 $('#yeniliktamam').onclick=()=>{$('#yenilik').hidden=true};
 $('#yenilik').addEventListener('click',e=>{if(e.target.id==='yenilik')$('#yenilik').hidden=true});
 setTimeout(()=>{if(typeof XLSX==='undefined')loadScript(XLSX_URL).catch(()=>{})},6000);   // Excel kütüphanesi açılıştan sonra, boşta yüklenir
+// İki parmakla sayfayı yakınlaştırma kapalı: iPhone yakınlaştırılmış sayfayı yüksek çözünürlükte yeniden çizerken belleği dolduruyor,
+// okuma sürerken uygulama kapanıyordu (13.11 çökme kaydı). Fotoğrafı büyütmek için fotoğrafa dokun (görüntüleyicide yakınlaştırma var).
+['gesturestart','gesturechange'].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
+document.addEventListener('touchmove',e=>{if(e.touches&&e.touches.length>1&&!(e.target.closest&&e.target.closest('#gor')))e.preventDefault()},{passive:false});

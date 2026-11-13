@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=93;
+const APP_VER=94;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  94:['İki parmakla sayfayı yakınlaştırma kapatıldı: okuma sırasında uygulamayı kapatıyordu. Fotoğrafı büyütmek için fotoğrafa dokun.'],
   93:['Okuma yeniden 2 çekirdekle yapılıyor (yanlışlıkla tek çekirdeğe düşmüştü)'],
   92:['Fotoğraf hazırlanırken telefonun belleği daha az doluyor (çok fişte kapanmaya karşı)'],
   91:['Çok fiş okurken uygulamanın kapanması düzeltildi: okuma en çok 2 çekirdekle yapılır, yine kapanırsa telefon kendiliğinden tek çekirdeğe geçer','Galeriden seçilen fişler uygulama kapanınca kaybolmuyor, açılışta yeniden okunuyor'],
