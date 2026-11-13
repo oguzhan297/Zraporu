@@ -359,7 +359,9 @@
       if (!(dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12)) return;
       const k = `${String(dd).padStart(2, '0')}.${String(mm).padStart(2, '0')}.${yy}`; c[k] = (c[k] || 0) + ww;
     };
-    for (const x of all.matchAll(/\b(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})\b/g)) addDate(x[1], x[2], x[3], 1);
+    // "PARAMETRE YÜKLEME BAŞARILI ↵ Versiyon ↵ 03-08-26 05:13:18": parametre yükleme zamanı, fiş tarihi değil — düşük puan
+    const parY = L.findIndex(l => /PARAMETRE\s*Y[ÜU]KLEME|^VERS[İI]YON\b/i.test(l.s));
+    L.forEach((l, i) => { for (const x of l.s.matchAll(/\b(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})\b/g)) addDate(x[1], x[2], x[3], parY >= 0 && i >= parY && i <= parY + 3 ? 0.3 : 1); });
     // "TARİH" satırı (TARİM/TARİN okunabilir): ayırıcı boşluk da olabilir ("11 10 2026", "11-18 2026")
     for (const l of L) { const x = l.s.match(/TAR[İI1]\S{0,2}\W*(\d{1,2})\s*[./\-\s:]\s*(\d{1,2})\s*[./\-\s:]\s*(\d{4})\b/); if (x) addDate(x[1], x[2], x[3], /\d[./-]\d{1,2}[./-]\d/.test(x[0]) ? 0 : 0.8); }
     const dk = Object.keys(c);
@@ -1145,5 +1147,5 @@
     }
     return out;
   }
-  root.ZParse = { version: 86, parseZ, normLine, amounts, consistency, merge, kumulatif };
+  root.ZParse = { version: 87, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);
