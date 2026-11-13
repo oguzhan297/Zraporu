@@ -308,3 +308,14 @@ ul.yenilik{margin:10px 0 14px;padding-left:20px;color:#cbd5e1;font-size:14px;lin
 .oneri[hidden]{display:none}.oneri .set-row{justify-content:flex-end;margin-top:8px}.oneri .set-row[hidden]{display:none}
 #okhazir{align-items:center;gap:10px}#okhazir[hidden]{display:none}
 .btn[hidden]{display:none}
+
+/* çekim işareti: çerçeve ve deklanşör nabzı; iOS dokunuş titreşimi için görünmez anahtar */
+.k-cerceve.cek{animation:cekcer .5s ease-out}
+@keyframes cekcer{0%{border-color:#fff;border-width:6px;box-shadow:0 0 0 100vmax rgba(255,255,255,.35),0 0 30px 6px #fff inset}100%{border-width:2px}}
+.k-dek.cek{animation:cekdek .35s ease-out}
+@keyframes cekdek{0%{transform:scale(.86);background:#fff}100%{transform:scale(1)}}
+.k-hap{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden;left:-9px}
+/* Uzun Z raporları için çerçeve daha uzun ve geniş; dışı daha az karartılır (fişin başı görünsün); mesaj çerçevenin üstünü kapatmasın */
+.k-cerceve{left:7%!important;right:7%!important;top:calc(62px + env(safe-area-inset-top))!important;bottom:calc(136px + env(safe-area-inset-bottom))!important;box-shadow:0 0 0 100vmax rgba(0,0,0,.25)!important}
+.k-ipucu{bottom:auto;top:calc(100% + 6px)}
+.k-mesaj{top:46%!important}

@@ -14,7 +14,7 @@ function checks(r){if(CK){let v=CK.get(r);if(!v){v=checks0(r);CK.set(r,v)}return
 function checks0(r){
   const d=r.d,out=[];
   const names={g1:'%1',g10:'%10',g20:'%20',gp:'Poşet'};
-  if(!d.tarih)out.push({ok:false,m:'Tarih boş'});
+  if(!d.tarih)out.push({ok:false,m:r.src==='foto'?'Tarih okunamadı — fişin üst kısmı (tarih satırı) fotoğrafa girmemiş olabilir. Fotoğraftan bakıp yaz (ör. 2910) ya da kartından devamını ekle.':'Tarih boş'});
   else if(!dateOk(d.tarih))out.push({ok:false,m:`Tarih geçersiz veya GG.AA.YYYY biçiminde değil: “${d.tarih}”`});
   if(!d.z_no)out.push({ok:false,m:'Z No boş'});
   else if(rows.some(x=>x!==r&&x.status==='done'&&x.d.z_no&&String(x.d.z_no).replace(/^0+/,'')===String(d.z_no).replace(/^0+/,'')&&x.d.tarih===d.tarih))out.push({ok:false,m:'Aynı tarih ve Z No ile listede başka bir rapor var — iki kez eklenmiş olabilir'});

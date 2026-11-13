@@ -57,10 +57,13 @@ async function prep(r){   // küçük resmi ve yüklenecek kopyayı sırası gel
   if(r.blob||!r.file)return true;
   try{const s=await shrink(r.file);r.blob=s.blob;r.thumb=s.thumb;r._small=s.small;r.mini=s.mini}catch(e){r.status='error';r.err=e.message;render();return false}
   saveOrig(r,r.pages||[r.file]);
-  try{r.q=await fotoKalite(r.file);const k=kaliteSorun(r.q);if(k.length){toast('📷 '+KALITE[k[0]].m+' — okuma hatalı olabilir');setProg(r,KALITE[k[0]].m+'; yine de okunuyor…')}}catch(e){r.q=null}
+  try{r.q=r.file._q||await fotoKalite(r.file);const k=kaliteSorun(r.q);if(k.length){toast('📷 '+KALITE[k[0]].m+' — okuma hatalı olabilir');setProg(r,KALITE[k[0]].m+'; yine de okunuyor…')}}catch(e){r.q=null}
   return true
 }
 async function pump(){if(busy)return;busy=true;
+  // kamera açıkken okuma yapılmaz: ikisi birlikte iPhone'da belleği dolduruyor (uygulama kapanıyordu), çekim ekranı da takılıyordu.
+  // Fotoğraflar kaydedilir ve sıraya girer; kamera kapanınca okunur.
+  while(KAM.akis)await new Promise(a=>setTimeout(a,400));
   // Uzun seride işlemci aralıksız çalışınca telefon ısınıyor (ısınınca da yavaşlıyor): fişler arasında kısa nefes
   while(queue.length){const r=queue.shift();if(!rows.includes(r))continue;if(await prep(r))await extract(r);if(queue.length&&S.mode!=='api')await new Promise(a=>setTimeout(a,1200))}
   busy=false}
@@ -157,22 +160,23 @@ async function kameraAc(mod='seri'){kutu('kamera',{mod});
 function kameraBirak(){clearTimeout(KAM.yedekT);if(KAM.yedek)KAM.yedek.getTracks().forEach(t=>t.stop());KAM.yedek=null}
 function kameraKapat(){if(KAM.akis){const a=KAM.akis;const tr=a.getVideoTracks()[0];if(KAM.isik&&tr){try{tr.applyConstraints({advanced:[{torch:false}]})}catch(e){}KAM.isik=false}
     a.getTracks().forEach(t=>t.enabled=false);kameraBirak();KAM.yedek=a;KAM.yedekT=setTimeout(kameraBirak,180000)}KAM.akis=null;$('#kvid').srcObject=null;$('#kamera').hidden=true;document.body.classList.remove('kamera-acik');
-  if(KAM.sayi)toast(KAM.mod==='tek'?'Fotoğraf eklendi, okunuyor':`${KAM.sayi} fiş eklendi; okumalar sırayla sürüyor`)}
+  if(KAM.sayi&&KAM.mod!=='tek')toast(`${KAM.sayi} fiş eklendi; şimdi sırayla okunuyor`);pump()}
 function kMesaj(m,tur){const el=$('#kmesaj');el.textContent=m;el.className='k-mesaj'+(tur?' '+tur:'');clearTimeout(el._t);if(m)el._t=setTimeout(()=>{el.textContent='';el.className='k-mesaj'},2600)}
-// Kare: yalnız ekrandaki çerçevenin içi alınır (yandaki / alttaki fiş, masa okunmasın), kenarlarda %6 pay kalır.
-// Ekranda görünen video (object-fit: cover) koordinatları video pikseline çevrilir.
-async function kareAl(){
-  const v=$('#kvid'),vw=v.videoWidth,vh=v.videoHeight;if(!vw)return null;
-  const V=v.getBoundingClientRect(),F=document.querySelector('#kamera .k-cerceve').getBoundingClientRect(),k=Math.max(V.width/vw,V.height/vh),ox=V.left+(V.width-vw*k)/2,oy=V.top+(V.height-vh*k)/2;
-  const px=F.width*.06/k,py=F.height*.06/k;
+// Kare: deklanşöre basıldığı anda video karesinin yalnız çerçeve içi tuvale çizilir (yandaki / alttaki fiş, masa okunmaz);
+// kenarlarda yanlarda %6, üstte ve altta %10 pay kalır (fişin başı / sonu çerçeveye tam sığmasa da alınsın). Kodlama ve ölçüm sonra.
+function kareCiz(){const v=$('#kvid'),vw=v.videoWidth,vh=v.videoHeight;if(!vw)return null;
+  const V=v.getBoundingClientRect(),F=$('#kcer').getBoundingClientRect(),k=Math.max(V.width/vw,V.height/vh),ox=V.left+(V.width-vw*k)/2,oy=V.top+(V.height-vh*k)/2;
+  const px=F.width*.06/k,py=F.height*.10/k;
   let x0=Math.max(0,(F.left-ox)/k-px),y0=Math.max(0,(F.top-oy)/k-py),x1=Math.min(vw,(F.right-ox)/k+px),y1=Math.min(vh,(F.bottom-oy)/k+py);
   if(!(x1-x0>50&&y1-y0>50)){x0=0;y0=0;x1=vw;y1=vh}
   const c=document.createElement('canvas');c.width=Math.round(x1-x0);c.height=Math.round(y1-y0);c.getContext('2d').drawImage(v,x0,y0,x1-x0,y1-y0,0,0,c.width,c.height);
-  // keskinlik eşikleri tam karenin 1000 px kopyasına göre ayarlı: ölçüm için tam kareyi de küçültüp sakla
+  // keskinlik eşikleri tam karenin 1000 px kopyasına göre ayarlı
   const o=Math.min(1,1000/Math.max(vw,vh)),t=document.createElement('canvas');t.width=Math.round(vw*o);t.height=Math.round(vh*o);t.getContext('2d').drawImage(v,0,0,t.width,t.height);
-  KAM.tam=await new Promise(r=>t.toBlob(r,'image/jpeg',.92));t.width=t.height=1;
-  KAM.boy=Math.max(c.width,c.height);KAM.kisa=Math.min(c.width,c.height);KAM.tamKisa=Math.min(vw,vh);const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));c.width=c.height=1;return b;
-}
+  c._tam=t;c._tamKisa=Math.min(vw,vh);return c}
+// Çekildiğini belli et: beyaz parlama + çerçeve ve deklanşör nabzı + titreşim (iPhone'da Safari titreşimi desteklemez; iOS 18+ anahtar dokunuşu)
+function cekimIsaret(){for(const [el,k] of [[$('#kflas'),'on'],[$('#kcer'),'cek'],[$('#kdek'),'cek']]){el.classList.remove(k);void el.offsetWidth;el.classList.add(k);el.addEventListener('animationend',()=>el.classList.remove(k),{once:true})}
+  if(navigator.vibrate)navigator.vibrate(30);else try{$('#khapl').click()}catch(e){}}
+const kare2=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));   // parlama ekrana çizilsin
 // Son çekilen karenin küçük önizlemesi (videodan, ~120 px) — 4K fotoğrafın kendisi bu küçük kutuda gösterilince
 // iPhone dokunulduğunda tam boy açmaya çalışıp uygulamayı kapatıyordu.
 function kucukKare(){const v=$('#kvid');if(!v.videoWidth)return '';const o=120/Math.max(v.videoWidth,v.videoHeight),c=document.createElement('canvas');
@@ -183,23 +187,31 @@ $('#tekcek').onclick=()=>kameraAc('tek');
 $('#kyerel').onclick=()=>{KAM.sayi=0;kameraKapat();yerelKamera()};   // en yüksek çözünürlük: telefonun kendi kamerası
 $('#kbitti').onclick=kameraKapat;
 $('#kisik').onclick=async()=>{const tr=KAM.akis&&KAM.akis.getVideoTracks()[0];if(!tr)return;KAM.isik=!KAM.isik;try{await tr.applyConstraints({advanced:[{torch:KAM.isik}]})}catch(e){KAM.isik=false;$('#kisik').hidden=true;kMesaj('Bu cihazda fener açılamıyor','kotu')}$('#kisik').classList.toggle('on',KAM.isik)};
-$('#kdek').onclick=async()=>{
-  const d=$('#kdek');if(d.disabled)return;d.disabled=true;
-  try{
-    const f=$('#kflas');f.classList.remove('on');void f.offsetWidth;f.classList.add('on');navigator.vibrate&&navigator.vibrate(25);
-    const b=await kareAl();if(!b){kMesaj('Çekilemedi, tekrar dene','kotu');return}
-    const file=new File([b],`seri_${Date.now()}.jpg`,{type:'image/jpeg'});
-    // anında kalite kontrolü: bulanık / düşük çözünürlüklü kare sıraya girmez, yeniden çekilir
-    let q=null;try{q=await fotoKalite(KAM.tam||file);if(KAM.tam)q.min=KAM.tamKisa}catch(e){}
-    const k=kaliteSorun(q);if(q&&KAM.tam)q.min=KAM.kisa;   // bulanıklık tam kareye göre; boyut kırpılmış kareye göre (aşağıda)
-    if(k.includes('bulanik')){kMesaj('Bulanık — sabit tut, tekrar çek','kotu');return}
-    // kare çerçeveden kırpıldığı için kısa kenar küçük olabilir: yalnız gerçekten küçükse reddet
-    if(k.includes('kucuk')&&(KAM.boy||0)<700){kMesaj('Görüntü çok küçük — fişe yaklaş','kotu');return}
-    KAM.sayi++;$('#ksay').textContent=`${KAM.sayi} fiş`;$('#kson').src=kucukKare()||$('#kson').src;   // tam boy fotoğraf değil: iPhone'da bellek doluyordu
-    onFiles([file]);
-    if(KAM.mod==='tek'){kameraKapat();return}
-    kMesaj('✓ Eklendi, sıradaki fiş','iyi');
-  }finally{d.disabled=false}
+KAM.is=Promise.resolve();
+$('#kdek').onclick=()=>{
+  // Kare basıldığı anda alınır; deklanşör kilitlenmez (önceki fotoğraf kaydedilirken de çekilebilir), işler sırayla yürür
+  let c=null;try{c=kareCiz()}catch(e){}
+  cekimIsaret();kutu('cek');
+  if(!c){kMesaj('Çekilemedi, tekrar dene','kotu');return}
+  const tek=KAM.mod==='tek';
+  KAM.is=KAM.is.then(async()=>{const t=c._tam;
+    try{
+      await kare2();
+      // kalite: bulanıklık tam kareden (eşikler buna göre), boyut kırpılmış kareden
+      let q=null;try{q=kaliteOlc(t,t.width,t.height);q.min=c._tamKisa}catch(e){}
+      const k=kaliteSorun(q);if(q)q.min=Math.min(c.width,c.height);
+      if(k.includes('bulanik')){kMesaj('Bulanık — sabit tut, tekrar çek','kotu');return}
+      if(k.includes('kucuk')&&Math.max(c.width,c.height)<700){kMesaj('Görüntü çok küçük — fişe yaklaş','kotu');return}
+      const mini=miniResim(t);
+      if(tek){await new Promise(r=>setTimeout(r,180));kameraKapat()}   // parlama görünsün, sonra kamerayı kapat (bellek boşalsın)
+      const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));if(!b){kMesaj('Çekilemedi, tekrar dene','kotu');return}
+      const file=new File([b],`seri_${Date.now()}.jpg`,{type:'image/jpeg'});file._q=q;
+      KAM.sayi++;KAM.boy=Math.max(c.width,c.height);
+      if(!tek){$('#ksay').textContent=`${KAM.sayi} fiş`;$('#kson').src=mini||$('#kson').src;kMesaj('✓ Çekildi, sıradaki fiş','iyi')}
+      onFiles([file]);
+      if(tek)toast('Fotoğraf eklendi, okunuyor');
+    }catch(e){kMesaj('Çekilemedi, tekrar dene','kotu')}
+    finally{c.width=c.height=1;if(t)t.width=t.height=1}});
 };
 // Kamera açıkken ekran kilitlenir / uygulama arka plana geçerse görüntü akışı durur (iPhone'da siyah ekran kalıyordu): kamerayı kapat
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='hidden')return;if(KAM.akis)kameraKapat();kameraBirak()});   // arka planda kamera tutulmaz

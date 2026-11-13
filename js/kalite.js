@@ -1,8 +1,9 @@
 // Fotoğraf kalitesi: bulanık / düşük çözünürlük / karanlık / soluk ölçümü ve uyarısı (eşikler test arşiviyle ayarlandı)
 // ---- Fotoğraf kalitesi: okumadan önce telefonda hızlı ölçüm (≈50 ms) ----
 // Eşikler test arşivindeki 23 gerçek fotoğraf ve bunların bulanık / karanlık / soluk / küçük kopyalarıyla ayarlandı.
-async function fotoKalite(src){
-  const im=await openImage(src),W=im.naturalWidth,H=im.naturalHeight;
+async function fotoKalite(src){const im=await openImage(src);return kaliteOlc(im,im.naturalWidth,im.naturalHeight)}
+// im: <img> ya da <canvas> (kamera karesi). Kare 1000 px'e küçültülüp ölçülür.
+function kaliteOlc(im,W,H){
   const S=Math.min(1,1000/Math.max(W,H)),w=Math.max(1,Math.round(W*S)),h=Math.max(1,Math.round(H*S));
   const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(im,0,0,w,h);
   const p=x.getImageData(0,0,w,h).data,g=new Float32Array(w*h);c.width=c.height=1;

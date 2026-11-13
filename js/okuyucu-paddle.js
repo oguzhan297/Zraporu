@@ -162,6 +162,8 @@ async function extractPaddle(r,ikinci){
     if(motor.tur==='isci'&&motor.olu())kutu('isciCoktu',{m:String(e&&e.message||e).slice(0,120)});
     if(motor.tur==='isci'&&motor.olu()&&!ikinci){isciYok=true;pdl=null;console.warn('PaddleOCR işçisi çöktü, sayfada okunuyor:',e);return extractPaddle(r,true)}
     r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog;kutu('okumaHata',{m:String(r.err).slice(0,120),isci:motor.tur});
+    // bir kez kendiliğinden yeniden dene (geçici bellek / işçi sorunu); ikinci kez olmazsa "Okunamadı + Tekrar" kalır
+    if(!r._tekrar&&!/indirilemedi/.test(r.err)){r._tekrar=1;r.status='queued';delete r.err;r.prog='Okunamadı, yeniden deneniyor';queue.push(r)}
   }
   clearInterval(sayac);
   render();
