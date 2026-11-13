@@ -21,7 +21,8 @@ async function saveOrig(r,pages){try{await IDB.put('orig',pages,r.id);r.hasOrig=
   for(const x of eski){await IDB.del('orig',x.id);x.hasOrig=false;save(x)}}catch(e){}}
 async function saveImg(r,src){if(!src)return;try{await IDB.put('imgs',src,r.id);r.hasImg=true;save(r)}catch(e){}}
 // Okunmayı bekleyen fotoğraflar: kartı ve fotoğrafın aslı hemen kaydedilir; okuma bitince normal kayıt bunun üstüne yazılır
-async function kuyrukSakla(list){for(const r of list){try{const pages=r.pages||[r.file];await IDB.put('orig',pages,r.id);r.hasOrig=true;
+// Galeriden gelen File, iPhone'da çökmeden sonra okunamıyor (WebKitBlobResource hatası): baytları kopyalayıp öyle sakla
+async function kuyrukSakla(list){for(const r of list){try{const pages=await Promise.all((r.pages||[r.file]).map(async f=>typeof File!=='undefined'&&f instanceof File?new Blob([await f.arrayBuffer()],{type:f.type||'image/jpeg'}):f));await IDB.put('orig',pages,r.id);r.hasOrig=true;
   if(r.status!=='done')await IDB.put('rows',{id:r.id,...ser(r),bekliyor:1})}catch(e){}}}
 // Okuma bitince büyük fotoğrafı bellekten bırak (kart açılınca kayıtlı kopyası yüklenir)
 // (blob adresi iptal edildikten sonra açık kartta kalırsa fotoğraf kırık görünüyordu: yerine kayıtlı küçük kopya konur)

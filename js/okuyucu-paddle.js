@@ -9,8 +9,13 @@ const PADDLE={js:'vendor/paddle.js?p=2',ort:'1.31.1',det:'PP-OCRv6_small_det',re
 // Yardımcı iş parçacıkları ORT'nin küçük yükleyicisinden (vendor/ort-wasm-simd-threaded.mjs, ORT sürümüyle aynı) açılır: aynı adreste olmalı.
 // Bir kez sorun çıkarsa bu telefonda tek çekirdeğe dönülür (zr_thr='1') ve nedeni test arşivine bildirilir.
 const ORT_MJS='vendor/ort-wasm-simd-threaded.mjs?o=1.31.1';
-function cekirdek(){try{if(!self.crossOriginIsolated||localStorage.getItem('zr_thr')==='1')return 1}catch(e){return 1}
-  return Math.max(1,Math.min(4,navigator.hardwareConcurrency||2))}
+// Üst sınır 2: iPhone'da 4 çekirdekle uzun okumada sayfa bellekten kapandı (13.11). Okurken çökme olursa sınır yarıya iner (zr_thr).
+function cekirdek(){try{if(!self.crossOriginIsolated)return 1;const t=+localStorage.getItem('zr_thr')||2;return Math.max(1,Math.min(t,2,navigator.hardwareConcurrency||2))}catch(e){return 1}}
+// Önceki açılış çok çekirdekle okurken kapandıysa bu telefonda çekirdek sayısını azalt (2 → 1) ve bildir
+try{const o=KUTU.onceki;if(o&&o.olaylar){const ev=o.olaylar;let i=ev.length-1;while(i>=0&&ev[i].e!=='oku'&&ev[i].e!=='okundu')i--;
+  const m=i>=0&&ev[i].e==='oku'&&/isci-(\d+)/.exec(ev[i].motor||'');
+  if(m&&+m[1]>1){const yeni=Math.max(1,Math.floor(+m[1]/2));localStorage.setItem('zr_thr',String(yeni));kutu('cekirdekAzaldi',{eski:+m[1],yeni});
+    setTimeout(()=>cekirdekTeshis({asama:'cokme',thr:+m[1],yeni}),6000)}}}catch(e){}
 async function cekirdekTeshis(o){try{if(!S.ghKey||typeof ghGonder!=='function')return;
   const p={tur:'zrapor-cekirdek',surum:APP_VER,cihaz:navigator.userAgent,cekirdekSayisi:navigator.hardwareConcurrency,izole:self.crossOriginIsolated,...o,hiz:(()=>{try{return JSON.parse(localStorage.getItem('zr_hiz')||'{}')}catch(e){return null}})()};
   await ghGonder(`${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}_cekirdek_v${APP_VER}_${Math.random().toString(36).slice(2,6)}`,[{ad:'cekirdek.json',b64:b64Metin(JSON.stringify(p,null,1))}])}catch(e){}}
@@ -85,7 +90,7 @@ function isciMotoru(f,thr=1){
       ok({tur:'isci',thr:c&&c.thr||thr,olu:()=>olu,
         async resim(id,src){const bmp=await fotoBitmap(src);await gonder({t:'img',id,bmp},[bmp])},
         async oku(id,src,opt){return (await gonder({t:'read',id,opt,params:opt.p||{}})).items},
-        birak(id){gonder({t:'free',id}).catch(()=>{})}})},er=>{clearTimeout(zm);bitir(er);no(er)});
+        birak(id){gonder({t:'free',id}).catch(()=>{})},kapat(){bitir(new Error('Okuyucu kapatıldı'))}})},er=>{clearTimeout(zm);bitir(er);no(er)});
   });
 }
 async function anaMotor(f){
@@ -180,8 +185,9 @@ async function extractPaddle(r,ikinci){
     // işçi çöktüyse (bellek vb.) bu raporu bir kez de sayfada oku
     if(motor.tur==='isci'&&motor.olu())kutu('isciCoktu',{m:String(e&&e.message||e).slice(0,120)});
     // çok çekirdekle okunamadı: bu telefonda tek çekirdeğe dön, raporu bir kez daha oku
-    if(motor.thr>1&&!ikinci){const hata=String(e&&e.message||e).slice(0,300);try{localStorage.setItem('zr_thr','1')}catch(x){}kutu('cekirdekKapandi',{m:hata.slice(0,120)});
-      cekirdekTeshis({asama:'okuma',thr:motor.thr,hata});pdl=null;return extractPaddle(r,true)}
+    // (fotoğraf açılamadıysa çekirdekle ilgisi yok: o durumda dokunma)
+    if(motor.thr>1&&!ikinci&&!/Fotoğraf|indirilemedi/.test(String(e&&e.message||e))){const hata=String(e&&e.message||e).slice(0,300);try{localStorage.setItem('zr_thr','1')}catch(x){}kutu('cekirdekKapandi',{m:hata.slice(0,120)});
+      cekirdekTeshis({asama:'okuma',thr:motor.thr,hata});try{motor.kapat&&motor.kapat()}catch(x){}pdl=null;return extractPaddle(r,true)}   // eski işçi kapatılmazsa belleği tutar
     if(motor.tur==='isci'&&motor.olu()&&!ikinci){isciYok=true;pdl=null;console.warn('PaddleOCR işçisi çöktü, sayfada okunuyor:',e);return extractPaddle(r,true)}
     r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog;kutu('okumaHata',{m:String(r.err).slice(0,120),isci:motor.tur});
     // bir kez kendiliğinden yeniden dene (geçici bellek / işçi sorunu); ikinci kez olmazsa "Okunamadı + Tekrar" kalır
