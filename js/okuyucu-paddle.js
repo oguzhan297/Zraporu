@@ -133,8 +133,9 @@ async function extractPaddle(r,ikinci){
   try{
     // Toplamlar tutana kadar farklı görüntülerle oku (tutunca durur). PaddleOCR arka planı kendisi ayıklar; fiş beyaz zemin
     // üstündeyken kırpma fişi kesebildiği için önce fotoğrafın tamamı okunur: tam, kırpılmış, renkli leke temizleyen + keskin, hassas algılama
-    const passes=[{raw:1,full:1,tw:1600,maxSide:4000},{raw:1,tw:1280,maxSide:4000},{raw:1,full:1,tw:1800,maxSide:4000,gray:'max',sharp:1.5},
+    let passes=[{raw:1,full:1,tw:1600,maxSide:4000},{raw:1,tw:1280,maxSide:4000},{raw:1,full:1,tw:1800,maxSide:4000,gray:'max',sharp:1.5},
       {raw:1,full:1,tw:2000,maxSide:4000,sharp:1,p:{textDetThresh:.2,textDetBoxThresh:.45,textDetUnclipRatio:1.8}}];
+    try{const x=JSON.parse(localStorage.getItem('zr_deney')||'null');if(Array.isArray(x)&&x.length)passes=x}catch(e){}   // yalnız hız/doğruluk denemesi (test aracı) için
     let best=null;const all=[],texts=[];
     for(let i=0;i<ps.length;i++)await motor.resim(sid(i),ps[i]);
     try{
