@@ -24,8 +24,11 @@ js/                    uygulama kodu — sırası index.html'deki gibi yüklenir
   baslat.js            açılış: kayıtları yükle, sürüm kontrolü, service worker
   parser.js            Z raporu metin ayrıştırıcısı (ZParse) — tüm fiş düzenleri, okuma hatası onarımları
   goruntu.js           görüntü hazırlama (kırpma, gri ton, Lanczos, keskinleştirme, eşikleme) — sayfa ve işçi ortak
-  paddle-worker.js     PaddleOCR işçisi (modül Web Worker): okurken ekran donmaz
-vendor/paddle.js       derlenmiş PaddleOCR.js + ONNX Runtime (elle düzenlenmez)
+  paddle-worker.js     PaddleOCR işçisi (modül Web Worker, WASM/işlemci): okurken ekran donmaz
+  paddle-worker-gpu.js aynı işçinin WebGPU (ekran kartı) sürümü — Ayarlar'da "Hızlı okuyucu (deneme)" açıkken
+  paddle-isci.js       iki işçinin ortak gövdesi
+vendor/paddle.js       derlenmiş PaddleOCR.js + ONNX Runtime WASM (elle düzenlenmez)
+vendor/paddle-gpu.js   aynısı, ONNX Runtime WebGPU ile (çalışma zamanı ort-wasm-simd-threaded.jsep.wasm)
 paddle/                vendor/paddle.js'in kaynağı: `cd paddle && npm install && npm run build`
 ikon.svg, icon-*.png  uygulama ikonu (ana ekran, sekme, başlık logosu); PNG'ler ikon.svg'den üretilir
 sw.js                  service worker: çevrimdışı açılış; PaddleOCR dosyaları ayrı, kalıcı önbellekte
@@ -41,7 +44,7 @@ Derleme adımı yok; dosyalar olduğu gibi yayınlanır. `js/` dosyaları klasik
 2. Test arşivini çalıştır (aşağıda).
 3. `main`'e gönder. GitHub Pages 1–3 dakikada yayınlar; `curl -s https://oguzhan297.github.io/Zraporu/ | grep APP_VER` ile kontrol.
 
-`vendor/paddle.js` yeniden derlenirse `js/okuyucu-paddle.js` (`PADDLE.js`) ve `js/paddle-worker.js` içindeki `?p=` değerini de artır.
+`vendor/paddle.js` / `vendor/paddle-gpu.js` yeniden derlenirse `js/okuyucu-paddle.js` (`PADDLE.js`, `PADDLE.gpujs`) ve `js/paddle-worker.js` / `js/paddle-worker-gpu.js` içindeki `?p=` değerini de artır.
 
 ## Test
 

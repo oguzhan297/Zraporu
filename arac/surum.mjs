@@ -19,7 +19,9 @@ const YERLER = [
   ['js/parser.js', /version: (\d+),/g, 'ayrıştırıcı sürümü (açılışta APP_VER ile karşılaştırılır)'],
   ['sw.js', /zrapor-v(\d+)/g, 'önbellek adı'],
   ['sw.js', /\?v=(\d+)/g, 'önbellek listesi'],
-  ['js/paddle-worker.js', /goruntu\.js\?v=(\d+)/g, 'işçinin görüntü modülü'],
+  ['js/paddle-isci.js', /goruntu\.js\?v=(\d+)/g, 'işçinin görüntü modülü'],
+  ['js/paddle-worker.js', /paddle-isci\.js\?v=(\d+)/g, 'işçi gövdesi (WASM)'],
+  ['js/paddle-worker-gpu.js', /paddle-isci\.js\?v=(\d+)/g, 'işçi gövdesi (WebGPU)'],
 ];
 
 const bul = () => YERLER.map(([f, re, ne]) => ({ f, ne, v: [...oku(f).matchAll(re)].map(m => +m[1]) }));
