@@ -2,7 +2,7 @@
 // Sayfa (index.html) modelleri indirip (önbellekten) buraya aktarır, fotoğrafı yönü düzeltilmiş ImageBitmap olarak gönderir,
 // her okuma geçişinde yalnız ayarları yollar; buradan sadece bulunan metin kutuları (poly, text, score) döner.
 // goruntu.js ?v= değerini arac/surum.mjs günceller.
-import './goruntu.js?v=85';
+import './goruntu.js?v=86';
 
 const L = globalThis.PaddleOCRLib, G = globalThis.ZGoruntu;
 let ocr = null, cv = null;
@@ -14,6 +14,13 @@ onmessage = async e => {
     if (m.t === 'init') {
       L.ort.env.wasm.wasmBinary = m.wasm;           // çalışma zamanı sayfanın önbelleğinden
       L.ort.env.wasm.wasmPaths = m.wasmDir;
+      // ekran kartı istendiyse önce işçide WebGPU var mı bak (yoksa PaddleOCR sessizce işlemciye düşer; bunu açıkça bildir)
+      let gpuBilgi = null;
+      if (m.backend === 'webgpu') {
+        if (!navigator.gpu || !navigator.gpu.requestAdapter) throw new Error('işçide WebGPU yok');
+        const a = await navigator.gpu.requestAdapter(); if (!a) throw new Error('işçide WebGPU bağdaştırıcısı yok');
+        const i = a.info || {}; gpuBilgi = { satici: i.vendor || '', mimari: i.architecture || '', aciklama: i.description || '' };
+      }
       const u = b => URL.createObjectURL(new Blob([b])), dU = u(m.det), rU = u(m.rec);
       try {
         ocr = await L.PaddleOCR.create({ textDetectionModelName: m.detName, textDetectionModelAsset: { url: dU },
@@ -22,7 +29,7 @@ onmessage = async e => {
       } finally { URL.revokeObjectURL(dU); URL.revokeObjectURL(rU); }
       cv = L.cv instanceof Promise ? await L.cv : L.cv;
       if (!cv || !cv.matFromImageData) throw new Error('OpenCV işçide hazır değil');
-      cevap({ ok: true });
+      cevap({ ok: true, gpuBilgi });
     } else if (m.t === 'img') {
       foto.set(m.id, { C: G.kaynak(m.bmp) });
       cevap({ ok: true });

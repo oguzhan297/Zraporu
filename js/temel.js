@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=85;
+const APP_VER=86;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  86:['Hızlı okuyucu açılamazsa nedeni Ayarlar’da yazar ve test arşivine otomatik gider; ilk açılış için daha uzun beklenir.'],
   85:['Deneme: Ayarlar’da “Hızlı okuyucu” — okuma ekran kartında yapılır (daha hızlı ve serin olabilir). Açarsan ~30 MB daha iner; sorun çıkarsa kendiliğinden kapanır. Ayarlar’da ortalama okuma süreleri görünür'],
   84:['Raporları tek tek “Kontrol edildi” diye onaylarken fotoğrafları bellekte birikiyor, uzun süre sonra uygulama kendiliğinden kapanabiliyordu; düzeltildi'],
   83:['“Kontrol et” çıkan raporlar ve düzeltip “Kontrol edildi” dediklerin test arşivine kendiliğinden gider (Ayarlar’dan kapatılabilir); okuyucu bunlarla iyileştirilir','Fotoğrafı büyütmek artık tam ekran görüntüleyicide (dokun: yakınlaştır, ✕: kapat); büyütünce kapanma düzeltildi','Telefon ısınıp okuma yavaşlarsa fişler arasındaki ara kendiliğinden uzar','Okuma sürerken kamera açılırsa okuma bekler'],
