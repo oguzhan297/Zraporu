@@ -20,7 +20,7 @@ async function uzakMotor(prog,kod=S.pcKod){
     await bekle(new Promise((ok,no)=>{peer.on('open',ok);peer.on('error',no)}),8000,'Eşleşme sunucusuna ulaşılamadı');
     const conn=peer.connect(PC_ONEK+kod,{reliable:true});
     await bekle(new Promise((ok,no)=>{conn.on('open',ok);conn.on('error',no);peer.on('error',e=>no(e&&e.type==='peer-unavailable'?new Error('Bilgisayar açık değil ya da kod yanlış'):e))}),12000,'Bilgisayar yanıt vermedi');
-    let n=0,olu=false;const bek=new Map();
+    let n=0,olu=false;const bek=new Map(),sure={aktarim:0,okuma:0,mb:0};
     const bitir=er=>{if(olu)return;olu=true;for(const x of bek.values()){clearTimeout(x.z);x.b(er)}bek.clear();kapat()};
     conn.on('data',m=>{const x=m&&bek.get(m.n);if(!x)return;bek.delete(m.n);clearTimeout(x.z);m.ok?x.a(m):x.b(new Error(m.err||'Bilgisayarda okuma hatası'))});
     conn.on('close',()=>bitir(new Error('Bilgisayar bağlantısı koptu')));conn.on('error',e=>bitir(new Error('Bilgisayar bağlantısı: '+(e&&e.message||e))));
@@ -31,8 +31,9 @@ async function uzakMotor(prog,kod=S.pcKod){
     kutu('uzak',{thr:m.thr,ad:m.ad});
     return {tur:'uzak',thr:m.thr||1,ad:m.ad||'Bilgisayar',olu:()=>olu,
       // her fişten önce kısa yoklama: bilgisayar sessizce kapandıysa (uyku, sekme kapandı) 8 sn içinde anlaşılır, telefon kendisi okur
-      async resim(id,src){await gonder({t:'ping'},8000);const b=await src.arrayBuffer();await gonder({t:'img',id,b,tip:src.type||'image/jpeg'},45000)},
-      async oku(id,src,opt){return (await gonder({t:'read',id,opt},60000)).items||[]},
+      async resim(id,src){await gonder({t:'ping'},8000);const t=performance.now(),b=await src.arrayBuffer();await gonder({t:'img',id,b,tip:src.type||'image/jpeg'},45000);sure.aktarim+=performance.now()-t;sure.mb+=b.byteLength/1e6},
+      async oku(id,src,opt){const t=performance.now(),r=await gonder({t:'read',id,opt},60000);sure.okuma+=performance.now()-t;return r.items||[]},
+      sure,
       birak(id){gonder({t:'free',id},20000).catch(()=>{})},
       kapat(){bitir(new Error('kapatıldı'))},
       // bağlantı türü: host = aynı ağda doğrudan, srflx = internet üzerinden doğrudan, relay = aktarma sunucusu üzerinden
@@ -48,7 +49,7 @@ async function uzakDeneVeBaglan(prog){if(!uzakDene())return null;
 const PCR='zr_pcrapor';
 async function pcKaydet(r,motor,sn,gecis){try{const l=JSON.parse(localStorage.getItem(PCR)||'[]');
   if(!l.length&&motor.yol){const y=await motor.yol();localStorage.setItem(PCR+'_yol',JSON.stringify(y))}
-  l.push({sn:Math.round(sn*10)/10,gecis,ok:r.status==='done'});localStorage.setItem(PCR,JSON.stringify(l.slice(-100)))}catch(e){}}
+  const S_=motor.sure||{};l.push({sn:Math.round(sn*10)/10,gecis,ok:r.status==='done',aktarim:Math.round((S_.aktarim||0)/100)/10,okuma:Math.round((S_.okuma||0)/100)/10,mb:Math.round((S_.mb||0)*10)/10});if(motor.sure){motor.sure.aktarim=0;motor.sure.okuma=0;motor.sure.mb=0}localStorage.setItem(PCR,JSON.stringify(l.slice(-100)))}catch(e){}}
 function pcHata(m){try{const l=JSON.parse(localStorage.getItem(PCR+'_hata')||'[]');l.push({t:Date.now(),m:String(m).slice(0,160)});localStorage.setItem(PCR+'_hata',JSON.stringify(l.slice(-20)))}catch(e){}}
 async function pcRaporGonder(){try{const l=JSON.parse(localStorage.getItem(PCR)||'[]'),h=JSON.parse(localStorage.getItem(PCR+'_hata')||'[]');
   if(l.length<3&&!h.length)return;if(!S.ghKey||typeof ghGonder!=='function')return;

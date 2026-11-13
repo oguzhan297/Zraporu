@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=97;
+const APP_VER=98;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  98:['Bilgisayarda okuma özetine aktarım ve okuma süreleri eklendi'],
   97:['Bilgisayarda okuma sonrası kısa bir özet (süre, bağlantı türü) test arşivine gider'],
   96:['Okuyucu artık çok daha hızlı iniyor (modeller kendi sitemizden geliyor)'],
   95:['Yeni: Bilgisayarda oku — fişler eşleştirilen Windows/Mac bilgisayarda okunur, telefon ısınmaz. Bilgisayarda oguzhan297.github.io/Zraporu/?pc sayfasını aç, çıkan kodu Ayarlar → Bilgisayarda oku kutusuna yaz.'],
