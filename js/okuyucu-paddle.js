@@ -190,13 +190,13 @@ async function extractPaddle(r,ikinci){
     const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
     applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
     r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;resimBirak(r);delete r.prog;
-    kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});hizKaydet(motor.tur==='uzak'?'pc':motor.thr>1?'cok':'cpu',(Date.now()-t0)/1000/all.length);if(motor.tur!=='uzak')cekirdekDegerlendir(motor.thr||1,motor.tur);hizUI();r._sure=(Date.now()-t0)/all.length;
+    kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});hizKaydet(motor.tur==='uzak'?'pc':motor.thr>1?'cok':'cpu',(Date.now()-t0)/1000/all.length);if(motor.tur!=='uzak')cekirdekDegerlendir(motor.thr||1,motor.tur);else if(typeof pcKaydet==='function')pcKaydet(r,motor,(Date.now()-t0)/1000,all.length);hizUI();r._sure=(Date.now()-t0)/all.length;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     clearInterval(sayac);
     // işçi çöktüyse (bellek vb.) bu raporu bir kez de sayfada oku
     // bilgisayarla okunamadı (bağlantı koptu, bilgisayar kapandı): bu raporu telefonda oku, 2 dk sonra bilgisayarı yeniden dene
-    if(motor.tur==='uzak'&&!ikinci){uzakYok=Date.now();kutu('uzakKoptu',{m:String(e&&e.message||e).slice(0,120)});try{motor.kapat()}catch(x){}pdl=null;return extractPaddle(r,true)}
+    if(motor.tur==='uzak'&&!ikinci){uzakYok=Date.now();kutu('uzakKoptu',{m:String(e&&e.message||e).slice(0,120)});if(typeof pcHata==='function')pcHata(e&&e.message||e);try{motor.kapat()}catch(x){}pdl=null;return extractPaddle(r,true)}
     if(motor.tur==='isci'&&motor.olu())kutu('isciCoktu',{m:String(e&&e.message||e).slice(0,120)});
     // çok çekirdekle okunamadı: bu telefonda tek çekirdeğe dön, raporu bir kez daha oku
     // (fotoğraf açılamadıysa çekirdekle ilgisi yok: o durumda dokunma)

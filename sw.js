@@ -1,9 +1,9 @@
 // Uygulamayı internetsiz de açılabilir yapar. Sürüm değişince eski önbellek silinir.
-const V='zrapor-v96';
+const V='zrapor-v97';
 // PaddleOCR (paddle.js, ONNX Runtime, modeller) büyük dosyalar: ayrı önbellekte durur, uygulama sürümü değişince silinmez
 const OCR='zrapor-ocr-1';
 const isOcr=u=>u.hostname==='paddle-model-ecology.bj.bcebos.com'||(u.hostname==='cdn.jsdelivr.net'&&u.pathname.startsWith('/npm/onnxruntime-web@'))||(u.origin===self.location.origin&&(/\/paddle\.js$/.test(u.pathname)||/\/model\/[^/]+\.tar$/.test(u.pathname)));
-const SHELL=['./','./index.html','./css/uygulama.css?v=96','./js/parser.js?v=96','./js/goruntu.js?v=96','./js/paddle-worker.js?v=96','./js/paddle-isci.js?v=96','./vendor/ort-wasm-simd-threaded.mjs?o=1.31.1','./js/uzak.js?v=96','./vendor/peerjs.min.js?p=1','./js/temel.js?v=96','./js/kutu.js?v=96','./js/depo.js?v=96','./js/ayarlar.js?v=96','./js/kontrol.js?v=96','./js/kalite.js?v=96','./js/arayuz.js?v=96','./js/okuyucu-claude.js?v=96','./js/okuyucu-tesseract.js?v=96','./js/okuyucu-paddle.js?v=96','./js/okuma.js?v=96','./js/disari.js?v=96','./js/baslat.js?v=96','./ikon.svg?v=96','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
+const SHELL=['./','./index.html','./css/uygulama.css?v=97','./js/parser.js?v=97','./js/goruntu.js?v=97','./js/paddle-worker.js?v=97','./js/paddle-isci.js?v=97','./vendor/ort-wasm-simd-threaded.mjs?o=1.31.1','./js/uzak.js?v=97','./vendor/peerjs.min.js?p=1','./js/temel.js?v=97','./js/kutu.js?v=97','./js/depo.js?v=97','./js/ayarlar.js?v=97','./js/kontrol.js?v=97','./js/kalite.js?v=97','./js/arayuz.js?v=97','./js/okuyucu-claude.js?v=97','./js/okuyucu-tesseract.js?v=97','./js/okuyucu-paddle.js?v=97','./js/okuma.js?v=97','./js/disari.js?v=97','./js/baslat.js?v=97','./ikon.svg?v=97','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 // cache:'reload' → tarayıcının kendi önbelleğindeki eski kopyayı değil, sunucudaki güncel dosyayı al
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>Promise.all(SHELL.map(u=>c.add(new Request(u,u.startsWith('http')?{mode:'cors'}:{cache:'reload'})).catch(()=>{})))).then(()=>self.skipWaiting()))});

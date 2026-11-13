@@ -30,15 +30,32 @@ async function uzakMotor(prog,kod=S.pcKod){
     const m=await gonder({t:'merhaba',surum:APP_VER},90000);   // bilgisayarda okuyucu yeni açılıyorsa hazırlanması sürebilir
     kutu('uzak',{thr:m.thr,ad:m.ad});
     return {tur:'uzak',thr:m.thr||1,ad:m.ad||'Bilgisayar',olu:()=>olu,
-      async resim(id,src){const b=await src.arrayBuffer();await gonder({t:'img',id,b,tip:src.type||'image/jpeg'},60000)},
-      async oku(id,src,opt){return (await gonder({t:'read',id,opt},120000)).items||[]},
+      // her fişten önce kısa yoklama: bilgisayar sessizce kapandıysa (uyku, sekme kapandı) 8 sn içinde anlaşılır, telefon kendisi okur
+      async resim(id,src){await gonder({t:'ping'},8000);const b=await src.arrayBuffer();await gonder({t:'img',id,b,tip:src.type||'image/jpeg'},45000)},
+      async oku(id,src,opt){return (await gonder({t:'read',id,opt},60000)).items||[]},
       birak(id){gonder({t:'free',id},20000).catch(()=>{})},
-      kapat(){bitir(new Error('kapatıldı'))}};
+      kapat(){bitir(new Error('kapatıldı'))},
+      // bağlantı türü: host = aynı ağda doğrudan, srflx = internet üzerinden doğrudan, relay = aktarma sunucusu üzerinden
+      async yol(){try{const st=await conn.peerConnection.getStats();let cift=null;st.forEach(x=>{if(x.type==='candidate-pair'&&(x.nominated||x.selected)&&x.state==='succeeded')cift=x});
+        if(!cift)return null;const l=st.get(cift.localCandidateId),r=st.get(cift.remoteCandidateId);return {yerel:l&&l.candidateType,uzak:r&&r.candidateType,rtt:cift.currentRoundTripTime}}catch(e){return null}}};
   }catch(e){kapat();throw e}
 }
 // getPaddle bunu çağırır: kod girilmişse ve son deneme yakın zamanda başarısız olmadıysa bilgisayara bağlan
 async function uzakDeneVeBaglan(prog){if(!uzakDene())return null;
-  try{return await uzakMotor(prog)}catch(e){uzakYok=Date.now();kutu('uzakYok',{m:String(e&&e.message||e).slice(0,100)});console.warn('Bilgisayara bağlanılamadı, telefonda okunacak:',e);return null}}
+  try{return await uzakMotor(prog)}catch(e){uzakYok=Date.now();pcHata('bağlanamadı: '+(e&&e.message||e));kutu('uzakYok',{m:String(e&&e.message||e).slice(0,100)});console.warn('Bilgisayara bağlanılamadı, telefonda okunacak:',e);return null}}
+
+// ---- Bilgisayarda okuma raporu: bir okuma turu bitince (sıra boşalınca) özet test arşivine gider (fotoğraf/tutar yok) ----
+const PCR='zr_pcrapor';
+async function pcKaydet(r,motor,sn,gecis){try{const l=JSON.parse(localStorage.getItem(PCR)||'[]');
+  if(!l.length&&motor.yol){const y=await motor.yol();localStorage.setItem(PCR+'_yol',JSON.stringify(y))}
+  l.push({sn:Math.round(sn*10)/10,gecis,ok:r.status==='done'});localStorage.setItem(PCR,JSON.stringify(l.slice(-100)))}catch(e){}}
+function pcHata(m){try{const l=JSON.parse(localStorage.getItem(PCR+'_hata')||'[]');l.push({t:Date.now(),m:String(m).slice(0,160)});localStorage.setItem(PCR+'_hata',JSON.stringify(l.slice(-20)))}catch(e){}}
+async function pcRaporGonder(){try{const l=JSON.parse(localStorage.getItem(PCR)||'[]'),h=JSON.parse(localStorage.getItem(PCR+'_hata')||'[]');
+  if(l.length<3&&!h.length)return;if(!S.ghKey||typeof ghGonder!=='function')return;
+  const p={tur:'zrapor-pc',surum:APP_VER,cihaz:navigator.userAgent,pc:pdl&&pdl.tur==='uzak'?{ad:pdl.ad,thr:pdl.thr}:null,yol:JSON.parse(localStorage.getItem(PCR+'_yol')||'null'),
+    fis:l.length,ortSn:Math.round(l.reduce((a,b)=>a+b.sn,0)/Math.max(1,l.length)*10)/10,okumalar:l,kopmalar:h};
+  localStorage.removeItem(PCR);localStorage.removeItem(PCR+'_hata');localStorage.removeItem(PCR+'_yol');
+  await ghGonder(`${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}_pc_v${APP_VER}_${Math.random().toString(36).slice(2,6)}`,[{ad:'pc.json',b64:b64Metin(JSON.stringify(p,null,1))}])}catch(e){}}
 
 // ---- Telefon: Ayarlar'daki "Bilgisayarda oku" satırı ----
 (()=>{const g=$('#pckodgir');if(!g)return;g.value=S.pcKod||'';
@@ -82,6 +99,7 @@ async function pcBaslat(){
       let zincir=Promise.resolve();
       conn.on('data',m=>{zincir=zincir.then(async()=>{const c=o=>{try{conn.send({n:m.n,...o})}catch(e){}};
         try{const mt=await motorAl();
+          if(m.t==='ping'){c({ok:true});return}
           if(m.t==='merhaba')c({ok:true,thr:mt.thr,ad:'Bilgisayar ('+(navigator.userAgentData&&navigator.userAgentData.platform||navigator.platform||'')+')'});
           else if(m.t==='img'){await mt.resim(m.id,new Blob([m.b],{type:m.tip||'image/jpeg'}));okunan++;son=Date.now();istat();c({ok:true})}
           else if(m.t==='read')c({ok:true,items:await mt.oku(m.id,null,m.opt||{})});

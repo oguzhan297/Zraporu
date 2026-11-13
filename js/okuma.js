@@ -73,7 +73,7 @@ async function pump(){if(busy)return;busy=true;
   // Uzun seride işlemci aralıksız çalışınca telefon ısınıyor (ısınınca da yavaşlıyor): fişler arasında kısa nefes
   while(queue.length){while(KAM.akis)await new Promise(a=>setTimeout(a,400));   // okuma sürerken kamera açıldıysa da bekle
     const r=queue.shift();if(!rows.includes(r))continue;if(await prep(r))await extract(r);if(r.status==='done'&&isBad(r))otoBildir(r,'kontrol');if(queue.length&&S.mode!=='api')await new Promise(a=>setTimeout(a,nefes(r)))}
-  busy=false}
+  busy=false;if(typeof pcRaporGonder==='function')pcRaporGonder()}
 
 async function onFiles(list){
   const files=[...list];if(!files.length)return;kutu('ekle',{n:files.length});
