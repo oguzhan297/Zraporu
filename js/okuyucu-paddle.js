@@ -3,21 +3,21 @@
 // paddle.js = PaddleOCR.js + ONNX Runtime paketi (paddle/ klasöründen derlenir). Modeller ve çalışma zamanı ilk kullanımda
 // bir kez indirilir ve önbellekte (zrapor-ocr-*) saklanır; uygulama sürümü değişince silinmez.
 // vendor/paddle.js değişince: ?p= burada ve js/paddle-worker.js'de; ort = paddle/package.json'daki onnxruntime-web sürümü
-const PADDLE={js:'vendor/paddle.js?p=2',gpujs:'vendor/paddle-gpu.js?p=1',ort:'1.31.1',det:'PP-OCRv6_small_det',rec:'PP-OCRv6_small_rec',
+const PADDLE={js:'vendor/paddle.js?p=2',gpujs:'vendor/paddle-gpu.js?p=2',ort:'1.31.1',det:'PP-OCRv6_small_det',rec:'PP-OCRv6_small_rec',
   base:'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/',mb:{det:9.9,rec:21.3,wasm:14.8,jsep:29.5}};
 // Hızlı okuyucu (WebGPU): tarayıcı ekran kartını veriyorsa okuma ekran kartında yapılır (çok daha hızlı, telefon daha az ısınır).
 // Şimdilik deneme: Ayarlar'dan açılır; ekran kartıyla bir kez sorun çıkarsa bu telefonda kendiliğinden kapanır (zr_gpu='0').
 const wasmAdi=gpu=>gpu?'ort-wasm-simd-threaded.jsep.wasm':'ort-wasm-simd-threaded.wasm';
 let gpuSonuc=null;
 function gpuKullan(){if(gpuSonuc)return gpuSonuc;return gpuSonuc=(async()=>{
-  if(S.gpu!==true)return false;let k=null;   // deneme: Ayarlar'dan açılırtry{k=localStorage.getItem('zr_gpu')}catch(e){}if(k==='0')return false;
+  if(S.gpu!==true)return false;let k=null;try{   /* deneme: Ayarlar'dan açılır */k=localStorage.getItem('zr_gpu')}catch(e){}if(k==='0')return false;
   if(!navigator.gpu||!navigator.gpu.requestAdapter||typeof Worker==='undefined')return false;
   try{return !!(await navigator.gpu.requestAdapter())}catch(e){return false}})()}
 // Hızlı okuyucu açılamadıysa nedenini gelen kutusuna gönder (anahtar varsa): tarayıcı, ekran kartı bilgisi, her denemenin hatası
-async function gpuTeshis(asamalar){try{if(!S.ghKey||typeof ghGonder!=='function')return;let bilgi=null;
+async function gpuTeshis(asamalar,basari){try{if(!S.ghKey||typeof ghGonder!=='function')return;let bilgi=null;
   try{const a=await navigator.gpu.requestAdapter();const i=a&&a.info||{};bilgi={satici:i.vendor||'',mimari:i.architecture||'',aciklama:i.description||'',ozellik:a?[...a.features].slice(0,20):[]}}catch(e){bilgi={hata:String(e)}}
   const p={tur:'zrapor-gpu',surum:APP_VER,cihaz:navigator.userAgent,ekran:[screen.width,screen.height,devicePixelRatio],sayfadaGpu:bilgi,asamalar,hiz:(()=>{try{return JSON.parse(localStorage.getItem('zr_hiz')||'{}')}catch(e){return null}})()};
-  await ghGonder(`${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}_gpu_v${APP_VER}_${Math.random().toString(36).slice(2,6)}`,[{ad:'gpu.json',b64:b64Metin(JSON.stringify(p,null,1))}])}catch(e){}}
+  await ghGonder(`${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}_gpu${basari?'ok':''}_v${APP_VER}_${Math.random().toString(36).slice(2,6)}`,[{ad:'gpu.json',b64:b64Metin(JSON.stringify(p,null,1))}])}catch(e){}}
 function gpuKapat(neden){try{localStorage.setItem('zr_gpu','0');localStorage.setItem('zr_gpuneden',String(neden||'').slice(0,160))}catch(e){}gpuSonuc=Promise.resolve(false);kutu('gpuKapandi',{m:String(neden||'').slice(0,120)})}
 const OCR_CACHE='zrapor-ocr-1';
 // Büyük dosya indirme: yarıda kalırsa (ekran kapandı, uygulama arka plana geçti, bağlantı koptu) kaldığı yerden sürer.
@@ -83,9 +83,9 @@ function isciMotoru(f,gpu=false){
     w.onmessage=e=>{const m=e.data;if(m.hazir)return;const x=bek.get(m.n);if(!x)return;bek.delete(m.n);m.ok?x.a(m):x.b(new Error(m.err||'İşçi hatası'))};
     w.onerror=e=>{e.preventDefault&&e.preventDefault();const er=new Error('İşçi açılamadı'+(e.message?': '+e.message:''));bitir(er);no(er)};
     // ekran kartı 90 sn'de hazır olmazsa (ilk seferde gölgelendiriciler derlenir) bırak (işçi kapatılır, işlemciyle okunur); işlemci okuyucusu için 2 dk
-    const zm=setTimeout(()=>{const er=new Error(gpu?'ekran kartı 90 sn içinde hazır olmadı':'İşçi zamanında hazır olmadı');bitir(er);no(er)},gpu?90000:120000);
+    const zm=setTimeout(()=>{const er=new Error(gpu?'ekran kartı 4,5 dk içinde hazır olmadı':'İşçi zamanında hazır olmadı');bitir(er);no(er)},gpu?270000:120000);
     gonder({t:'init',det:f.det,rec:f.rec,wasm:f.wasm,wasmDir:f.wasmDir,detName:PADDLE.det,recName:PADDLE.rec,backend:gpu?'webgpu':'wasm'},[f.det,f.rec,f.wasm]).then(c=>{clearTimeout(zm);
-      ok({tur:'isci',gpu,gpuBilgi:c&&c.gpuBilgi,olu:()=>olu,
+      ok({tur:'isci',gpu,gpuBilgi:c&&c.gpuBilgi,hazirSn:c&&c.hazirSn,olu:()=>olu,
         async resim(id,src){const bmp=await fotoBitmap(src);await gonder({t:'img',id,bmp},[bmp])},
         async oku(id,src,opt){return (await gonder({t:'read',id,opt,params:opt.p||{}})).items},
         birak(id){gonder({t:'free',id}).catch(()=>{})}})},er=>{clearTimeout(zm);bitir(er);no(er)});
@@ -119,9 +119,9 @@ async function getPaddle(onProg){
         // 1) işçide (ekran donmaz)  2) işçide WebGPU yoksa sayfada  3) olmazsa işlemci okuyucusu
         for(const yol of ['isci','ana']){const t=Date.now();
           if(yol==='ana'&&!(as[0]&&/işçide WebGPU/.test(as[0].hata)))break;
-          try{pdlProg&&pdlProg('Hızlı okuyucu hazırlanıyor (ilk seferde 1 dakika sürebilir)…');
+          try{pdlProg&&pdlProg('Hızlı okuyucu hazırlanıyor (ekran kartı ilk seferde birkaç dakika sürebilir)…');
             pdl=yol==='isci'?await isciMotoru(f,true):await anaMotor(await paddleDosyalari(true),true);
-            kutu('motor',{gpu:1,yol,sn:Math.round((Date.now()-t)/1000)});return pdl}
+            const sn=Math.round((Date.now()-t)/1000);kutu('motor',{gpu:1,yol,sn});gpuHazirKaydet(sn);return pdl}
           catch(e){as.push({yol,hata:String(e&&e.message||e).slice(0,300),sn:Math.round((Date.now()-t)/1000)});if(/indirilemedi/.test(e&&e.message||''))throw e}}
         gpuKapat(as.map(a=>a.yol+': '+a.hata).join(' | '));gpuTeshis(as);console.warn('WebGPU okuyucu açılamadı, işlemciyle okunacak:',as)}
       try{pdl=await isciMotoru(await paddleDosyalari());return pdl}
@@ -184,7 +184,7 @@ async function extractPaddle(r,ikinci){
     const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
     applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
     r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;resimBirak(r);delete r.prog;
-    kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});hizKaydet(motor.gpu?'gpu':'cpu',(Date.now()-t0)/1000/all.length);r._sure=(Date.now()-t0)/all.length;
+    kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});hizKaydet(motor.gpu?'gpu':'cpu',(Date.now()-t0)/1000/all.length);if(motor.gpu)gpuDegerlendir();r._sure=(Date.now()-t0)/all.length;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     clearInterval(sayac);
@@ -239,6 +239,14 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 window.addEventListener('online',()=>setTimeout(okOtomatik,600));
 
 // Okuma hızı istatistiği (bir okuma turu, sn): Ayarlar'da gösterilir — ekran kartı ile işlemciyi karşılaştırmak için
+// Hızlı okuyucunun açılış süreleri (her açılışta gölgelendirici yeniden derleniyor mu görmek için)
+function gpuHazirKaydet(sn){try{const a=JSON.parse(localStorage.getItem('zr_gpuhazir')||'[]');a.push(sn);localStorage.setItem('zr_gpuhazir',JSON.stringify(a.slice(-10)))}catch(e){}}
+// 3 fiş ekran kartında okununca: işlemciden yavaşsa kapat; sonucu bir kez test arşivine bildir
+function gpuDegerlendir(){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}'),g=h.gpu||[],c=h.cpu||[];if(g.length<3||localStorage.getItem('zr_gpudeg')==='1')return;
+  localStorage.setItem('zr_gpudeg','1');const ort=a=>a.reduce((x,y)=>x+y,0)/a.length,go=ort(g.slice(-3)),co=c.length?ort(c):null;
+  const yavas=co!=null&&go>=co*0.9;let hz=[];try{hz=JSON.parse(localStorage.getItem('zr_gpuhazir')||'[]')}catch(e){}
+  gpuTeshis([{yol:'sonuc',gpuSn:Math.round(go*10)/10,cpuSn:co&&Math.round(co*10)/10,acilisSn:hz,karar:yavas?'işlemciden yavaş, kapatıldı':'açık kaldı'}],true);
+  if(yavas){gpuKapat('ekran kartı işlemciden yavaş ('+go.toFixed(1)+' sn / '+co.toFixed(1)+' sn)');pdl=null}}catch(e){}}
 function hizKaydet(k,sn){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}');h[k]=(h[k]||[]).concat(Math.round(sn*10)/10).slice(-20);localStorage.setItem('zr_hiz',JSON.stringify(h))}catch(e){}}
 function hizOzet(){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}'),o=a=>a&&a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1).replace('.',',')+' sn ('+a.length+' fiş)':null;
   return [h.cpu&&'işlemci '+o(h.cpu),h.gpu&&'ekran kartı '+o(h.gpu)].filter(Boolean).join(' · ')}catch(e){return ''}}
@@ -246,5 +254,5 @@ function hizOzet(){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}'),
 async function gpuUI(){const var_=!!(navigator.gpu&&navigator.gpu.requestAdapter);$('#gpusatir').hidden=!var_||S.mode!=='paddle';if(!var_)return;
   let k=null;try{k=localStorage.getItem('zr_gpu')}catch(e){}$('#gpuac').checked=S.gpu===true&&k!=='0';
   const v=await gpuKullan(),hz=hizOzet();$('#gpudurum').textContent=(v?'· açık, okuma ekran kartında':k==='0'&&S.gpu===true?'· bu telefonda açılamadı, işlemciyle okunuyor'+(()=>{try{const n=localStorage.getItem('zr_gpuneden');return n?' ('+n+')':''}catch(e){return ''}})():S.gpu!==true?'· kapalı (deneme)':'· bu tarayıcıda kullanılamıyor')+(hz?' · ortalama okuma: '+hz:'')}
-$('#gpuac').addEventListener('change',e=>{S.gpu=e.target.checked;saveS();try{localStorage.removeItem('zr_gpu')}catch(x){}gpuSonuc=null;if(pdl&&!busy)pdl=null;gpuUI().then(()=>okDurumUI()).then(()=>okOtomatik())});
+$('#gpuac').addEventListener('change',e=>{S.gpu=e.target.checked;saveS();try{localStorage.removeItem('zr_gpu');localStorage.removeItem('zr_gpudeg');localStorage.removeItem('zr_gpuneden')}catch(x){}gpuSonuc=null;if(pdl&&!busy)pdl=null;gpuUI().then(()=>okDurumUI()).then(()=>okOtomatik())});
 $('#mode').addEventListener('change',gpuUI);setTimeout(gpuUI,500);

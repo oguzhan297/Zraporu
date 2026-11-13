@@ -21,6 +21,9 @@ onmessage = async e => {
         const a = await navigator.gpu.requestAdapter(); if (!a) throw new Error('işçide WebGPU bağdaştırıcısı yok');
         const i = a.info || {}; gpuBilgi = { satici: i.vendor || '', mimari: i.architecture || '', aciklama: i.description || '' };
       }
+      // ekran kartında ilk çalıştırma gölgelendiricileri derler (iPhone'da 1 dakikayı geçebilir): sınırı uzat
+      globalThis.__pdlSure = m.backend === 'webgpu' ? 240000 : 60000;
+      const t0 = Date.now();
       const u = b => URL.createObjectURL(new Blob([b])), dU = u(m.det), rU = u(m.rec);
       try {
         ocr = await L.PaddleOCR.create({ textDetectionModelName: m.detName, textDetectionModelAsset: { url: dU },
@@ -29,7 +32,8 @@ onmessage = async e => {
       } finally { URL.revokeObjectURL(dU); URL.revokeObjectURL(rU); }
       cv = L.cv instanceof Promise ? await L.cv : L.cv;
       if (!cv || !cv.matFromImageData) throw new Error('OpenCV işçide hazır değil');
-      cevap({ ok: true, gpuBilgi });
+      if (m.backend === 'webgpu') globalThis.__pdlSure = 120000;
+      cevap({ ok: true, gpuBilgi, hazirSn: Math.round((Date.now() - t0) / 1000) });
     } else if (m.t === 'img') {
       foto.set(m.id, { C: G.kaynak(m.bmp) });
       cevap({ ok: true });
