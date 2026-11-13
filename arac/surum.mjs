@@ -21,7 +21,6 @@ const YERLER = [
   ['sw.js', /\?v=(\d+)/g, 'önbellek listesi'],
   ['js/paddle-isci.js', /goruntu\.js\?v=(\d+)/g, 'işçinin görüntü modülü'],
   ['js/paddle-worker.js', /paddle-isci\.js\?v=(\d+)/g, 'işçi gövdesi (WASM)'],
-  ['js/paddle-worker-gpu.js', /paddle-isci\.js\?v=(\d+)/g, 'işçi gövdesi (WebGPU)'],
 ];
 
 const bul = () => YERLER.map(([f, re, ne]) => ({ f, ne, v: [...oku(f).matchAll(re)].map(m => +m[1]) }));

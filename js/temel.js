@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=88;
+const APP_VER=89;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  89:['Hızlı okuyucu (ekran kartı) kaldırıldı. Okuma artık telefonun birden çok çekirdeğini kullanır (daha hızlı); Ayarlar’da kaç çekirdekle ve ortalama kaç saniyede okuduğu yazar.'],
   88:['Hızlı okuyucu: ayar kapanınca gerçekten kapalı kalır. Ekran kartının ilk açılışına daha uzun süre tanınır; 3 fişten sonra işlemciden yavaşsa kendiliğinden kapanır.'],
   87:['Fişin altındaki “PARAMETRE YÜKLEME / Versiyon” satırındaki başka tarih yüzünden tarih gereksiz yere turuncu çıkıyordu; düzeltildi'],
   86:['Hızlı okuyucu açılamazsa nedeni Ayarlar’da yazar ve test arşivine otomatik gider; ilk açılış için daha uzun beklenir.'],
@@ -113,6 +114,6 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const uid=()=>Math.random().toString(36).slice(2,10);
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)}
 function notice(m){const n=$('#notice');n.style.display=m?'block':'none';n.textContent=m||''}
-function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Yazı tanıma aracı indirilemedi. İnternet bağlantını kontrol et.'));document.head.appendChild(s)})}
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');if(/^https?:/.test(src))s.crossOrigin='anonymous';s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Yazı tanıma aracı indirilemedi. İnternet bağlantını kontrol et.'));document.head.appendChild(s)})}
 function openImage(src){return new Promise((res,rej)=>{const u=URL.createObjectURL(src),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);res(im)};im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('Fotoğraf açılamadı'))};im.src=u})}
 function setProg(r,txt){r.prog=txt;const el=document.querySelector(`#c_${r.id} .t2`);if(el)el.textContent=txt}

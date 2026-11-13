@@ -3,22 +3,20 @@
 // paddle.js = PaddleOCR.js + ONNX Runtime paketi (paddle/ klasöründen derlenir). Modeller ve çalışma zamanı ilk kullanımda
 // bir kez indirilir ve önbellekte (zrapor-ocr-*) saklanır; uygulama sürümü değişince silinmez.
 // vendor/paddle.js değişince: ?p= burada ve js/paddle-worker.js'de; ort = paddle/package.json'daki onnxruntime-web sürümü
-const PADDLE={js:'vendor/paddle.js?p=2',gpujs:'vendor/paddle-gpu.js?p=2',ort:'1.31.1',det:'PP-OCRv6_small_det',rec:'PP-OCRv6_small_rec',
-  base:'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/',mb:{det:9.9,rec:21.3,wasm:14.8,jsep:29.5}};
-// Hızlı okuyucu (WebGPU): tarayıcı ekran kartını veriyorsa okuma ekran kartında yapılır (çok daha hızlı, telefon daha az ısınır).
-// Şimdilik deneme: Ayarlar'dan açılır; ekran kartıyla bir kez sorun çıkarsa bu telefonda kendiliğinden kapanır (zr_gpu='0').
-const wasmAdi=gpu=>gpu?'ort-wasm-simd-threaded.jsep.wasm':'ort-wasm-simd-threaded.wasm';
-let gpuSonuc=null;
-function gpuKullan(){if(gpuSonuc)return gpuSonuc;return gpuSonuc=(async()=>{
-  if(S.gpu!==true)return false;let k=null;try{   /* deneme: Ayarlar'dan açılır */k=localStorage.getItem('zr_gpu')}catch(e){}if(k==='0')return false;
-  if(!navigator.gpu||!navigator.gpu.requestAdapter||typeof Worker==='undefined')return false;
-  try{return !!(await navigator.gpu.requestAdapter())}catch(e){return false}})()}
-// Hızlı okuyucu açılamadıysa nedenini gelen kutusuna gönder (anahtar varsa): tarayıcı, ekran kartı bilgisi, her denemenin hatası
-async function gpuTeshis(asamalar,basari){try{if(!S.ghKey||typeof ghGonder!=='function')return;let bilgi=null;
-  try{const a=await navigator.gpu.requestAdapter();const i=a&&a.info||{};bilgi={satici:i.vendor||'',mimari:i.architecture||'',aciklama:i.description||'',ozellik:a?[...a.features].slice(0,20):[]}}catch(e){bilgi={hata:String(e)}}
-  const p={tur:'zrapor-gpu',surum:APP_VER,cihaz:navigator.userAgent,ekran:[screen.width,screen.height,devicePixelRatio],sayfadaGpu:bilgi,asamalar,hiz:(()=>{try{return JSON.parse(localStorage.getItem('zr_hiz')||'{}')}catch(e){return null}})()};
-  await ghGonder(`${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}_gpu${basari?'ok':''}_v${APP_VER}_${Math.random().toString(36).slice(2,6)}`,[{ad:'gpu.json',b64:b64Metin(JSON.stringify(p,null,1))}])}catch(e){}}
-function gpuKapat(neden){try{localStorage.setItem('zr_gpu','0');localStorage.setItem('zr_gpuneden',String(neden||'').slice(0,160))}catch(e){}gpuSonuc=Promise.resolve(false);kutu('gpuKapandi',{m:String(neden||'').slice(0,120)})}
+const PADDLE={js:'vendor/paddle.js?p=2',ort:'1.31.1',det:'PP-OCRv6_small_det',rec:'PP-OCRv6_small_rec',
+  base:'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/',mb:{det:9.9,rec:21.3,wasm:14.8}};
+// Çok çekirdek: sayfa "cross-origin isolated" ise (sw.js başlıkları ekler) ONNX Runtime okumayı birden çok çekirdeğe böler.
+// Yardımcı iş parçacıkları ORT'nin küçük yükleyicisinden (vendor/ort-wasm-simd-threaded.mjs, ORT sürümüyle aynı) açılır: aynı adreste olmalı.
+// Bir kez sorun çıkarsa bu telefonda tek çekirdeğe dönülür (zr_thr='1') ve nedeni test arşivine bildirilir.
+const ORT_MJS='vendor/ort-wasm-simd-threaded.mjs?o=1.31.1';
+function cekirdek(){try{if(!self.crossOriginIsolated||localStorage.getItem('zr_thr')==='1')return 1}catch(e){return 1}
+  return Math.max(1,Math.min(4,navigator.hardwareConcurrency||2))}
+async function cekirdekTeshis(o){try{if(!S.ghKey||typeof ghGonder!=='function')return;
+  const p={tur:'zrapor-cekirdek',surum:APP_VER,cihaz:navigator.userAgent,cekirdekSayisi:navigator.hardwareConcurrency,izole:self.crossOriginIsolated,...o,hiz:(()=>{try{return JSON.parse(localStorage.getItem('zr_hiz')||'{}')}catch(e){return null}})()};
+  await ghGonder(`${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}_cekirdek_v${APP_VER}_${Math.random().toString(36).slice(2,6)}`,[{ad:'cekirdek.json',b64:b64Metin(JSON.stringify(p,null,1))}])}catch(e){}}
+// Eski "hızlı okuyucu" (ekran kartı) denemesi kaldırıldı: dosyalarını ve ayarlarını temizle
+setTimeout(()=>{try{for(const k of ['zr_gpu','zr_gpuneden','zr_gpudeg','zr_gpuhazir'])localStorage.removeItem(k);if('gpu' in S){delete S.gpu;saveS()}}catch(e){}
+  caches.open('zrapor-ocr-1').then(c=>c.keys().then(ks=>Promise.all(ks.filter(r=>/paddle-gpu\.js|\.jsep\.wasm/.test(r.url)).map(r=>c.delete(r))))).catch(()=>{})},3000);
 const OCR_CACHE='zrapor-ocr-1';
 // Büyük dosya indirme: yarıda kalırsa (ekran kapandı, uygulama arka plana geçti, bağlantı koptu) kaldığı yerden sürer.
 // iPhone arka planda indirmeye izin vermez; uygulama yeniden öne gelince Range ile kalan kısım istenir (sunucu desteklemezse baştan).
@@ -53,17 +51,17 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 // Okuma motoru: önce işçide (ekran donmaz), işçi açılamazsa / çökerse sayfada (eski yol).
 // motor = { tur:'isci'|'ana', resim(id,src), oku(id,src,opt) → kutular, birak(id) }
 let pdl=null,pdlLoading=null,pdlProg=null,isciYok=false;
-async function paddleDosyalari(gpu=false){
+async function paddleDosyalari(){
   if(onIndir){pdlProg&&pdlProg('Okuyucu indiriliyor…');try{await onIndir}catch(e){}}   // önceden indirme sürüyorsa aynı dosyaları ikinci kez indirme
   const wasmDir=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${PADDLE.ort}/dist/`;
-  const urls={det:PADDLE.base+PADDLE.det+'_onnx_infer.tar',rec:PADDLE.base+PADDLE.rec+'_onnx_infer.tar',wasm:wasmDir+wasmAdi(gpu)};
-  const got={det:0,rec:0,wasm:0},tot={det:PADDLE.mb.det*1e6,rec:PADDLE.mb.rec*1e6,wasm:(gpu?PADDLE.mb.jsep:PADDLE.mb.wasm)*1e6};
+  const urls={det:PADDLE.base+PADDLE.det+'_onnx_infer.tar',rec:PADDLE.base+PADDLE.rec+'_onnx_infer.tar',wasm:wasmDir+'ort-wasm-simd-threaded.wasm'};
+  const got={det:0,rec:0,wasm:0},tot={det:PADDLE.mb.det*1e6,rec:PADDLE.mb.rec*1e6,wasm:PADDLE.mb.wasm*1e6};
   let last=-1;
   const tick=()=>{const a=Object.values(got).reduce((x,y)=>x+y,0),b=Object.values(tot).reduce((x,y)=>x+y,0),p=Math.min(100,Math.round(a*100/b));
     if(p!==last){last=p;pdlProg&&pdlProg(p>=100?'Okuyucu hazırlanıyor…':`İlk kullanım: okuyucu indiriliyor %${p} (bir kez)`)}};
   ekranAcikTut(true);
   try{const [det,rec,wasm]=await Promise.all(['det','rec','wasm'].map(k=>fetchBig(urls[k],(n,t)=>{if(t)tot[k]=t;got[k]=n;tick()})));
-    return {det,rec,wasm,wasmDir}}
+    return {det,rec,wasm,wasmDir,mjs:new URL(ORT_MJS,location.href).href}}
   finally{if(!onIndir)ekranAcikTut(false)}
 }
 // Fotoğrafı yönü düzeltilmiş (EXIF) ve iOS tuval sınırına (16 MP) indirilmiş ImageBitmap olarak hazırla
@@ -74,35 +72,31 @@ async function fotoBitmap(src){
   const c=document.createElement('canvas');c.width=Math.round(W*k);c.height=Math.round(H*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
   const b=await createImageBitmap(c);c.width=c.height=1;return b;
 }
-function isciMotoru(f,gpu=false){
+function isciMotoru(f,thr=1){
   return new Promise((ok,no)=>{
-    let w;try{w=new Worker(`js/paddle-worker${gpu?'-gpu':''}.js?v=${APP_VER}`,{type:'module'})}catch(e){return no(e)}
+    let w;try{w=new Worker(`js/paddle-worker.js?v=${APP_VER}`,{type:'module'})}catch(e){return no(e)}
     let n=0,olu=false;const bek=new Map();
     const gonder=(o,tr)=>olu?Promise.reject(new Error('Okuyucu işçisi kapandı')):new Promise((a,b)=>{const id=++n;bek.set(id,{a,b});w.postMessage({...o,n:id},tr||[])});
     const bitir=er=>{if(olu)return;olu=true;for(const x of bek.values())x.b(er);bek.clear();try{w.terminate()}catch(e){}};
     w.onmessage=e=>{const m=e.data;if(m.hazir)return;const x=bek.get(m.n);if(!x)return;bek.delete(m.n);m.ok?x.a(m):x.b(new Error(m.err||'İşçi hatası'))};
     w.onerror=e=>{e.preventDefault&&e.preventDefault();const er=new Error('İşçi açılamadı'+(e.message?': '+e.message:''));bitir(er);no(er)};
-    // ekran kartı 90 sn'de hazır olmazsa (ilk seferde gölgelendiriciler derlenir) bırak (işçi kapatılır, işlemciyle okunur); işlemci okuyucusu için 2 dk
-    const zm=setTimeout(()=>{const er=new Error(gpu?'ekran kartı 4,5 dk içinde hazır olmadı':'İşçi zamanında hazır olmadı');bitir(er);no(er)},gpu?270000:120000);
-    gonder({t:'init',det:f.det,rec:f.rec,wasm:f.wasm,wasmDir:f.wasmDir,detName:PADDLE.det,recName:PADDLE.rec,backend:gpu?'webgpu':'wasm'},[f.det,f.rec,f.wasm]).then(c=>{clearTimeout(zm);
-      ok({tur:'isci',gpu,gpuBilgi:c&&c.gpuBilgi,hazirSn:c&&c.hazirSn,olu:()=>olu,
+    const zm=setTimeout(()=>{const er=new Error('İşçi zamanında hazır olmadı');bitir(er);no(er)},thr>1?90000:120000);
+    gonder({t:'init',det:f.det,rec:f.rec,wasm:f.wasm,wasmDir:f.wasmDir,mjs:f.mjs,thr,detName:PADDLE.det,recName:PADDLE.rec},[f.det,f.rec,f.wasm]).then(c=>{clearTimeout(zm);
+      ok({tur:'isci',thr:c&&c.thr||thr,olu:()=>olu,
         async resim(id,src){const bmp=await fotoBitmap(src);await gonder({t:'img',id,bmp},[bmp])},
         async oku(id,src,opt){return (await gonder({t:'read',id,opt,params:opt.p||{}})).items},
         birak(id){gonder({t:'free',id}).catch(()=>{})}})},er=>{clearTimeout(zm);bitir(er);no(er)});
   });
 }
-async function anaMotor(f,gpu=false){
-  if(!window.PaddleOCRLib){await loadScript(gpu?PADDLE.gpujs:PADDLE.js);window._pdlGpuPaket=gpu}
-  if(gpu&&!window._pdlGpuPaket)throw new Error('sayfada işlemci paketi yüklü');
-  if(gpu&&!navigator.gpu)throw new Error('sayfada WebGPU yok');
-  if(!gpu&&window._pdlGpuPaket)f=await paddleDosyalari(true);   // sayfada hızlı paket yüklüyse onun çalışma zamanı gerekir
+async function anaMotor(f){
+  if(!window.PaddleOCRLib)await loadScript(PADDLE.js);
   const L=window.PaddleOCRLib;if(!L||!L.PaddleOCR)throw new Error('PaddleOCR yüklenemedi');
   L.ort.env.wasm.wasmBinary=f.wasm;   // çalışma zamanını önbellekten ver, ORT kendisi indirmesin
   const du=b=>URL.createObjectURL(new Blob([b])),dU=du(f.det),rU=du(f.rec);let ocr;
   try{ocr=await L.PaddleOCR.create({textDetectionModelName:PADDLE.det,textDetectionModelAsset:{url:dU},textRecognitionModelName:PADDLE.rec,textRecognitionModelAsset:{url:rU},
-      ortOptions:{backend:gpu?'webgpu':'wasm',wasmPaths:f.wasmDir,numThreads:self.crossOriginIsolated?Math.min(4,navigator.hardwareConcurrency||2):1}})}
+      ortOptions:{backend:'wasm',wasmPaths:{mjs:f.mjs,wasm:f.wasmDir+'ort-wasm-simd-threaded.wasm'},numThreads:cekirdek()}})}
   finally{URL.revokeObjectURL(dU);URL.revokeObjectURL(rU)}
-  return {tur:'ana',gpu,olu:()=>false,async resim(){},
+  return {tur:'ana',thr:cekirdek(),olu:()=>false,async resim(){},
     async oku(id,src,opt){await new Promise(a=>setTimeout(a,30));const img=await prepImage(src,opt);const [out]=await ocr.predict(img,opt.p||{});img.width=img.height=1;return out&&out.items||[]},
     birak(){}};
 }
@@ -113,17 +107,12 @@ async function getPaddle(onProg){
     pdlProg&&pdlProg('İlk kullanım: PaddleOCR indiriliyor (bir kez)…');
     // modül işçi + OffscreenCanvas varsa işçide; yoksa ya da işçi başarısızsa sayfada
     if(!isciYok&&typeof Worker!=='undefined'&&typeof OffscreenCanvas!=='undefined'&&typeof createImageBitmap==='function'){
-      if(await gpuKullan()){
-        const as=[];let f=null;
-        try{f=await paddleDosyalari(true)}catch(e){throw e}
-        // 1) işçide (ekran donmaz)  2) işçide WebGPU yoksa sayfada  3) olmazsa işlemci okuyucusu
-        for(const yol of ['isci','ana']){const t=Date.now();
-          if(yol==='ana'&&!(as[0]&&/işçide WebGPU/.test(as[0].hata)))break;
-          try{pdlProg&&pdlProg('Hızlı okuyucu hazırlanıyor (ekran kartı ilk seferde birkaç dakika sürebilir)…');
-            pdl=yol==='isci'?await isciMotoru(f,true):await anaMotor(await paddleDosyalari(true),true);
-            const sn=Math.round((Date.now()-t)/1000);kutu('motor',{gpu:1,yol,sn});gpuHazirKaydet(sn);return pdl}
-          catch(e){as.push({yol,hata:String(e&&e.message||e).slice(0,300),sn:Math.round((Date.now()-t)/1000)});if(/indirilemedi/.test(e&&e.message||''))throw e}}
-        gpuKapat(as.map(a=>a.yol+': '+a.hata).join(' | '));gpuTeshis(as);console.warn('WebGPU okuyucu açılamadı, işlemciyle okunacak:',as)}
+      const thr=cekirdek();
+      if(thr>1){const t=Date.now();
+        try{pdl=await isciMotoru(await paddleDosyalari(),thr);kutu('motor',{thr,sn:Math.round((Date.now()-t)/1000)});return pdl}
+        catch(e){if(/indirilemedi/.test(e&&e.message||''))throw e;const hata=String(e&&e.message||e).slice(0,300);
+          try{localStorage.setItem('zr_thr','1')}catch(x){}kutu('cekirdekKapandi',{m:hata.slice(0,120)});cekirdekTeshis({asama:'acilis',thr,hata,sn:Math.round((Date.now()-t)/1000)});
+          console.warn('Çok çekirdekli okuyucu açılamadı, tek çekirdekle okunacak:',e)}}
       try{pdl=await isciMotoru(await paddleDosyalari());return pdl}
       catch(e){if(/indirilemedi/.test(e&&e.message||''))throw e;isciYok=true;console.warn('PaddleOCR işçisi kullanılamadı, sayfada okunacak:',e)}
     }
@@ -156,7 +145,7 @@ async function extractPaddle(r,ikinci){
     toast('PaddleOCR bu tarayıcıda çalışmadı, Tesseract ile okunuyor');return extractFree(r);
   }
   const ps=sayfalar(r),sid=i=>r.id+':'+i,t0=Date.now();let etiket='Okunuyor (PaddleOCR)…';
-  kutu('oku',{id:r.id.slice(-4),sayfa:ps.length,mb:+((ps[0]&&ps[0].size||0)/1e6).toFixed(1),motor:motor.tur+(motor.gpu?'-gpu':'')});
+  kutu('oku',{id:r.id.slice(-4),sayfa:ps.length,mb:+((ps[0]&&ps[0].size||0)/1e6).toFixed(1),motor:motor.tur+(motor.thr>1?'-'+motor.thr:'')});
   // işçide okurken ekran serbest: geçen süreyi göster
   const sayac=setInterval(()=>setProg(r,`${etiket} ${Math.round((Date.now()-t0)/1000)} sn`),1000);
   try{
@@ -184,13 +173,15 @@ async function extractPaddle(r,ikinci){
     const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
     applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
     r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;resimBirak(r);delete r.prog;
-    kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});hizKaydet(motor.gpu?'gpu':'cpu',(Date.now()-t0)/1000/all.length);if(motor.gpu)gpuDegerlendir();r._sure=(Date.now()-t0)/all.length;
+    kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});hizKaydet(motor.thr>1?'cok':'cpu',(Date.now()-t0)/1000/all.length);if(motor.thr>1)cekirdekDegerlendir(motor.thr);hizUI();r._sure=(Date.now()-t0)/all.length;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     clearInterval(sayac);
     // işçi çöktüyse (bellek vb.) bu raporu bir kez de sayfada oku
     if(motor.tur==='isci'&&motor.olu())kutu('isciCoktu',{m:String(e&&e.message||e).slice(0,120)});
-    if(motor.gpu&&!ikinci){gpuKapat(e&&e.message);gpuTeshis([{yol:'okuma',hata:String(e&&e.message||e).slice(0,300)}]);try{motor.birak&&0}catch(x){}pdl=null;return extractPaddle(r,true)}   // ekran kartıyla okunamadı: işlemciyle bir kez daha
+    // çok çekirdekle okunamadı: bu telefonda tek çekirdeğe dön, raporu bir kez daha oku
+    if(motor.thr>1&&!ikinci){const hata=String(e&&e.message||e).slice(0,300);try{localStorage.setItem('zr_thr','1')}catch(x){}kutu('cekirdekKapandi',{m:hata.slice(0,120)});
+      cekirdekTeshis({asama:'okuma',thr:motor.thr,hata});pdl=null;return extractPaddle(r,true)}
     if(motor.tur==='isci'&&motor.olu()&&!ikinci){isciYok=true;pdl=null;console.warn('PaddleOCR işçisi çöktü, sayfada okunuyor:',e);return extractPaddle(r,true)}
     r.status='error';r.err=(e&&e.message)||'Okunamadı';delete r.prog;kutu('okumaHata',{m:String(r.err).slice(0,120),isci:motor.tur});
     // bir kez kendiliğinden yeniden dene (geçici bellek / işçi sorunu); ikinci kez olmazsa "Okunamadı + Tekrar" kalır
@@ -203,11 +194,9 @@ async function extractPaddle(r,ikinci){
 // ---- Okuyucuyu önceden indirme: ilk fiş beklemesin, internetsiz de okusun ----
 // Wi-Fi bilinen cihazda (Android) kendiliğinden; bağlantı türü bilinmiyorsa (iPhone) tek dokunuşluk öneri, 3 günde bir.
 let onIndir=null,okYarim=false;
-// İndirilecek dosyalar: ekran kartı kullanılacaksa WebGPU paketi ve çalışma zamanı (WASM yedeği de içinde), yoksa yalnız WASM olanlar
-let okGpu=false;gpuKullan().then(v=>{okGpu=v});
-const okDosyalar=(gpu=okGpu)=>{const w=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${PADDLE.ort}/dist/`;
-  return [{u:new URL(gpu?PADDLE.gpujs:PADDLE.js,location.href).href,mb:10.6,js:true},{u:PADDLE.base+PADDLE.det+'_onnx_infer.tar',mb:PADDLE.mb.det},{u:PADDLE.base+PADDLE.rec+'_onnx_infer.tar',mb:PADDLE.mb.rec},{u:w+wasmAdi(gpu),mb:gpu?PADDLE.mb.jsep:PADDLE.mb.wasm}]};
-async function okuyucuHazirMi(){okGpu=await gpuKullan();try{const c=await caches.open(OCR_CACHE);for(const f of okDosyalar())if(!await c.match(f.u,{ignoreVary:true}))return false;return true}catch(e){return null}}
+const okDosyalar=()=>{const w=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${PADDLE.ort}/dist/`;
+  return [{u:new URL(PADDLE.js,location.href).href,mb:10.6,js:true},{u:PADDLE.base+PADDLE.det+'_onnx_infer.tar',mb:PADDLE.mb.det},{u:PADDLE.base+PADDLE.rec+'_onnx_infer.tar',mb:PADDLE.mb.rec},{u:w+'ort-wasm-simd-threaded.wasm',mb:PADDLE.mb.wasm}]};
+async function okuyucuHazirMi(){try{const c=await caches.open(OCR_CACHE);for(const f of okDosyalar())if(!await c.match(f.u,{ignoreVary:true}))return false;return true}catch(e){return null}}
 function okuyucuIndir(oto=false){if(onIndir)return onIndir;
   const fs=okDosyalar(),got=fs.map(()=>0),tot=fs.map(f=>f.mb*1e6);let son=-1;
   const yaz=m=>{$('#okdurum').textContent=m;if(!$('#okoneri').hidden)$('#okoneriyazi').textContent=m};
@@ -238,21 +227,15 @@ setTimeout(async()=>{await okDurumUI();okOtomatik()},400);   // hemen: sonradan 
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(okOtomatik,600)});
 window.addEventListener('online',()=>setTimeout(okOtomatik,600));
 
-// Okuma hızı istatistiği (bir okuma turu, sn): Ayarlar'da gösterilir — ekran kartı ile işlemciyi karşılaştırmak için
-// Hızlı okuyucunun açılış süreleri (her açılışta gölgelendirici yeniden derleniyor mu görmek için)
-function gpuHazirKaydet(sn){try{const a=JSON.parse(localStorage.getItem('zr_gpuhazir')||'[]');a.push(sn);localStorage.setItem('zr_gpuhazir',JSON.stringify(a.slice(-10)))}catch(e){}}
-// 3 fiş ekran kartında okununca: işlemciden yavaşsa kapat; sonucu bir kez test arşivine bildir
-function gpuDegerlendir(){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}'),g=h.gpu||[],c=h.cpu||[];if(g.length<3||localStorage.getItem('zr_gpudeg')==='1')return;
-  localStorage.setItem('zr_gpudeg','1');const ort=a=>a.reduce((x,y)=>x+y,0)/a.length,go=ort(g.slice(-3)),co=c.length?ort(c):null;
-  const yavas=co!=null&&go>=co*0.9;let hz=[];try{hz=JSON.parse(localStorage.getItem('zr_gpuhazir')||'[]')}catch(e){}
-  gpuTeshis([{yol:'sonuc',gpuSn:Math.round(go*10)/10,cpuSn:co&&Math.round(co*10)/10,acilisSn:hz,karar:yavas?'işlemciden yavaş, kapatıldı':'açık kaldı'}],true);
-  if(yavas){gpuKapat('ekran kartı işlemciden yavaş ('+go.toFixed(1)+' sn / '+co.toFixed(1)+' sn)');pdl=null}}catch(e){}}
-function hizKaydet(k,sn){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}');h[k]=(h[k]||[]).concat(Math.round(sn*10)/10).slice(-20);localStorage.setItem('zr_hiz',JSON.stringify(h))}catch(e){}}
-function hizOzet(){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}'),o=a=>a&&a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1).replace('.',',')+' sn ('+a.length+' fiş)':null;
-  return [h.cpu&&'işlemci '+o(h.cpu),h.gpu&&'ekran kartı '+o(h.gpu)].filter(Boolean).join(' · ')}catch(e){return ''}}
-// Ayarlar: hızlı okuyucu (ekran kartı) anahtarı ve durumu
-async function gpuUI(){const var_=!!(navigator.gpu&&navigator.gpu.requestAdapter);$('#gpusatir').hidden=!var_||S.mode!=='paddle';if(!var_)return;
-  let k=null;try{k=localStorage.getItem('zr_gpu')}catch(e){}$('#gpuac').checked=S.gpu===true&&k!=='0';
-  const v=await gpuKullan(),hz=hizOzet();$('#gpudurum').textContent=(v?'· açık, okuma ekran kartında':k==='0'&&S.gpu===true?'· bu telefonda açılamadı, işlemciyle okunuyor'+(()=>{try{const n=localStorage.getItem('zr_gpuneden');return n?' ('+n+')':''}catch(e){return ''}})():S.gpu!==true?'· kapalı (deneme)':'· bu tarayıcıda kullanılamıyor')+(hz?' · ortalama okuma: '+hz:'')}
-$('#gpuac').addEventListener('change',e=>{S.gpu=e.target.checked;saveS();try{localStorage.removeItem('zr_gpu');localStorage.removeItem('zr_gpudeg');localStorage.removeItem('zr_gpuneden')}catch(x){}gpuSonuc=null;if(pdl&&!busy)pdl=null;gpuUI().then(()=>okDurumUI()).then(()=>okOtomatik())});
-$('#mode').addEventListener('change',gpuUI);setTimeout(gpuUI,500);
+// Okuma hızı istatistiği (bir okuma geçişi, sn): tek çekirdek (cpu) ile çok çekirdek (cok) karşılaştırması için
+function hizKaydet(k,sn){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}');delete h.gpu;h[k]=(h[k]||[]).concat(Math.round(sn*10)/10).slice(-20);localStorage.setItem('zr_hiz',JSON.stringify(h))}catch(e){}}
+// 3 fiş çok çekirdekle okununca sonucu bir kez test arşivine bildir (hız kazancı gerçekten var mı)
+function cekirdekDegerlendir(thr){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}'),c=h.cok||[];if(c.length<3||localStorage.getItem('zr_thrdeg')==='1')return;
+  localStorage.setItem('zr_thrdeg','1');const ort=a=>a&&a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;
+  cekirdekTeshis({asama:'sonuc',thr,cokSn:ort(c.slice(-3)),tekSn:ort(h.cpu)})}catch(e){}}
+// Ayarlar'da okuma hızı: kaç çekirdek kullanılıyor, bir okuma geçişi ortalama kaç saniye
+function hizUI(){const el=$('#hizdurum');if(!el)return;if(S.mode!=='paddle'){el.hidden=true;return}
+  let h={};try{h=JSON.parse(localStorage.getItem('zr_hiz')||'{}')}catch(e){}
+  const o=a=>a&&a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1).replace('.',','):null,t=cekirdek(),c=o(h.cok),k=o(h.cpu);
+  el.textContent=`Okuma: ${t>1?t+' çekirdek':'tek çekirdek'}`+(t>1&&c?` · ortalama ${c} sn`:k?` · ortalama ${k} sn`:'')+(t>1&&c&&k?` (tek çekirdekte ${k} sn)`:'');el.hidden=false}
+$('#mode').addEventListener('change',hizUI);setTimeout(hizUI,600);

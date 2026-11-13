@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, copyFileSync } from "node:fs";
 const ortVer = JSON.parse(readFileSync(new URL("./node_modules/onnxruntime-web/package.json", import.meta.url))).version;
 const paddleVer = JSON.parse(readFileSync(new URL("./node_modules/@paddleocr/paddleocr-js/package.json", import.meta.url))).version;
 const ortak = {
@@ -10,10 +10,6 @@ const ortak = {
 };
 // paddle.js: yalnız WASM (işlemci) — her tarayıcıda çalışır; çalışma zamanı ort-wasm-simd-threaded.wasm
 await build({ ...ortak, alias: { "onnxruntime-web": "onnxruntime-web/wasm" }, outfile: "../vendor/paddle.js" });
-// paddle-gpu.js: WebGPU (ekran kartı) + WASM yedeği — ekran kartı olan tarayıcıda çok daha hızlı; çalışma zamanı ort-wasm-simd-threaded.jsep.wasm
-await build({ ...ortak, alias: { "onnxruntime-web": "onnxruntime-web/webgpu" }, outfile: "../vendor/paddle-gpu.js" });
-// iPhone'da ekran kartının ilk çalıştırması (gölgelendirici derleme) PaddleOCR'ın 60 sn sınırını aşıyor: sınırı işçi belirlesin
-{ const y = new URL("../vendor/paddle-gpu.js", import.meta.url); let s = readFileSync(y, "utf8"), n = 0;
-  s = s.replace(/6e4,"(Detection|Recognition) model"/g, (m, a) => (n++, `globalThis.__pdlSure||6e4,"${a} model"`));
-  if (n !== 2) throw new Error("PaddleOCR süre sınırı bulunamadı (" + n + ")"); writeFileSync(y, s); }
+// ort-wasm-simd-threaded.mjs: ORT'nin küçük yükleyicisi; çok çekirdekte yardımcı iş parçacıkları bundan açılır (aynı adreste olmalı)
+copyFileSync(new URL("./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs", import.meta.url), new URL("../vendor/ort-wasm-simd-threaded.mjs", import.meta.url));
 console.log("paddle.js hazır — onnxruntime-web", ortVer);

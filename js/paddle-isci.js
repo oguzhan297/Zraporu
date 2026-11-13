@@ -1,8 +1,8 @@
-// PaddleOCR işçisinin ortak gövdesi (js/paddle-worker.js = WASM, js/paddle-worker-gpu.js = WebGPU okuyucusu bunu yükler).
+// PaddleOCR işçisinin gövdesi (js/paddle-worker.js bunu yükler).
 // Sayfa (index.html) modelleri indirip (önbellekten) buraya aktarır, fotoğrafı yönü düzeltilmiş ImageBitmap olarak gönderir,
 // her okuma geçişinde yalnız ayarları yollar; buradan sadece bulunan metin kutuları (poly, text, score) döner.
 // goruntu.js ?v= değerini arac/surum.mjs günceller.
-import './goruntu.js?v=88';
+import './goruntu.js?v=89';
 
 const L = globalThis.PaddleOCRLib, G = globalThis.ZGoruntu;
 let ocr = null, cv = null;
@@ -13,27 +13,21 @@ onmessage = async e => {
   try {
     if (m.t === 'init') {
       L.ort.env.wasm.wasmBinary = m.wasm;           // çalışma zamanı sayfanın önbelleğinden
-      L.ort.env.wasm.wasmPaths = m.wasmDir;
-      // ekran kartı istendiyse önce işçide WebGPU var mı bak (yoksa PaddleOCR sessizce işlemciye düşer; bunu açıkça bildir)
-      let gpuBilgi = null;
-      if (m.backend === 'webgpu') {
-        if (!navigator.gpu || !navigator.gpu.requestAdapter) throw new Error('işçide WebGPU yok');
-        const a = await navigator.gpu.requestAdapter(); if (!a) throw new Error('işçide WebGPU bağdaştırıcısı yok');
-        const i = a.info || {}; gpuBilgi = { satici: i.vendor || '', mimari: i.architecture || '', aciklama: i.description || '' };
-      }
-      // ekran kartında ilk çalıştırma gölgelendiricileri derler (iPhone'da 1 dakikayı geçebilir): sınırı uzat
-      globalThis.__pdlSure = m.backend === 'webgpu' ? 240000 : 60000;
-      const t0 = Date.now();
+      // yükleyici (mjs) aynı adresten: çok çekirdekte yardımcı iş parçacıkları buradan açılır
+      const yollar = m.mjs ? { mjs: m.mjs, wasm: m.wasmDir + 'ort-wasm-simd-threaded.wasm' } : m.wasmDir;
+      L.ort.env.wasm.wasmPaths = yollar;
+      const thr = self.crossOriginIsolated && m.thr > 1 ? m.thr : 1;
+      // yükleyiciyi önceden içe aktar: işçide ORT'nin kendi içe aktarması takılıp "Detection model timed out" ile bitiyordu
+      if (m.mjs) await import(m.mjs);
       const u = b => URL.createObjectURL(new Blob([b])), dU = u(m.det), rU = u(m.rec);
       try {
         ocr = await L.PaddleOCR.create({ textDetectionModelName: m.detName, textDetectionModelAsset: { url: dU },
           textRecognitionModelName: m.recName, textRecognitionModelAsset: { url: rU },
-          ortOptions: { backend: m.backend || 'wasm', wasmPaths: m.wasmDir, numThreads: 1 } });
+          ortOptions: { backend: 'wasm', wasmPaths: yollar, numThreads: thr } });
       } finally { URL.revokeObjectURL(dU); URL.revokeObjectURL(rU); }
       cv = L.cv instanceof Promise ? await L.cv : L.cv;
       if (!cv || !cv.matFromImageData) throw new Error('OpenCV işçide hazır değil');
-      if (m.backend === 'webgpu') globalThis.__pdlSure = 120000;
-      cevap({ ok: true, gpuBilgi, hazirSn: Math.round((Date.now() - t0) / 1000) });
+      cevap({ ok: true, thr: L.ort.env.wasm.numThreads || thr });
     } else if (m.t === 'img') {
       foto.set(m.id, { C: G.kaynak(m.bmp) });
       cevap({ ok: true });
