@@ -1,9 +1,9 @@
 // Uygulamayı internetsiz de açılabilir yapar. Sürüm değişince eski önbellek silinir.
-const V='zrapor-v89';
+const V='zrapor-v90';
 // PaddleOCR (paddle.js, ONNX Runtime, modeller) büyük dosyalar: ayrı önbellekte durur, uygulama sürümü değişince silinmez
 const OCR='zrapor-ocr-1';
 const isOcr=u=>u.hostname==='paddle-model-ecology.bj.bcebos.com'||(u.hostname==='cdn.jsdelivr.net'&&u.pathname.startsWith('/npm/onnxruntime-web@'))||(u.origin===self.location.origin&&/\/paddle\.js$/.test(u.pathname));
-const SHELL=['./','./index.html','./css/uygulama.css?v=89','./js/parser.js?v=89','./js/goruntu.js?v=89','./js/paddle-worker.js?v=89','./js/paddle-isci.js?v=89','./vendor/ort-wasm-simd-threaded.mjs?o=1.31.1','./js/temel.js?v=89','./js/kutu.js?v=89','./js/depo.js?v=89','./js/ayarlar.js?v=89','./js/kontrol.js?v=89','./js/kalite.js?v=89','./js/arayuz.js?v=89','./js/okuyucu-claude.js?v=89','./js/okuyucu-tesseract.js?v=89','./js/okuyucu-paddle.js?v=89','./js/okuma.js?v=89','./js/disari.js?v=89','./js/baslat.js?v=89','./ikon.svg?v=89','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
+const SHELL=['./','./index.html','./css/uygulama.css?v=90','./js/parser.js?v=90','./js/goruntu.js?v=90','./js/paddle-worker.js?v=90','./js/paddle-isci.js?v=90','./vendor/ort-wasm-simd-threaded.mjs?o=1.31.1','./js/temel.js?v=90','./js/kutu.js?v=90','./js/depo.js?v=90','./js/ayarlar.js?v=90','./js/kontrol.js?v=90','./js/kalite.js?v=90','./js/arayuz.js?v=90','./js/okuyucu-claude.js?v=90','./js/okuyucu-tesseract.js?v=90','./js/okuyucu-paddle.js?v=90','./js/okuma.js?v=90','./js/disari.js?v=90','./js/baslat.js?v=90','./ikon.svg?v=90','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 // cache:'reload' → tarayıcının kendi önbelleğindeki eski kopyayı değil, sunucudaki güncel dosyayı al
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>Promise.all(SHELL.map(u=>c.add(new Request(u,u.startsWith('http')?{mode:'cors'}:{cache:'reload'})).catch(()=>{})))).then(()=>self.skipWaiting()))});

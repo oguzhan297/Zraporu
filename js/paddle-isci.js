@@ -2,7 +2,7 @@
 // Sayfa (index.html) modelleri indirip (önbellekten) buraya aktarır, fotoğrafı yönü düzeltilmiş ImageBitmap olarak gönderir,
 // her okuma geçişinde yalnız ayarları yollar; buradan sadece bulunan metin kutuları (poly, text, score) döner.
 // goruntu.js ?v= değerini arac/surum.mjs günceller.
-import './goruntu.js?v=89';
+import './goruntu.js?v=90';
 
 const L = globalThis.PaddleOCRLib, G = globalThis.ZGoruntu;
 let ocr = null, cv = null;

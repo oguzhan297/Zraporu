@@ -173,7 +173,7 @@ async function extractPaddle(r,ikinci){
     const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
     applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
     r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;resimBirak(r);delete r.prog;
-    kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});hizKaydet(motor.thr>1?'cok':'cpu',(Date.now()-t0)/1000/all.length);if(motor.thr>1)cekirdekDegerlendir(motor.thr);hizUI();r._sure=(Date.now()-t0)/all.length;
+    kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});hizKaydet(motor.thr>1?'cok':'cpu',(Date.now()-t0)/1000/all.length);cekirdekDegerlendir(motor.thr||1,motor.tur);hizUI();r._sure=(Date.now()-t0)/all.length;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     clearInterval(sayac);
@@ -230,9 +230,11 @@ window.addEventListener('online',()=>setTimeout(okOtomatik,600));
 // Okuma hızı istatistiği (bir okuma geçişi, sn): tek çekirdek (cpu) ile çok çekirdek (cok) karşılaştırması için
 function hizKaydet(k,sn){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}');delete h.gpu;h[k]=(h[k]||[]).concat(Math.round(sn*10)/10).slice(-20);localStorage.setItem('zr_hiz',JSON.stringify(h))}catch(e){}}
 // 3 fiş çok çekirdekle okununca sonucu bir kez test arşivine bildir (hız kazancı gerçekten var mı)
-function cekirdekDegerlendir(thr){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}'),c=h.cok||[];if(c.length<3||localStorage.getItem('zr_thrdeg')==='1')return;
-  localStorage.setItem('zr_thrdeg','1');const ort=a=>a&&a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;
-  cekirdekTeshis({asama:'sonuc',thr,cokSn:ort(c.slice(-3)),tekSn:ort(h.cpu)})}catch(e){}}
+function cekirdekDegerlendir(thr,tur){try{const h=JSON.parse(localStorage.getItem('zr_hiz')||'{}'),c=thr>1?h.cok||[]:h.cpu||[];
+  let n=+localStorage.getItem('zr_thrsay')||0;n++;localStorage.setItem('zr_thrsay',n);if(n<3||localStorage.getItem('zr_thrdeg')===String(APP_VER))return;
+  localStorage.setItem('zr_thrdeg',String(APP_VER));const ort=a=>a&&a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;
+  let sw=null;try{sw=!!(navigator.serviceWorker&&navigator.serviceWorker.controller)}catch(e){}
+  cekirdekTeshis({asama:'sonuc',thr,motor:tur,swDenetliyor:sw,tekCekirdekeDonuldu:localStorage.getItem('zr_thr')==='1',cokSn:ort((h.cok||[]).slice(-3)),tekSn:ort(h.cpu)})}catch(e){}}
 // Ayarlar'da okuma hızı: kaç çekirdek kullanılıyor, bir okuma geçişi ortalama kaç saniye
 function hizUI(){const el=$('#hizdurum');if(!el)return;if(S.mode!=='paddle'){el.hidden=true;return}
   let h={};try{h=JSON.parse(localStorage.getItem('zr_hiz')||'{}')}catch(e){}

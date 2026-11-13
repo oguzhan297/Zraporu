@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=89;
+const APP_VER=90;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  90:['Okuma hızı ve kaç çekirdek kullanıldığı test arşivine bir kez bildirilir (iyileştirme için).'],
   89:['Hızlı okuyucu (ekran kartı) kaldırıldı. Okuma artık telefonun birden çok çekirdeğini kullanır (daha hızlı); Ayarlar’da kaç çekirdekle ve ortalama kaç saniyede okuduğu yazar.'],
   88:['Hızlı okuyucu: ayar kapanınca gerçekten kapalı kalır. Ekran kartının ilk açılışına daha uzun süre tanınır; 3 fişten sonra işlemciden yavaşsa kendiliğinden kapanır.'],
   87:['Fişin altındaki “PARAMETRE YÜKLEME / Versiyon” satırındaki başka tarih yüzünden tarih gereksiz yere turuncu çıkıyordu; düzeltildi'],
