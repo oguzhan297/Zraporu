@@ -1,0 +1,3 @@
+PP-OCRv6 small algılama/tanıma modelleri (PaddleOCR, Apache-2.0).
+Kaynak: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/
+Baidu sunucusu Türkiye'den çok yavaş olduğu için buradan (GitHub Pages) verilir; dosyalar değiştirilmedi.

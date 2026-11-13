@@ -1,9 +1,9 @@
 // Uygulamayı internetsiz de açılabilir yapar. Sürüm değişince eski önbellek silinir.
-const V='zrapor-v95';
+const V='zrapor-v96';
 // PaddleOCR (paddle.js, ONNX Runtime, modeller) büyük dosyalar: ayrı önbellekte durur, uygulama sürümü değişince silinmez
 const OCR='zrapor-ocr-1';
-const isOcr=u=>u.hostname==='paddle-model-ecology.bj.bcebos.com'||(u.hostname==='cdn.jsdelivr.net'&&u.pathname.startsWith('/npm/onnxruntime-web@'))||(u.origin===self.location.origin&&/\/paddle\.js$/.test(u.pathname));
-const SHELL=['./','./index.html','./css/uygulama.css?v=95','./js/parser.js?v=95','./js/goruntu.js?v=95','./js/paddle-worker.js?v=95','./js/paddle-isci.js?v=95','./vendor/ort-wasm-simd-threaded.mjs?o=1.31.1','./js/uzak.js?v=95','./vendor/peerjs.min.js?p=1','./js/temel.js?v=95','./js/kutu.js?v=95','./js/depo.js?v=95','./js/ayarlar.js?v=95','./js/kontrol.js?v=95','./js/kalite.js?v=95','./js/arayuz.js?v=95','./js/okuyucu-claude.js?v=95','./js/okuyucu-tesseract.js?v=95','./js/okuyucu-paddle.js?v=95','./js/okuma.js?v=95','./js/disari.js?v=95','./js/baslat.js?v=95','./ikon.svg?v=95','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
+const isOcr=u=>u.hostname==='paddle-model-ecology.bj.bcebos.com'||(u.hostname==='cdn.jsdelivr.net'&&u.pathname.startsWith('/npm/onnxruntime-web@'))||(u.origin===self.location.origin&&(/\/paddle\.js$/.test(u.pathname)||/\/model\/[^/]+\.tar$/.test(u.pathname)));
+const SHELL=['./','./index.html','./css/uygulama.css?v=96','./js/parser.js?v=96','./js/goruntu.js?v=96','./js/paddle-worker.js?v=96','./js/paddle-isci.js?v=96','./vendor/ort-wasm-simd-threaded.mjs?o=1.31.1','./js/uzak.js?v=96','./vendor/peerjs.min.js?p=1','./js/temel.js?v=96','./js/kutu.js?v=96','./js/depo.js?v=96','./js/ayarlar.js?v=96','./js/kontrol.js?v=96','./js/kalite.js?v=96','./js/arayuz.js?v=96','./js/okuyucu-claude.js?v=96','./js/okuyucu-tesseract.js?v=96','./js/okuyucu-paddle.js?v=96','./js/okuma.js?v=96','./js/disari.js?v=96','./js/baslat.js?v=96','./ikon.svg?v=96','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 // cache:'reload' → tarayıcının kendi önbelleğindeki eski kopyayı değil, sunucudaki güncel dosyayı al
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>Promise.all(SHELL.map(u=>c.add(new Request(u,u.startsWith('http')?{mode:'cors'}:{cache:'reload'})).catch(()=>{})))).then(()=>self.skipWaiting()))});

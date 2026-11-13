@@ -4,7 +4,9 @@
 // bir kez indirilir ve önbellekte (zrapor-ocr-*) saklanır; uygulama sürümü değişince silinmez.
 // vendor/paddle.js değişince: ?p= burada ve js/paddle-worker.js'de; ort = paddle/package.json'daki onnxruntime-web sürümü
 const PADDLE={js:'vendor/paddle.js?p=2',ort:'1.31.1',det:'PP-OCRv6_small_det',rec:'PP-OCRv6_small_rec',
-  base:'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/',mb:{det:9.9,rec:21.3,wasm:14.8}};
+  // modeller kendi sitemizden (GitHub Pages): Baidu sunucusu Türkiye'den ~200 KB/sn veriyordu (31 MB ≈ 3 dk, sık yarıda kalıyordu).
+  // Eski adresle önbelleğe alınmış modeller yeniden indirilmez (eski).
+  base:new URL('model/',location.href).href,eski:'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/',mb:{det:9.9,rec:21.3,wasm:14.8}};
 // Çok çekirdek: sayfa "cross-origin isolated" ise (sw.js başlıkları ekler) ONNX Runtime okumayı birden çok çekirdeğe böler.
 // Yardımcı iş parçacıkları ORT'nin küçük yükleyicisinden (vendor/ort-wasm-simd-threaded.mjs, ORT sürümüyle aynı) açılır: aynı adreste olmalı.
 // Bir kez sorun çıkarsa bu telefonda tek çekirdeğe dönülür (zr_thr='1') ve nedeni test arşivine bildirilir.
@@ -28,9 +30,10 @@ const OCR_CACHE='zrapor-ocr-1';
 // Büyük dosya indirme: yarıda kalırsa (ekran kapandı, uygulama arka plana geçti, bağlantı koptu) kaldığı yerden sürer.
 // iPhone arka planda indirmeye izin vermez; uygulama yeniden öne gelince Range ile kalan kısım istenir (sunucu desteklemezse baştan).
 const gorunurBekle=()=>document.visibilityState!=='hidden'?Promise.resolve():new Promise(r=>{const f=()=>{if(document.visibilityState!=='hidden'){document.removeEventListener('visibilitychange',f);r()}};document.addEventListener('visibilitychange',f)});
+const eskiAdres=u=>u.startsWith(PADDLE.base)?PADDLE.eski+u.slice(PADDLE.base.length):null;
 async function fetchBig(url,onBytes){
   let cache=null;
-  try{cache=await caches.open(OCR_CACHE);const m=await cache.match(url);if(m){const b=await m.arrayBuffer();onBytes(b.byteLength,b.byteLength);return b}}catch(e){}
+  try{cache=await caches.open(OCR_CACHE);const e=eskiAdres(url);const m=await cache.match(url)||(e&&await cache.match(e));if(m){const b=await m.arrayBuffer();onBytes(b.byteLength,b.byteLength);return b}}catch(e){}
   const parts=[];let n=0,total=0,hata=null;
   for(let deneme=0;deneme<12;deneme++){
     await gorunurBekle();
@@ -213,7 +216,7 @@ async function extractPaddle(r,ikinci){
 let onIndir=null,okYarim=false;
 const okDosyalar=()=>{const w=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${PADDLE.ort}/dist/`;
   return [{u:new URL(PADDLE.js,location.href).href,mb:10.6,js:true},{u:PADDLE.base+PADDLE.det+'_onnx_infer.tar',mb:PADDLE.mb.det},{u:PADDLE.base+PADDLE.rec+'_onnx_infer.tar',mb:PADDLE.mb.rec},{u:w+'ort-wasm-simd-threaded.wasm',mb:PADDLE.mb.wasm}]};
-async function okuyucuHazirMi(){try{const c=await caches.open(OCR_CACHE);for(const f of okDosyalar())if(!await c.match(f.u,{ignoreVary:true}))return false;return true}catch(e){return null}}
+async function okuyucuHazirMi(){try{const c=await caches.open(OCR_CACHE);for(const f of okDosyalar()){const e=eskiAdres(f.u);if(!await c.match(f.u,{ignoreVary:true})&&!(e&&await c.match(e,{ignoreVary:true})))return false}return true}catch(e){return null}}
 function okuyucuIndir(oto=false){if(onIndir)return onIndir;
   const fs=okDosyalar(),got=fs.map(()=>0),tot=fs.map(f=>f.mb*1e6);let son=-1;
   const yaz=m=>{$('#okdurum').textContent=m;if(!$('#okoneri').hidden)$('#okoneriyazi').textContent=m};
@@ -221,7 +224,7 @@ function okuyucuIndir(oto=false){if(onIndir)return onIndir;
   $('#okindir').hidden=true;$('#okoneridugme').hidden=true;tik();
   ekranAcikTut(true);try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}   // telefon yer açarken silmesin
   onIndir=(async()=>{const c=await caches.open(OCR_CACHE);
-    await Promise.all(fs.map(async(f,i)=>{if(await c.match(f.u,{ignoreVary:true})){got[i]=tot[i];tik();return}
+    await Promise.all(fs.map(async(f,i)=>{const e=eskiAdres(f.u);if(await c.match(f.u,{ignoreVary:true})||(e&&await c.match(e,{ignoreVary:true}))){got[i]=tot[i];tik();return}
       if(f.js){let r=null;for(let k=0;k<6&&!r;k++){await gorunurBekle();try{r=await fetch(f.u,{cache:'reload'})}catch(e){await new Promise(z=>setTimeout(z,1500))}}
         if(!r||!r.ok)throw new Error('indirilemedi '+(r?r.status:''));await c.put(f.u,r.clone());const b=await r.arrayBuffer();got[i]=tot[i]=b.byteLength||tot[i];tik();return}   // başlıklarıyla sakla (işçi modül olarak yükler)
       await fetchBig(f.u,(n,t)=>{if(t)tot[i]=t;got[i]=n;tik()})}))})();
