@@ -1,6 +1,6 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=87;
+const APP_VER=88;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
   88:['Hızlı okuyucu: ayar kapanınca gerçekten kapalı kalır. Ekran kartının ilk açılışına daha uzun süre tanınır; 3 fişten sonra işlemciden yavaşsa kendiliğinden kapanır.'],
