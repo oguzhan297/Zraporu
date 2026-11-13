@@ -7,7 +7,7 @@ const IDB=(()=>{let p;
   return {put:(st,v,k)=>w(st,s=>k===undefined?s.put(v):s.put(v,k)),del:(st,k)=>w(st,s=>s.delete(k)),
     all:st=>open().then(d=>req(d.transaction(st).objectStore(st).getAll())),get:(st,k)=>open().then(d=>req(d.transaction(st).objectStore(st).get(k)))};
 })();
-const ser=r=>({ocr:r.ocr??null,d:r.d||{},unsure:r.unsure||[],auto:r.auto||[],src:r.src||'',_ack:r._ack||'',hasImg:!!r.hasImg,created:r.created||Date.now(),_zAuto:!!r._zAuto,_zManual:!!r._zManual,_zRead:r._zRead||'',q:r.q||null,akt:r.akt||null,oku:r.oku||null,hasOrig:!!r.hasOrig,sayfa:r.sayfa||1,bildirildi:r.bildirildi||null,hesap:r.hesap||null,kontrol:r.kontrol||null,mini:r.mini||null});
+const ser=r=>({ocr:r.ocr??null,d:r.d||{},unsure:r.unsure||[],auto:r.auto||[],src:r.src||'',_ack:r._ack||'',hasImg:!!r.hasImg,created:r.created||Date.now(),_zAuto:!!r._zAuto,_zManual:!!r._zManual,_zRead:r._zRead||'',q:r.q||null,akt:r.akt||null,oku:r.oku||null,hasOrig:!!r.hasOrig,sayfa:r.sayfa||1,bildirildi:r.bildirildi||null,hesap:r.hesap||null,kontrol:r.kontrol||null,mini:r.mini||null,otoKontrol:r.otoKontrol||0,otoOnay:r.otoOnay||0});
 function setStore(st){const el=$('#sync');if(!el)return;el.innerHTML=(st==='ok'?ik('telefon'):'')+({ok:'Bu telefonda kayıtlı',err:'⚠ Kaydedilemedi — CSV’yi indirmeden kapatma',wait:'Yükleniyor…'}[st]||'');el.className='sync s-'+st}
 function save(r){if(!r||r.status!=='done')return;IDB.put('rows',{id:r.id,...ser(r)}).then(()=>setStore('ok')).catch(()=>{setStore('err');toast('Kaydedilemedi: telefon hafızası dolu olabilir.')})}
 async function removeRows(list){
@@ -24,7 +24,8 @@ async function saveImg(r,src){if(!src)return;try{await IDB.put('imgs',src,r.id);
 async function kuyrukSakla(list){for(const r of list){try{const pages=r.pages||[r.file];await IDB.put('orig',pages,r.id);r.hasOrig=true;
   if(r.status!=='done')await IDB.put('rows',{id:r.id,...ser(r),bekliyor:1})}catch(e){}}}
 // Okuma bitince büyük fotoğrafı bellekten bırak (kart açılınca kayıtlı kopyası yüklenir)
-function resimBirak(r){if(r.thumb&&String(r.thumb).startsWith('blob:')){const u=r.thumb;setTimeout(()=>URL.revokeObjectURL(u),2000)}if(!r.open||r.hasImg||r._small)r.thumb=r.open?r.thumb:null}
+// (blob adresi iptal edildikten sonra açık kartta kalırsa fotoğraf kırık görünüyordu: yerine kayıtlı küçük kopya konur)
+function resimBirak(r){if(r.thumb&&String(r.thumb).startsWith('blob:')){const u=r.thumb;setTimeout(()=>URL.revokeObjectURL(u),2000)}r.thumb=r.open&&r._small?r._small:null}
 async function loadImg(r){
   if(r.thumb||!r.hasImg||r._imgLoading)return;r._imgLoading=true;
   try{const src=await IDB.get('imgs',r.id);if(src){r.thumb=src;

@@ -22,7 +22,7 @@ function bildirKutuHTML(r){return `<div class="bildirkutu" id="bk-${r.id}" hidde
 async function bildirFoto(b,u){if(!b||b.size<1.5e6)return u;try{const bm=await createImageBitmap(b,{imageOrientation:'from-image'});
   const c=document.createElement('canvas');c.width=bm.width;c.height=bm.height;c.getContext('2d').drawImage(bm,0,0);bm.close&&bm.close();
   const y=c.toDataURL('image/jpeg',.88);c.width=c.height=1;return y.length<u.length?y:u}catch(e){return u}}
-async function hataBildir(r,not='',dugme){
+async function hataBildir(r,not='',dugme,sessiz=false){
   const k=duzeltilen(r);let foto=null,asil=[];try{foto=r.thumb&&r.thumb.startsWith('data:')?r.thumb:await IDB.get('imgs',r.id)}catch(e){}
   // fotoğrafın aslı saklıysa onu da ekle (test arşivi için en değerlisi)
   try{const o=r.hasOrig?await IDB.get('orig',r.id):null;for(const b of o||[])asil.push(await new Promise((a,h)=>{const f=new FileReader();f.onload=()=>a(f.result);f.onerror=h;f.readAsDataURL(b)}).then(u=>bildirFoto(b,u)))}catch(e){}
@@ -35,12 +35,13 @@ async function hataBildir(r,not='',dugme){
     const klasor=`${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}_${ad}_${Math.random().toString(36).slice(2,6)}`;
     const fotolar=(asil.length?asil:foto&&foto.startsWith('data:')?[foto]:[]).map((u,i)=>({ad:`foto-${i+1}${asil.length?'':'-kucuk'}.jpg`,b64:u.slice(u.indexOf(',')+1)}));
     const govde={...paket,foto_asil:undefined,foto_kucuk:undefined,fotolar:fotolar.map(f=>f.ad)};
-    const eski=dugme&&dugme.innerHTML;if(dugme){dugme.disabled=true;dugme.textContent='Gönderiliyor…'}toast('Gönderiliyor… uygulamayı kullanmaya devam edebilirsin');
+    const eski=dugme&&dugme.innerHTML;if(dugme){dugme.disabled=true;dugme.textContent='Gönderiliyor…'}if(!sessiz)toast('Gönderiliyor… uygulamayı kullanmaya devam edebilirsin');
     try{await ghGonder(klasor,[{ad:'bildirim.json',b64:b64Metin(JSON.stringify(govde,null,1))},...fotolar]);
-      r.bildirildi=Date.now();save(r);toast('✓ Bildirim gönderildi, teşekkürler');return true}
-    catch(e){toast('Gönderilemedi ('+(e.message==='Failed to fetch'?'bağlantı yok':e.message)+'); dosya olarak paylaşılıyor')}
+      if(!sessiz){r.bildirildi=Date.now();save(r);toast('✓ Bildirim gönderildi, teşekkürler')}return true}
+    catch(e){if(sessiz)throw e;toast('Gönderilemedi ('+(e.message==='Failed to fetch'?'bağlantı yok':e.message)+'); dosya olarak paylaşılıyor')}
     finally{if(dugme){dugme.disabled=false;dugme.innerHTML=eski}}
   }
+  if(sessiz)return false;
   const ok=await offer(`okuma-hatasi_${ad}.json`,JSON.stringify(paket,null,1));
   if(ok){r.bildirildi=Date.now();save(r);toast(asil.length?'Dosyada fişin fotoğrafı da var; sohbete göndermen yeterli':'Dosyayı fişin asıl fotoğrafıyla birlikte gönder')}
   return ok;
@@ -116,7 +117,7 @@ document.addEventListener('click',e=>{
   if(t.dataset.aktsil){const r=rows.find(x=>x.id===t.dataset.aktsil);r.akt=null;save(r);render();toast('Bir sonraki Luca dosyasına yeniden girecek');return}
   if(t.dataset.eksik){const r=rows.find(x=>x.id===t.dataset.eksik);if(r)eksikZEkle(r);return}
   // Kontrol edildi: kullanıcı fişle karşılaştırıp (gerekirse elle düzeltip) onayladı → turuncular ve uyarılar kapanır, kart kapanır
-  if(t.dataset.kontrol){const r=rows.find(x=>x.id===t.dataset.kontrol);if(!r)return;r.kontrol=Date.now();r.unsure=[];if(r.hesap)r.hesap.onay=true;r.open=false;save(r);render();toast('Kontrol edildi olarak işaretlendi');return}
+  if(t.dataset.kontrol){const r=rows.find(x=>x.id===t.dataset.kontrol);if(!r)return;if(duzeltilen(r).length)otoBildir(r,'onay');r.kontrol=Date.now();r.unsure=[];if(r.hesap)r.hesap.onay=true;r.open=false;save(r);render();toast('Kontrol edildi olarak işaretlendi');return}
   if(t.dataset.kontrolgeri){const r=rows.find(x=>x.id===t.dataset.kontrolgeri);if(!r)return;r.kontrol=null;save(r);render();toast('Kontrol işareti kaldırıldı');return}
   if(t.dataset.hesaponay){const r=rows.find(x=>x.id===t.dataset.hesaponay);if(r&&r.hesap){r.hesap.onay=true;r.unsure=(r.unsure||[]).filter(k=>k!=='tarih');save(r);render();toast('Doğrulandı; Luca’ya aktarılabilir')}return}
   if(t.dataset.bildirac){const k=$('#bk-'+t.dataset.bildirac);if(k){k.hidden=!k.hidden;if(!k.hidden)$('#bn-'+t.dataset.bildirac).focus()}return}
@@ -126,7 +127,7 @@ document.addEventListener('click',e=>{
   if(t.dataset.copyocr){const ta=document.querySelector(`[data-ocr="${t.dataset.copyocr}"]`);const txt=ta?ta.value:'';
     (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Okunan metin kopyalandı')).catch(()=>{try{ta.focus();ta.select();ta.setSelectionRange(0,txt.length);const ok=document.execCommand('copy');toast(ok?'Okunan metin kopyalandı':'Kopyalanamadı — metne uzun basıp “Tümünü Seç”')}catch(x){toast('Kopyalanamadı')}});return}
   if(t.dataset.reparse){const r=rows.find(x=>x.id===t.dataset.reparse);const ta=document.querySelector(`[data-ocr="${r.id}"]`);r._zAuto=false;applyParse(r,ta.value);r.open=true;save(r);autoZ();render();toast('Metin yeniden okundu');return}
-  if(t.dataset.zoom!==undefined){t.classList.toggle('zoom');return}
+  if(t.dataset.zoom!==undefined){fotoGoster(t.getAttribute('src'));return}
   if(t.dataset.tog){const r=rows.find(x=>x.id===t.dataset.tog);r.open=!r.open;kutu(r.open?'kartAc':'kartKapat');if(r.open)loadImg(r);else if(r.hasImg&&r.status==='done'&&!String(r.thumb||'').startsWith('blob:'))r.thumb=null;   /* kapanan kartın büyük fotoğrafı bellekte kalmasın */render();if(r.open)document.getElementById('c_'+r.id)?.scrollIntoView({behavior:'smooth',block:'start'});return}
   if(t.dataset.del){
     if(t.dataset.armed!=='1'){t.dataset.armed='1';t.textContent='Emin misin?';setTimeout(()=>{if(t.isConnected){t.dataset.armed='';t.textContent='Sil'}},3000);return}
@@ -180,3 +181,9 @@ $('#ara').addEventListener('input',e=>{FLT.q=e.target.value.trim();render()});
   if(window.visualViewport)visualViewport.addEventListener('resize',()=>setTimeout(kbDenetle,60));
   document.addEventListener('touchstart',()=>setTimeout(kbDenetle,300),{passive:true});
 })();
+
+// Fotoğrafı büyüt: tam ekran tek görüntü (liste içinde büyütmek uzun sayfayı yeniden dizdiriyordu). Dokun: sığdır ↔ yakınlaştır; ✕ ya da geri: kapat
+function fotoGoster(src){if(!src)return;kutu('buyut');const o=$('#gor');o.classList.remove('yakin');$('#gorimg').src=src;o.hidden=false;document.body.classList.add('gor-acik')}
+function fotoKapat(){const o=$('#gor');o.hidden=true;$('#gorimg').removeAttribute('src');document.body.classList.remove('gor-acik')}
+$('#gor').addEventListener('click',e=>{if(e.target.closest('#gorkapat')){fotoKapat();return}const o=$('#gor');const y=!o.classList.contains('yakin');o.classList.toggle('yakin',y);
+  if(y){const im=$('#gorimg'),r=im.getBoundingClientRect(),fx=(e.clientX-r.left)/r.width,fy=(e.clientY-r.top)/r.height;requestAnimationFrame(()=>{o.scrollLeft=fx*o.scrollWidth-innerWidth/2;o.scrollTop=fy*o.scrollHeight-innerHeight/2})}});
