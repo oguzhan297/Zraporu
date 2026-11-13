@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=80;
+const APP_VER=81;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  81:['Kamera izni bir açılışta bir kez sorulur: kamerayı kapatıp 3 dakika içinde yeniden açınca tekrar sormaz (iPhone ana ekran uygulamalarında izni kalıcı yapmaya izin vermiyor)'],
   80:['Kara kutu: uygulama okurken kendiliğinden kapanırsa, yeniden açılışta nedenini bulmamız için kısa bir kayıt (adımlar, fotoğraf boyutları; fiş tutarları değil) gizli gelen kutusuna gider'],
   79:['Okurken kaydırınca uygulamanın kapanması: listede artık küçük resimler gösteriliyor, okunan fotoğraflar bellekten bırakılıyor, büyük fotoğraflar okumadan önce küçültülüyor','Uygulama okurken kapanırsa çektiğin fotoğraflar kaybolmaz; yeniden açınca okuma kaldığı yerden sürer','Kartta Sil ve Hata bildir düğme olarak'],
   78:['Uygulama içi kamera yalnız çerçevenin içini çeker (yandaki / alttaki fiş okunmaz)','Fotoğrafta başka bir Z raporunun parçası da varsa yalnız asıl rapor okunur','Kartta “Kontrol edildi” düğmesi: fişle karşılaştırıp onayladığın rapor “Tamam” sayılır','Tarihi kısa yaz: 2910 → 29.10.2026; tarih ve Z No’da sayı klavyesi','Hata bildirimi daha hızlı gider','Alt çubuk (Luca CSV) artık kaybolmaz','KUPON ile ödenen tutar nakde eklenir'],

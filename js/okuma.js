@@ -138,7 +138,11 @@ const yerelKamera=()=>{const i=$('#cam');i.value='';i.click()};
 async function kameraAc(mod='seri'){kutu('kamera',{mod});
   KAM.mod=mod;
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||(KAM.yerel&&mod==='tek')){if(mod==='tek')return yerelKamera();toast('Bu tarayıcıda uygulama içi kamera yok; Fotoğraf çek’i kullan');return}
-  try{KAM.akis=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:3840},height:{ideal:2160}}})}
+  // iPhone ana ekran uygulaması kamera iznini hatırlamıyor: her getUserMedia yeniden izin sorar. Kapatılan kamerayı 3 dakika
+  // beklemede tutup (görüntü durdurulmuş) yeniden açılışta onu kullan → seri çekimde / tek tek çekimde izin tekrar sorulmaz.
+  try{const y=KAM.yedek;KAM.yedek=null;clearTimeout(KAM.yedekT);
+    KAM.akis=y&&y.getVideoTracks().some(t=>t.readyState==='live')?y:await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:3840},height:{ideal:2160}}});
+    KAM.akis.getTracks().forEach(t=>t.enabled=true)}
   catch(e){KAM.yerel=true;toast(e&&e.name==='NotAllowedError'?'Kamera izni verilmedi. Telefonun kamerası için tekrar dokun (izin: Ayarlar › Safari › Kamera)':'Kamera açılamadı. Telefonun kamerası için tekrar dokun');return}
   const tek=mod==='tek';$('#ksay').hidden=tek;$('#kbitti').textContent=tek?'Vazgeç':'Bitti';
   $('#kipucu').textContent=tek?'Fişi çerçeveye sığdır, net görününce çek · en yüksek kalite için: Telefon kamerası':'Fişi çerçeveye sığdır · uzunsa üst kısmı çek, sonra kartından devamını ekle';
@@ -150,7 +154,9 @@ async function kameraAc(mod='seri'){kutu('kamera',{mod});
   // sürekli netleme destekleniyorsa aç
   try{if(cap.focusMode&&cap.focusMode.includes('continuous'))await tr.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
 }
-function kameraKapat(){if(KAM.akis)KAM.akis.getTracks().forEach(t=>t.stop());KAM.akis=null;$('#kvid').srcObject=null;$('#kamera').hidden=true;document.body.classList.remove('kamera-acik');
+function kameraBirak(){clearTimeout(KAM.yedekT);if(KAM.yedek)KAM.yedek.getTracks().forEach(t=>t.stop());KAM.yedek=null}
+function kameraKapat(){if(KAM.akis){const a=KAM.akis;const tr=a.getVideoTracks()[0];if(KAM.isik&&tr){try{tr.applyConstraints({advanced:[{torch:false}]})}catch(e){}KAM.isik=false}
+    a.getTracks().forEach(t=>t.enabled=false);kameraBirak();KAM.yedek=a;KAM.yedekT=setTimeout(kameraBirak,180000)}KAM.akis=null;$('#kvid').srcObject=null;$('#kamera').hidden=true;document.body.classList.remove('kamera-acik');
   if(KAM.sayi)toast(KAM.mod==='tek'?'Fotoğraf eklendi, okunuyor':`${KAM.sayi} fiş eklendi; okumalar sırayla sürüyor`)}
 function kMesaj(m,tur){const el=$('#kmesaj');el.textContent=m;el.className='k-mesaj'+(tur?' '+tur:'');clearTimeout(el._t);if(m)el._t=setTimeout(()=>{el.textContent='';el.className='k-mesaj'},2600)}
 // Kare: yalnız ekrandaki çerçevenin içi alınır (yandaki / alttaki fiş, masa okunmasın), kenarlarda %6 pay kalır.
@@ -196,4 +202,4 @@ $('#kdek').onclick=async()=>{
   }finally{d.disabled=false}
 };
 // Kamera açıkken ekran kilitlenir / uygulama arka plana geçerse görüntü akışı durur (iPhone'da siyah ekran kalıyordu): kamerayı kapat
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&KAM.akis)kameraKapat()});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='hidden')return;if(KAM.akis)kameraKapat();kameraBirak()});   // arka planda kamera tutulmaz
