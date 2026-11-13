@@ -6,7 +6,7 @@ async function shrink(file){
   const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('Görüntü açılamadı'));im.src=url});
   const max=1568,sc=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));kutu('hazirla',{w:img.naturalWidth,h:img.naturalHeight,mb:+(file.size/1e6).toFixed(1)});
   const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*sc);c.height=Math.round(img.naturalHeight*sc);
-  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);img.removeAttribute('src');URL.revokeObjectURL(url);   // 12 MP çözülmüş görüntüyü hemen bırak (iPhone bellek sınırı)
   const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.86));
   const s2=Math.min(1,1100/Math.max(c.width,c.height)),c2=document.createElement('canvas');
   c2.width=Math.round(c.width*s2);c2.height=Math.round(c.height*s2);c2.getContext('2d').drawImage(c,0,0,c2.width,c2.height);

@@ -74,7 +74,10 @@ async function fotoBitmap(src){
   // Okuma geçişleri en çok ~2000 px genişlik kullanır: 24 MP (yeni iPhone) fotoğrafı tam boy taşımak belleği dolduruyordu.
   // Alan 12 MP ile sınırlı: 12 MP fotoğraf olduğu gibi kalır, 24/48 MP olanlar 12 MP'ye iner (eskiden 16 MP).
   const im=await openImage(src),W=im.naturalWidth,H=im.naturalHeight,k=Math.min(1,Math.sqrt(12.2e6/(W*H)));kutu('bitmap',{w:W,h:H,k:+k.toFixed(2)});
-  const c=document.createElement('canvas');c.width=Math.round(W*k);c.height=Math.round(H*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+  const w=Math.round(W*k),h=Math.round(H*k);
+  // OffscreenCanvas varsa çizimi doğrudan görüntüye devret (kopya yok): 12 MP'de ~48 MB daha az bellek. Çözülmüş fotoğraf hemen bırakılır.
+  if(typeof OffscreenCanvas!=='undefined'){try{const oc=new OffscreenCanvas(w,h);oc.getContext('2d').drawImage(im,0,0,w,h);im.removeAttribute('src');if(oc.transferToImageBitmap)return oc.transferToImageBitmap();return await createImageBitmap(oc)}catch(e){}}
+  const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);im.removeAttribute('src');
   const b=await createImageBitmap(c);c.width=c.height=1;return b;
 }
 function isciMotoru(f,thr=1){
