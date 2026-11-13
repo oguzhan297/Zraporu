@@ -11,6 +11,8 @@ const PADDLE={js:'vendor/paddle.js?p=2',ort:'1.31.1',det:'PP-OCRv6_small_det',re
 const ORT_MJS='vendor/ort-wasm-simd-threaded.mjs?o=1.31.1';
 // Üst sınır 2: iPhone'da 4 çekirdekle uzun okumada sayfa bellekten kapandı (13.11). Okurken çökme olursa sınır yarıya iner (zr_thr).
 function cekirdek(){try{if(!self.crossOriginIsolated)return 1;const t=+localStorage.getItem('zr_thr')||2;return Math.max(1,Math.min(t,2,navigator.hardwareConcurrency||2))}catch(e){return 1}}
+// Bir kereye mahsus: v90–v91'de çökmeler çekirdekten değilken (fotoğraf hatası, bellek) tek çekirdeğe düşülmüştü; 2 çekirdeği yeniden dene
+try{if(!localStorage.getItem('zr_thrsifir')){localStorage.setItem('zr_thrsifir','1');localStorage.removeItem('zr_thr');localStorage.removeItem('zr_thrdeg')}}catch(e){}
 // Önceki açılış çok çekirdekle okurken kapandıysa bu telefonda çekirdek sayısını azalt (2 → 1) ve bildir
 try{const o=KUTU.onceki;if(o&&o.olaylar){const ev=o.olaylar;let i=ev.length-1;while(i>=0&&ev[i].e!=='oku'&&ev[i].e!=='okundu')i--;
   const m=i>=0&&ev[i].e==='oku'&&/isci-(\d+)/.exec(ev[i].motor||'');
