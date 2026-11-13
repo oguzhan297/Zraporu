@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=83;
+const APP_VER=84;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  84:['Raporları tek tek “Kontrol edildi” diye onaylarken fotoğrafları bellekte birikiyor, uzun süre sonra uygulama kendiliğinden kapanabiliyordu; düzeltildi'],
   83:['“Kontrol et” çıkan raporlar ve düzeltip “Kontrol edildi” dediklerin test arşivine kendiliğinden gider (Ayarlar’dan kapatılabilir); okuyucu bunlarla iyileştirilir','Fotoğrafı büyütmek artık tam ekran görüntüleyicide (dokun: yakınlaştır, ✕: kapat); büyütünce kapanma düzeltildi','Telefon ısınıp okuma yavaşlarsa fişler arasındaki ara kendiliğinden uzar','Okuma sürerken kamera açılırsa okuma bekler'],
   82:['Arka arkaya çekim: kare basar basmaz alınır, deklanşör kilitlenmez; çekildiği parlama, çerçeve nabzı ve titreşimle belli olur','Kamera açıkken okuma yapılmaz (birlikte telefonu zorluyor, uygulamayı kapatıyordu); kamerayı kapatınca hepsi sırayla okunur','Çerçeve daha uzun ve geniş, dışı daha az karartılır; fişin üstü ve altı için ek pay','Okunamayan fiş bir kez kendiliğinden yeniden okunur'],
   81:['Kamera izni bir açılışta bir kez sorulur: kamerayı kapatıp 3 dakika içinde yeniden açınca tekrar sormaz (iPhone ana ekran uygulamalarında izni kalıcı yapmaya izin vermiyor)'],

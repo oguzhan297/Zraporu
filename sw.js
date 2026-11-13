@@ -1,9 +1,9 @@
 // Uygulamayı internetsiz de açılabilir yapar. Sürüm değişince eski önbellek silinir.
-const V='zrapor-v83';
+const V='zrapor-v84';
 // PaddleOCR (paddle.js, ONNX Runtime, modeller) büyük dosyalar: ayrı önbellekte durur, uygulama sürümü değişince silinmez
 const OCR='zrapor-ocr-1';
 const isOcr=u=>u.hostname==='paddle-model-ecology.bj.bcebos.com'||(u.hostname==='cdn.jsdelivr.net'&&u.pathname.startsWith('/npm/onnxruntime-web@'))||(u.origin===self.location.origin&&u.pathname.endsWith('/paddle.js'));
-const SHELL=['./','./index.html','./css/uygulama.css?v=83','./js/parser.js?v=83','./js/goruntu.js?v=83','./js/paddle-worker.js?v=83','./js/temel.js?v=83','./js/kutu.js?v=83','./js/depo.js?v=83','./js/ayarlar.js?v=83','./js/kontrol.js?v=83','./js/kalite.js?v=83','./js/arayuz.js?v=83','./js/okuyucu-claude.js?v=83','./js/okuyucu-tesseract.js?v=83','./js/okuyucu-paddle.js?v=83','./js/okuma.js?v=83','./js/disari.js?v=83','./js/baslat.js?v=83','./ikon.svg?v=83','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
+const SHELL=['./','./index.html','./css/uygulama.css?v=84','./js/parser.js?v=84','./js/goruntu.js?v=84','./js/paddle-worker.js?v=84','./js/temel.js?v=84','./js/kutu.js?v=84','./js/depo.js?v=84','./js/ayarlar.js?v=84','./js/kontrol.js?v=84','./js/kalite.js?v=84','./js/arayuz.js?v=84','./js/okuyucu-claude.js?v=84','./js/okuyucu-tesseract.js?v=84','./js/okuyucu-paddle.js?v=84','./js/okuma.js?v=84','./js/disari.js?v=84','./js/baslat.js?v=84','./ikon.svg?v=84','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 // cache:'reload' → tarayıcının kendi önbelleğindeki eski kopyayı değil, sunucudaki güncel dosyayı al
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>Promise.all(SHELL.map(u=>c.add(new Request(u,u.startsWith('http')?{mode:'no-cors'}:{cache:'reload'})).catch(()=>{})))).then(()=>self.skipWaiting()))});

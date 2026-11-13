@@ -117,7 +117,7 @@ document.addEventListener('click',e=>{
   if(t.dataset.aktsil){const r=rows.find(x=>x.id===t.dataset.aktsil);r.akt=null;save(r);render();toast('Bir sonraki Luca dosyasına yeniden girecek');return}
   if(t.dataset.eksik){const r=rows.find(x=>x.id===t.dataset.eksik);if(r)eksikZEkle(r);return}
   // Kontrol edildi: kullanıcı fişle karşılaştırıp (gerekirse elle düzeltip) onayladı → turuncular ve uyarılar kapanır, kart kapanır
-  if(t.dataset.kontrol){const r=rows.find(x=>x.id===t.dataset.kontrol);if(!r)return;if(duzeltilen(r).length)otoBildir(r,'onay');r.kontrol=Date.now();r.unsure=[];if(r.hesap)r.hesap.onay=true;r.open=false;save(r);render();toast('Kontrol edildi olarak işaretlendi');return}
+  if(t.dataset.kontrol){const r=rows.find(x=>x.id===t.dataset.kontrol);if(!r)return;if(duzeltilen(r).length)otoBildir(r,'onay');r.kontrol=Date.now();r.unsure=[];if(r.hesap)r.hesap.onay=true;r.open=false;kutu('kartKapat');buyukBirak(r);save(r);render();toast('Kontrol edildi olarak işaretlendi');return}
   if(t.dataset.kontrolgeri){const r=rows.find(x=>x.id===t.dataset.kontrolgeri);if(!r)return;r.kontrol=null;save(r);render();toast('Kontrol işareti kaldırıldı');return}
   if(t.dataset.hesaponay){const r=rows.find(x=>x.id===t.dataset.hesaponay);if(r&&r.hesap){r.hesap.onay=true;r.unsure=(r.unsure||[]).filter(k=>k!=='tarih');save(r);render();toast('Doğrulandı; Luca’ya aktarılabilir')}return}
   if(t.dataset.bildirac){const k=$('#bk-'+t.dataset.bildirac);if(k){k.hidden=!k.hidden;if(!k.hidden)$('#bn-'+t.dataset.bildirac).focus()}return}
@@ -128,7 +128,7 @@ document.addEventListener('click',e=>{
     (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Okunan metin kopyalandı')).catch(()=>{try{ta.focus();ta.select();ta.setSelectionRange(0,txt.length);const ok=document.execCommand('copy');toast(ok?'Okunan metin kopyalandı':'Kopyalanamadı — metne uzun basıp “Tümünü Seç”')}catch(x){toast('Kopyalanamadı')}});return}
   if(t.dataset.reparse){const r=rows.find(x=>x.id===t.dataset.reparse);const ta=document.querySelector(`[data-ocr="${r.id}"]`);r._zAuto=false;applyParse(r,ta.value);r.open=true;save(r);autoZ();render();toast('Metin yeniden okundu');return}
   if(t.dataset.zoom!==undefined){fotoGoster(t.getAttribute('src'));return}
-  if(t.dataset.tog){const r=rows.find(x=>x.id===t.dataset.tog);r.open=!r.open;kutu(r.open?'kartAc':'kartKapat');if(r.open)loadImg(r);else if(r.hasImg&&r.status==='done'&&!String(r.thumb||'').startsWith('blob:'))r.thumb=null;   /* kapanan kartın büyük fotoğrafı bellekte kalmasın */render();if(r.open)document.getElementById('c_'+r.id)?.scrollIntoView({behavior:'smooth',block:'start'});return}
+  if(t.dataset.tog){const r=rows.find(x=>x.id===t.dataset.tog);r.open=!r.open;kutu(r.open?'kartAc':'kartKapat');if(r.open)loadImg(r);else buyukBirak(r);render();if(r.open)document.getElementById('c_'+r.id)?.scrollIntoView({behavior:'smooth',block:'start'});return}
   if(t.dataset.del){
     if(t.dataset.armed!=='1'){t.dataset.armed='1';t.textContent='Emin misin?';setTimeout(()=>{if(t.isConnected){t.dataset.armed='';t.textContent='Sil'}},3000);return}
     removeRows(rows.filter(x=>x.id===t.dataset.del));return}
@@ -182,6 +182,9 @@ $('#ara').addEventListener('input',e=>{FLT.q=e.target.value.trim();render()});
   document.addEventListener('touchstart',()=>setTimeout(kbDenetle,300),{passive:true});
 })();
 
+// Kapanan kartın büyük fotoğrafı bellekte kalmasın (kayıtlıysa açılınca yeniden yüklenir). “Kontrol edildi” de kartı kapatır;
+// orada bırakılmadığı için kart kart onaylarken fotoğraflar birikiyor ve iPhone uygulamayı kapatıyordu (v82 çökme raporu).
+function buyukBirak(r){if(r&&!r.open&&r.hasImg&&r.status==='done'&&!String(r.thumb||'').startsWith('blob:'))r.thumb=null}
 // Fotoğrafı büyüt: tam ekran tek görüntü (liste içinde büyütmek uzun sayfayı yeniden dizdiriyordu). Dokun: sığdır ↔ yakınlaştır; ✕ ya da geri: kapat
 function fotoGoster(src){if(!src)return;kutu('buyut');const o=$('#gor');o.classList.remove('yakin');$('#gorimg').src=src;o.hidden=false;document.body.classList.add('gor-acik')}
 function fotoKapat(){const o=$('#gor');o.hidden=true;$('#gorimg').removeAttribute('src');document.body.classList.remove('gor-acik')}
