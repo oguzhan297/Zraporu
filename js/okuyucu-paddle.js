@@ -112,8 +112,12 @@ async function anaMotor(f){
 }
 async function getPaddle(onProg){
   pdlProg=onProg;   // ilerleme her zaman o an okunan karta yazılsın
-  if(pdl&&!pdl.olu())return pdl;
+  // bilgisayar kodu girilmişse yerel okuyucu açık olsa bile ara ara bilgisayarı dene (uzak.js)
+  if(pdl&&!pdl.olu()&&(pdl.tur==='uzak'||!(typeof uzakDene==='function'&&uzakDene())))return pdl;
   if(!pdlLoading)pdlLoading=(async()=>{
+    if(typeof uzakDeneVeBaglan==='function'){const u=await uzakDeneVeBaglan(pdlProg);
+      if(u){if(pdl&&pdl!==u&&pdl.kapat){try{pdl.kapat()}catch(e){}}pdl=u;return pdl}
+      if(pdl&&!pdl.olu())return pdl}
     pdlProg&&pdlProg('İlk kullanım: PaddleOCR indiriliyor (bir kez)…');
     // modül işçi + OffscreenCanvas varsa işçide; yoksa ya da işçi başarısızsa sayfada
     if(!isciYok&&typeof Worker!=='undefined'&&typeof OffscreenCanvas!=='undefined'&&typeof createImageBitmap==='function'){
@@ -154,7 +158,7 @@ async function extractPaddle(r,ikinci){
     if(navigator.onLine===false||/indirilemedi/.test(e&&e.message||'')){r.status='error';r.err=e.message;delete r.prog;render();return}
     toast('PaddleOCR bu tarayıcıda çalışmadı, Tesseract ile okunuyor');return extractFree(r);
   }
-  const ps=sayfalar(r),sid=i=>r.id+':'+i,t0=Date.now();let etiket='Okunuyor (PaddleOCR)…';
+  const ps=sayfalar(r),sid=i=>r.id+':'+i,t0=Date.now();const yer=motor&&motor.tur==='uzak'?'Bilgisayarda okunuyor':'Okunuyor (PaddleOCR)';let etiket=yer+'…';
   kutu('oku',{id:r.id.slice(-4),sayfa:ps.length,mb:+((ps[0]&&ps[0].size||0)/1e6).toFixed(1),motor:motor.tur+(motor.thr>1?'-'+motor.thr:'')});
   // işçide okurken ekran serbest: geçen süreyi göster
   const sayac=setInterval(()=>setProg(r,`${etiket} ${Math.round((Date.now()-t0)/1000)} sn`),1000);
@@ -168,7 +172,7 @@ async function extractPaddle(r,ikinci){
     for(let i=0;i<ps.length;i++)await motor.resim(sid(i),ps[i]);
     try{
       for(let n=0;n<passes.length;n++){
-        etiket=n?`Toplamlar tutmadı, tekrar okunuyor (${n+1}/${passes.length})…`:'Okunuyor (PaddleOCR)…';setProg(r,etiket);
+        etiket=n?`Toplamlar tutmadı, tekrar okunuyor (${n+1}/${passes.length})…`:yer+'…';setProg(r,etiket);
         kutu('gecis',{n:n+1});
         const sm=[];for(let i=0;i<ps.length;i++)sm.push(paddleLines(await motor.oku(sid(i),ps[i],passes[n])));
         const text=birlestir(sm);
@@ -183,11 +187,13 @@ async function extractPaddle(r,ikinci){
     const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
     applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
     r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;resimBirak(r);delete r.prog;
-    kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});hizKaydet(motor.thr>1?'cok':'cpu',(Date.now()-t0)/1000/all.length);cekirdekDegerlendir(motor.thr||1,motor.tur);hizUI();r._sure=(Date.now()-t0)/all.length;
+    kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});hizKaydet(motor.tur==='uzak'?'pc':motor.thr>1?'cok':'cpu',(Date.now()-t0)/1000/all.length);if(motor.tur!=='uzak')cekirdekDegerlendir(motor.thr||1,motor.tur);hizUI();r._sure=(Date.now()-t0)/all.length;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
   }catch(e){
     clearInterval(sayac);
     // işçi çöktüyse (bellek vb.) bu raporu bir kez de sayfada oku
+    // bilgisayarla okunamadı (bağlantı koptu, bilgisayar kapandı): bu raporu telefonda oku, 2 dk sonra bilgisayarı yeniden dene
+    if(motor.tur==='uzak'&&!ikinci){uzakYok=Date.now();kutu('uzakKoptu',{m:String(e&&e.message||e).slice(0,120)});try{motor.kapat()}catch(x){}pdl=null;return extractPaddle(r,true)}
     if(motor.tur==='isci'&&motor.olu())kutu('isciCoktu',{m:String(e&&e.message||e).slice(0,120)});
     // çok çekirdekle okunamadı: bu telefonda tek çekirdeğe dön, raporu bir kez daha oku
     // (fotoğraf açılamadıysa çekirdekle ilgisi yok: o durumda dokunma)

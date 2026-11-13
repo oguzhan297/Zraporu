@@ -63,7 +63,8 @@ async function prep(r){   // küçük resmi ve yüklenecek kopyayı sırası gel
 // Fişler arası ara: telefon ısınınca işlemci yavaşlar (aynı iş daha uzun sürer). Bir okuma turu ilk fişlerdekinin 1,5 katını
 // geçerse ara uzar (soğusun), normale dönünce kısalır.
 const ISI={ilk:[],};
-function nefes(r){const t=r&&r._sure;if(!t)return 1200;if(ISI.ilk.length<3){ISI.ilk.push(t);return 1200}
+function nefes(r){if(typeof pdl!=='undefined'&&pdl&&pdl.tur==='uzak')return 150;   // bilgisayarda okunuyorsa telefon ısınmaz: ara gerekmez
+  const t=r&&r._sure;if(!t)return 1200;if(ISI.ilk.length<3){ISI.ilk.push(t);return 1200}
   const taban=ISI.ilk.slice().sort((a,b)=>a-b)[1],o=t/taban;return o>2?6000:o>1.5?3500:1200}
 async function pump(){if(busy)return;busy=true;
   // kamera açıkken okuma yapılmaz: ikisi birlikte iPhone'da belleği dolduruyor (uygulama kapanıyordu), çekim ekranı da takılıyordu.
