@@ -3,7 +3,7 @@
 const APP_VER=107;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
-  107:['Kartı düzeltirken uyarı kutusu artık hemen küçülmüyor (alttaki alanlar kaymıyor, dokunuş boşa gitmiyor); kart karttan çıkınca güncelleniyor','“Kontrol et” süzgecinde düzelttiğin kart, sen kapatana kadar listeden kaybolmuyor'],
+  107:['Kartı düzeltirken uyarı kutusu artık hemen küçülmüyor (alttaki alanlar kaymıyor, dokunuş boşa gitmiyor); kartta işin bitince güncelleniyor','“Kontrol et” süzgecinde düzelttiğin kart, sen kapatana kadar listeden kaybolmuyor'],
   106:['Sıradan tahmin edilen tarih artık “düzelttiğin alan / okuma hatasını bildir” olarak gösterilmiyor'],
   105:['Bölümlü raporlarda gereksiz “%20 vergi dökümü farklı” uyarısı kalktı','Tarih satırında ayırıcısı rakam okunan tarih (05710/2020) düzeltiliyor; emin olunamayan tarih Z sırasıyla doğrulanınca turuncu kalkıyor'],
   104:['Arka arkaya tarama bitince kamera 30 sn sonra tamamen kapanır (önce 3 dk açık kalıyordu)'],
