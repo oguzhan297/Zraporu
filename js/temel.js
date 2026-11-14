@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=103;
+const APP_VER=104;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  104:['Arka arkaya tarama bitince kamera 30 sn sonra tamamen kapanır (önce 3 dk açık kalıyordu)'],
   103:['Okuma yeniden 2 çekirdekle (daha hızlı)'],
   102:['Okuyucu hafifledi: yazı bulma işi daha küçük bir modelle yapılıyor (test fişlerinde aynı doğruluk, daha az işlem → biraz daha hızlı ve serin). Bir kerelik ~5 MB iner.'],
   101:['Tarih okunamayınca (tarih satırı fotoğrafa girmemişse) Z sırasındaki komşu raporlardan tahmin edilir; turuncu kalır ve “fişten kontrol et” uyarısı çıkar. Elle yazdığın tarih korunur.'],

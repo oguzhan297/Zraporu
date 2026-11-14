@@ -165,7 +165,7 @@ async function kameraAc(mod='seri'){kutu('kamera',{mod});
 }
 function kameraBirak(){clearTimeout(KAM.yedekT);if(KAM.yedek)KAM.yedek.getTracks().forEach(t=>t.stop());KAM.yedek=null}
 function kameraKapat(){if(KAM.akis){const a=KAM.akis;const tr=a.getVideoTracks()[0];if(KAM.isik&&tr){try{tr.applyConstraints({advanced:[{torch:false}]})}catch(e){}KAM.isik=false}
-    a.getTracks().forEach(t=>t.enabled=false);kameraBirak();KAM.yedek=a;KAM.yedekT=setTimeout(kameraBirak,180000)}KAM.akis=null;$('#kvid').srcObject=null;$('#kamera').hidden=true;document.body.classList.remove('kamera-acik');
+    a.getTracks().forEach(t=>t.enabled=false);kameraBirak();KAM.yedek=a;KAM.yedekT=setTimeout(kameraBirak,30000)}KAM.akis=null;$('#kvid').srcObject=null;$('#kamera').hidden=true;document.body.classList.remove('kamera-acik');
   if(KAM.sayi&&KAM.mod!=='tek')toast(`${KAM.sayi} fiş eklendi; şimdi sırayla okunuyor`);pump()}
 function kMesaj(m,tur){const el=$('#kmesaj');el.textContent=m;el.className='k-mesaj'+(tur?' '+tur:'');clearTimeout(el._t);if(m)el._t=setTimeout(()=>{el.textContent='';el.className='k-mesaj'},2600)}
 // Kare: deklanşöre basıldığı anda video karesinin yalnız çerçeve içi tuvale çizilir (yandaki / alttaki fiş, masa okunmaz);
