@@ -567,6 +567,8 @@
     repair(d, notes, unsure, allA);
     fixTopKdv(d, unsure, notes);
     maliKdv(d, L, unsure, notes);
+    // KNV ödeme/grup kontrollerinden ÖNCE: otel "KNV %2" (konaklama vergisi) hiçbir KDV grubunda değil, %1'e eklenince gruplar genel toplamı tutar
+    knvTo1(L, d, unsure, notes, amtAt);
     // Tekel okunamadıysa: genel toplam (ödemelerle doğrulanmış) − KDV grupları, metinde aynen geçiyorsa Tekel odur
     if ((d.tekel == null || d.tekel === 0) && d.genel != null && d.kart != null) {
       const rest = r2(d.genel - ['g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0));
@@ -584,7 +586,6 @@
     checkTk(d, unsure, notes);
     if (d._belgePay) { const [bn, bk] = d._belgePay, ok = d.genel != null && Math.abs(bn + bk + (d.diger || 0) - d.genel) < 0.006;
       if (ok && (d.nakit !== bn || d.kart !== bk)) { d.nakit = bn; d.kart = bk; for (const x of ['nakit', 'kart']) { let j; while ((j = unsure.indexOf(x)) >= 0) unsure.splice(j, 1); } } }
-    knvTo1(L, d, unsure, notes, amtAt);
     if (ciroReport(L, d, unsure, notes)) { const u = [...new Set(unsure)]; return { d, unsure: u, notes: [...new Set(notes)], found: Object.keys(d).filter(k => d[k] != null).length, amts: allA }; }
     // zayıf kaynaklı genel toplam ödemelerle de tutmuyorsa gruplar dahil hiçbir şey "kesin" sayılmasın ("TOPLAM *724,00" genel sanıldı, diğer gruplar 0 yapıldı)
     if (d._genWeak && d.genel != null) { const pay = (d.nakit || 0) + (d.kart || 0) + (d.diger || 0); if (Math.abs(pay - d.genel) >= 0.006) unsure.push('genel', 'tekel', 'g1', 'm1', 'k1', 'g10', 'm10', 'k10', 'g20', 'm20', 'k20'); }
@@ -808,7 +809,8 @@
     }
     if (!(v > 0)) return;
     const kv = r2(v / 101), f = x => x.toFixed(2).replace('.', ',');
-    if (d.tekel != null && d.tekel >= v - 0.005) d.tekel = r2(d.tekel - v);
+    const t0 = d.tekel != null && d.tekel >= v - 0.005;   // %0 (Tekel) içinde basılmış mı (kantin) yoksa grupların dışında mı (otel "KNV %2")
+    if (t0) d.tekel = r2(d.tekel - v);
     d.g1 = r2((d.g1 || 0) + v); d.k1 = r2((d.k1 || 0) + kv); d.m1 = r2(d.g1 - d.k1);
     if (d._vd && d._vd[1]) d._vd[1] = [r2(d._vd[1][0] + v), r2(d._vd[1][1] + kv)];
     if (d._dp) { if (d._dp[0] != null) d._dp[0] = r2(d._dp[0] - v); d._dp[1] = r2((d._dp[1] || 0) + v); }
@@ -816,7 +818,7 @@
     if (Array.isArray(d._mk)) d._mk = d._mk.map(x => r2(x + kv));
     for (let i = notes.length - 1; i >= 0; i--) if (/%0[’']?l[ıi] satış Tekel|^%0 satış/.test(notes[i])) notes.splice(i, 1);
     { let j; while ((j = unsure.indexOf('tekel')) >= 0) unsure.splice(j, 1); }
-    notes.push(`KNV ${f(v)} %1 grubuna eklendi; KDV'si ${f(kv)} (fişte %0 basılı).`);
+    notes.push(`KNV ${f(v)} %1 grubuna eklendi; KDV'si ${f(kv)}${t0 ? ' (fişte %0 basılı)' : ''}.`);
   }
   // "FİŞ CİROSU" düzenli Z raporu (DEPARTMANLARA GÖRE / KDV ORANLARINA GÖRE FİŞ SATIŞ DÖKÜMLERİ, GÜNLÜK FİŞ CİROSU,
   // FİŞ ÖDEME DÖKÜMLERİ: NAKİT ÖDEME TUTARI, KREDİ-01…, KREDİ ÖDEMELER TOPLAMI, ÖDEMELER TOPLAMI).
@@ -1080,7 +1082,7 @@
     else { for (const x of ['tekel', 'g1', 'g10', 'g20', 'gp']) { let i; while ((i = unsure.indexOf(x)) >= 0) unsure.splice(i, 1); } }
     // Hiçbir okumada gerçekten okunmamış (hepsinde orandan hesaplanmış) KDV turuncu kalır
     for (const k of ['k1', 'k10', 'k20']) {
-      if (d[k] == null) continue;
+      if (d[k] == null || !d['g' + k.slice(1)]) continue;   // grubu 0 olan oranın KDV'si 0'dır (otel fişinde %20 hiç yok)
       const read = list.some(r => r.d[k] != null && near(r.d[k], d[k]) && !(r.d._calc || []).includes(k)) || (k === 'k20' && d._k20mk) || (d._kTk || []).includes(k);
       if (!read) { unsure.push(k, 'm' + k.slice(1)); if (!notes.some(n => n.startsWith(`%${k.slice(1)} KDV okunamadı`))) notes.push(`%${k.slice(1)} KDV okunamadı; orandan hesaplandı, fişle kontrol et.`); }
       else for (let i = notes.length - 1; i >= 0; i--) if (notes[i].startsWith(`%${k.slice(1)} KDV okunamadı`)) notes.splice(i, 1);
@@ -1147,5 +1149,5 @@
     }
     return out;
   }
-  root.ZParse = { version: 98, parseZ, normLine, amounts, consistency, merge, kumulatif };
+  root.ZParse = { version: 99, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);
