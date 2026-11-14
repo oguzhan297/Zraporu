@@ -3,13 +3,14 @@
 // paddle.js = PaddleOCR.js + ONNX Runtime paketi (paddle/ klasöründen derlenir). Modeller ve çalışma zamanı ilk kullanımda
 // bir kez indirilir ve önbellekte (zrapor-ocr-*) saklanır; uygulama sürümü değişince silinmez.
 // vendor/paddle.js değişince: ?p= burada ve js/paddle-worker.js'de; ort = paddle/package.json'daki onnxruntime-web sürümü
-const PADDLE={js:'vendor/paddle.js?p=2',ort:'1.31.1',det:'PP-OCRv6_small_det',rec:'PP-OCRv6_small_rec',
+const PADDLE={js:'vendor/paddle.js?p=2',ort:'1.31.1',det:'PP-OCRv5_mobile_det',rec:'PP-OCRv6_small_rec',
   // modeller kendi sitemizden (GitHub Pages): Baidu sunucusu Türkiye'den ~200 KB/sn veriyordu (31 MB ≈ 3 dk, sık yarıda kalıyordu).
   // Eski adresle önbelleğe alınmış modeller yeniden indirilmez (eski).
-  base:new URL('model/',location.href).href,eski:'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/',mb:{det:9.9,rec:21.3,wasm:14.8}};
+  base:new URL('model/',location.href).href,eski:'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/',mb:{det:4.8,rec:21.3,wasm:14.8}};
 // Çok çekirdek: sayfa "cross-origin isolated" ise (sw.js başlıkları ekler) ONNX Runtime okumayı birden çok çekirdeğe böler.
 // Yardımcı iş parçacıkları ORT'nin küçük yükleyicisinden (vendor/ort-wasm-simd-threaded.mjs, ORT sürümüyle aynı) açılır: aynı adreste olmalı.
 // Bir kez sorun çıkarsa bu telefonda tek çekirdeğe dönülür (zr_thr='1') ve nedeni test arşivine bildirilir.
+try{const x=JSON.parse(localStorage.getItem('zr_model')||'null');if(x&&x.det)PADDLE.det=x.det;if(x&&x.rec)PADDLE.rec=x.rec}catch(e){}   // yalnız model denemesi (test aracı)
 const ORT_MJS='vendor/ort-wasm-simd-threaded.mjs?o=1.31.1';
 // Üst sınır 2: iPhone'da 4 çekirdekle uzun okumada sayfa bellekten kapandı (13.11). Okurken çökme olursa sınır yarıya iner (zr_thr).
 function cekirdek(){try{if(!self.crossOriginIsolated)return 1;const t=+localStorage.getItem('zr_thr')||2;return Math.max(1,Math.min(t,2,navigator.hardwareConcurrency||2))}catch(e){return 1}}
@@ -25,7 +26,7 @@ async function cekirdekTeshis(o){try{if(!S.ghKey||typeof ghGonder!=='function')r
   await ghGonder(`${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}_cekirdek_v${APP_VER}_${Math.random().toString(36).slice(2,6)}`,[{ad:'cekirdek.json',b64:b64Metin(JSON.stringify(p,null,1))}])}catch(e){}}
 // Eski "hızlı okuyucu" (ekran kartı) ve "bilgisayarda oku" denemeleri kaldırıldı: ayarlarını temizle
 setTimeout(()=>{try{for(const k of ['zr_pckod','zr_pcrapor','zr_pcrapor_hata','zr_pcrapor_yol','zr_pcyenile'])localStorage.removeItem(k);if('pcKod' in S){delete S.pcKod;saveS()}for(const k of ['zr_gpu','zr_gpuneden','zr_gpudeg','zr_gpuhazir'])localStorage.removeItem(k);if('gpu' in S){delete S.gpu;saveS()}}catch(e){}
-  caches.open('zrapor-ocr-1').then(c=>c.keys().then(ks=>Promise.all(ks.filter(r=>/paddle-gpu\.js|\.jsep\.wasm/.test(r.url)).map(r=>c.delete(r))))).catch(()=>{})},3000);
+  caches.open('zrapor-ocr-1').then(c=>c.keys().then(ks=>Promise.all(ks.filter(r=>/paddle-gpu\.js|\.jsep\.wasm|PP-OCRv6_small_det/.test(r.url)).map(r=>c.delete(r))))).catch(()=>{})},3000);
 const OCR_CACHE='zrapor-ocr-1';
 // Büyük dosya indirme: yarıda kalırsa (ekran kapandı, uygulama arka plana geçti, bağlantı koptu) kaldığı yerden sürer.
 // iPhone arka planda indirmeye izin vermez; uygulama yeniden öne gelince Range ile kalan kısım istenir (sunucu desteklemezse baştan).

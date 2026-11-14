@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=101;
+const APP_VER=102;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  102:['Okuyucu hafifledi: yazı bulma işi daha küçük bir modelle yapılıyor (test fişlerinde aynı doğruluk, daha az işlem → biraz daha hızlı ve serin). Bir kerelik ~5 MB iner.'],
   101:['Tarih okunamayınca (tarih satırı fotoğrafa girmemişse) Z sırasındaki komşu raporlardan tahmin edilir; turuncu kalır ve “fişten kontrol et” uyarısı çıkar. Elle yazdığın tarih korunur.'],
   100:['“Bilgisayarda oku” kaldırıldı; okuma yine telefonda yapılır'],
   99:['Otel Z raporlarında konaklama vergisi (KNV %2) artık gereksiz “Kontrol et” uyarısı vermiyor'],
