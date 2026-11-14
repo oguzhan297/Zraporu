@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=107;
+const APP_VER=108;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  108:['Tarihi geçersiz ya da Z No'su boş rapor “Kontrol edildi” yapılamıyor (Luca almazdı)'],
   107:['Kartı düzeltirken uyarı kutusu artık hemen küçülmüyor (alttaki alanlar kaymıyor, dokunuş boşa gitmiyor); kartta işin bitince güncelleniyor','“Kontrol et” süzgecinde düzelttiğin kart, sen kapatana kadar listeden kaybolmuyor'],
   106:['Sıradan tahmin edilen tarih artık “düzelttiğin alan / okuma hatasını bildir” olarak gösterilmiyor'],
   105:['Bölümlü raporlarda gereksiz “%20 vergi dökümü farklı” uyarısı kalktı','Tarih satırında ayırıcısı rakam okunan tarih (05710/2020) düzeltiliyor; emin olunamayan tarih Z sırasıyla doğrulanınca turuncu kalkıyor'],

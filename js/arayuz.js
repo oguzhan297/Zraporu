@@ -122,7 +122,10 @@ document.addEventListener('click',e=>{
   if(t.dataset.aktsil){const r=rows.find(x=>x.id===t.dataset.aktsil);r.akt=null;save(r);render();toast('Bir sonraki Luca dosyasına yeniden girecek');return}
   if(t.dataset.eksik){const r=rows.find(x=>x.id===t.dataset.eksik);if(r)eksikZEkle(r);return}
   // Kontrol edildi: kullanıcı fişle karşılaştırıp (gerekirse elle düzeltip) onayladı → turuncular ve uyarılar kapanır, kart kapanır
-  if(t.dataset.kontrol){const r=rows.find(x=>x.id===t.dataset.kontrol);if(!r)return;if(duzeltilen(r).length)otoBildir(r,'onay');r.kontrol=Date.now();r.unsure=[];if(r.hesap)r.hesap.onay=true;r.open=false;kutu('kartKapat');buyukBirak(r);save(r);render();toast('Kontrol edildi olarak işaretlendi');return}
+  if(t.dataset.kontrol){const r=rows.find(x=>x.id===t.dataset.kontrol);if(!r)return;
+    // Luca'nın kabul etmeyeceği eksikler onayla geçilemez (iPhone'da "30a" tarihli rapor onaylanabiliyordu)
+    {const ek=[!dateOk(r.d.tarih)&&'tarih',!/^\d+$/.test(String(r.d.z_no||''))&&'Z No'].filter(Boolean);if(ek.length){toast(`Önce ${ek.join(' ve ')} düzelt: Luca bu raporu almaz`);r.open=true;render();return}}
+if(duzeltilen(r).length)otoBildir(r,'onay');r.kontrol=Date.now();r.unsure=[];if(r.hesap)r.hesap.onay=true;r.open=false;kutu('kartKapat');buyukBirak(r);save(r);render();toast('Kontrol edildi olarak işaretlendi');return}
   if(t.dataset.kontrolgeri){const r=rows.find(x=>x.id===t.dataset.kontrolgeri);if(!r)return;r.kontrol=null;save(r);render();toast('Kontrol işareti kaldırıldı');return}
   if(t.dataset.hesaponay){const r=rows.find(x=>x.id===t.dataset.hesaponay);if(r&&r.hesap){r.hesap.onay=true;r.unsure=(r.unsure||[]).filter(k=>k!=='tarih');save(r);render();toast('Doğrulandı; Luca’ya aktarılabilir')}return}
   if(t.dataset.bildirac){const k=$('#bk-'+t.dataset.bildirac);if(k){k.hidden=!k.hidden;if(!k.hidden)$('#bn-'+t.dataset.bildirac).focus()}return}
