@@ -83,7 +83,9 @@ function autoTarih(){let deg=false;
   const isZ=r=>/^\d+$/.test(String(r.d.z_no||''))&&!(r.unsure||[]).includes('z_no');
   const ref=rows.filter(x=>x.status==='done'&&!x._tAuto&&isZ(x)&&dnum(x.d.tarih)!=null);
   for(const r of rows){if(r.status!=='done'||r._tMan||!isZ(r))continue;
-    if(r.d.tarih&&!r._tAuto)continue;
+    // okunan ama emin olunamayan tarih: Z sırasından çıkan tarihle aynıysa doğrulanmış say
+    const belirsiz=r.d.tarih&&!r._tAuto&&(r.unsure||[]).includes('tarih');
+    if(r.d.tarih&&!r._tAuto&&!belirsiz)continue;
     const z=+r.d.z_no,ayni=x=>x!==r&&(!x.d.sicil||!r.d.sicil||x.d.sicil===r.d.sicil);
     let p=null,n=null;for(const x of ref){if(!ayni(x))continue;const zx=+x.d.z_no;if(zx<z&&z-zx<=10&&(!p||zx>+p.d.z_no))p=x;if(zx>z&&zx-z<=10&&(!n||zx<+n.d.z_no))n=x}
     let t=null,kaynak='';
@@ -93,6 +95,7 @@ function autoTarih(){let deg=false;
     else if(p&&z-+p.d.z_no<=3){t=dnum(p.d.tarih)+(z-+p.d.z_no);kaynak=`Z ${p.d.z_no} (${p.d.tarih}) raporundan, her gün bir Z sayılarak`}
     else if(n&&+n.d.z_no-z<=3){t=dnum(n.d.tarih)-(+n.d.z_no-z);kaynak=`Z ${n.d.z_no} (${n.d.tarih}) raporundan, her gün bir Z sayılarak`}
     const yeni=t!=null?gunStr(t):'';
+    if(belirsiz){if(yeni&&yeni===r.d.tarih&&((p&&n)||(p&&z-+p.d.z_no===1)||(n&&+n.d.z_no-z===1))){r.unsure=r.unsure.filter(k=>k!=='tarih');r.d.not=[(r.d.not||''),'Tarih Z sırasıyla doğrulandı'].filter(Boolean).join(' · ');deg=true;save(r)}continue}
     if(yeni===(r.d.tarih||'')&&(!yeni||r._tAuto))continue;
     if(!yeni&&!r._tAuto)continue;
     r.d.tarih=yeni;r._tAuto=!!yeni;r.unsure=[...new Set([...(r.unsure||[]).filter(k=>k!=='tarih'),'tarih'])];

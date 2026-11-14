@@ -354,6 +354,8 @@
     const addDate = (D, M, Y, w) => {
       let dd = +D, mm = +M, yy = Y.length === 2 ? 2000 + +Y : +Y, ww = w;
       if (yy < 2000 || yy > 2099) { if (Y.length === 4 && /^2\d2\d$/.test(Y)) { yy = +('20' + Y.slice(2)); ww *= 0.4; } else return; }
+      // yılın son hanesi 6/8/9 → 0 okunmuş olabilir ("05.10.2020" = 2026): bu yıl ya da geçen yıl çıkıyorsa onu al, düşük puanla
+      { const bu = new Date().getFullYear(); if (yy < bu - 1 && /0$/.test(String(yy))) { const y2 = [6, 8, 9].map(k => yy + k).find(v => v === bu || v === bu - 1); if (y2) { yy = y2; ww *= 0.5; } } }
       if (mm < 1 || mm > 12) { mm = +fixD(M); ww *= 0.4; }
       if (dd < 1 || dd > 31) { dd = +fixD(D); ww *= 0.4; }
       if (!(dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12)) return;
@@ -364,6 +366,8 @@
     L.forEach((l, i) => { for (const x of l.s.matchAll(/\b(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})\b/g)) addDate(x[1], x[2], x[3], parY >= 0 && i >= parY && i <= parY + 3 ? 0.3 : 1); });
     // "TARİH" satırı (TARİM/TARİN okunabilir): ayırıcı boşluk da olabilir ("11 10 2026", "11-18 2026")
     for (const l of L) { const x = l.s.match(/TAR[İI1]\S{0,2}\W*(\d{1,2})\s*[./\-\s:]\s*(\d{1,2})\s*[./\-\s:]\s*(\d{4})\b/); if (x) addDate(x[1], x[2], x[3], /\d[./-]\d{1,2}[./-]\d/.test(x[0]) ? 0 : 0.8); }
+    // TARİH satırında ayırıcı rakam okunmuş: "TARIM :05710/2020" (05.10.2026)
+    for (const l of L) { const x = l.s.match(/TAR[İI1]\S{0,2}\W*(\d{2})[71](\d{2})[./\-]?(\d{4})\b/); if (x) addDate(x[1], x[2], x[3], 0.6); }
     const dk = Object.keys(c);
     if (dk.length) { dk.sort((a, b) => c[b] - c[a]); d.tarih = dk[0]; if (c[dk[0]] < 1 || (dk[1] && c[dk[1]] >= c[dk[0]] * 0.8)) unsure.push('tarih'); }
     if (!d.tarih) unsure.push('tarih');
@@ -478,6 +482,8 @@
     for (let i = 0; i < L.length - 1; i++) {
       const a = L[i], b = L[i + 1];
       const hdr = [L[i - 1], L[i - 2]].some(x => x && /MAL[İI]\s?VER[İI]|GENEL\s?TOPLAM/.test(x.s));
+      // bölümlü raporda KDV BİLGİLERİ'nde KDV satırı TOPLAM'dan ÖNCE gelir (sectioned() eşler): "TOPLAM (bir grup) + KDV (sonraki grup)" yanlış çift olur
+      if (a.sec === 'kdvb' || b.sec === 'kdvb') continue;
       if (hdr || a.cum || b.cum || !/TOPLAM/.test(a.s) || /F[İI][ŞS]|ADET|SATI[ŞS]|C[İI]RO|KDV/.test(a.s) || !/KDV/.test(b.s) || /TOPLAM/.test(b.s)) continue;
       const G = tok(a.s), K = tok(b.s); if (!G.length || !K.length) continue;
       // fazladan rakam ayırarak üretilen adaylar ("22.861" → 22,86) gerçek tutarların gerisinde kalsın
@@ -1149,5 +1155,5 @@
     }
     return out;
   }
-  root.ZParse = { version: 104, parseZ, normLine, amounts, consistency, merge, kumulatif };
+  root.ZParse = { version: 105, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);
