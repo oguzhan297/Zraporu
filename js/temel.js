@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=105;
+const APP_VER=106;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  106:['Sıradan tahmin edilen tarih artık “düzelttiğin alan / okuma hatasını bildir” olarak gösterilmiyor'],
   105:['Bölümlü raporlarda gereksiz “%20 vergi dökümü farklı” uyarısı kalktı','Tarih satırında ayırıcısı rakam okunan tarih (05710/2020) düzeltiliyor; emin olunamayan tarih Z sırasıyla doğrulanınca turuncu kalkıyor'],
   104:['Arka arkaya tarama bitince kamera 30 sn sonra tamamen kapanır (önce 3 dk açık kalıyordu)'],
   103:['Okuma yeniden 2 çekirdekle (daha hızlı)'],

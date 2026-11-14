@@ -10,7 +10,7 @@ function filtreUI(){const done=rows.filter(r=>r.status==='done'),el=$('#filtre')
 const aktTarih=(t,uzun)=>{const d=new Date(t);return uzun?d.toLocaleDateString('tr-TR'):`${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`};
 // Okuma hatası bildirimi: okunan ↔ şimdiki farkı
 function duzeltilen(r){if(!r.oku)return [];const n=v=>v==null||v===''?null:typeof v==='number'?Math.round(v*100):String(v).trim();
-  return Object.keys(r.oku).filter(k=>n(r.oku[k])!==n(r.d[k])&&!(r.auto||[]).includes(k))}
+  return Object.keys(r.oku).filter(k=>n(r.oku[k])!==n(r.d[k])&&!(r.auto||[]).includes(k)&&!(k==='tarih'&&r._tAuto)&&!(k==='z_no'&&r._zAuto))}   // sıradan hesaplananlar kullanıcı düzeltmesi değil
 function duzeltmeHTML(r){const k=duzeltilen(r);if(!k.length)return '';const ad=x=>(FIELDS.find(f=>f.k===x)||{}).l||x;
   return `<div class="duz">${ik('kalem')}Düzelttiğin alanlar: <b>${k.map(x=>esc(ad(x))).join(', ')}</b><div class="hint">Okuyucu bunları yanlış okumuş. Bildirirsen bu fiş test arşivine eklenir ve aynı hata bir daha tekrarlanmaz.</div><button class="btn small" data-bildirac="${r.id}">${ik('paylas')}Okuma hatasını bildir</button></div>`}
 // Her kartta: "Hata bildir" → kısa not kutusu → gönder (düzeltme yapılmasa da)
