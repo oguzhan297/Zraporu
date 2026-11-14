@@ -34,7 +34,17 @@ function guard(btn,label,list){
   setTimeout(()=>{btn.dataset.armed='';btn.innerHTML=ilk},4000);return false;
 }
 $('#csv').onclick=async e=>{const b=e.currentTarget,a=aktarilacak(b,'⬇ Luca CSV');if(!a||!guard(b,'⬇ Luca CSV',a.list))return;
-  if(await offer(fname('csv'),new Blob([enc1254(csvText(a.list)+'\r\n')]))&&a.isaretle)isaretle(a.list)};
+  const bayt=enc1254(csvText(a.list)+'\r\n'),ad=fname('csv');
+  // Ayarlar'da açıksa dosya paylaşım ekranı yerine gizli gelen kutusuna gider; bilgisayarda aktar.html'den tek tıkla indirilir
+  if(S.ghKey&&S.csvPC!==false){b.disabled=true;const ilk=b.innerHTML;b.textContent='Gönderiliyor…';
+    try{await bilgisayaraGonder(ad,bayt);if(a.isaretle)isaretle(a.list);toast('Bilgisayara gönderildi ✓ · bilgisayarda “Luca CSV’leri” sayfasından indir');return}
+    catch(x){toast('Bilgisayara gönderilemedi ('+x.message+'); paylaşım ekranı açılıyor')}
+    finally{b.disabled=false;b.innerHTML=ilk}}
+  if(await offer(ad,new Blob([bayt]))&&a.isaretle)isaretle(a.list)};
+// CSV'yi gizli gelen kutusunun csv/z klasörüne yükle (dosya adı: zaman_asılad)
+async function bilgisayaraGonder(ad,bayt){const u=bayt instanceof Uint8Array?bayt:new Uint8Array(bayt);let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));
+  const zaman=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+  await ghYukle(`csv/z/${zaman}_${ad}`,btoa(s),'Luca CSV: '+ad)}
 $('#xlsx').onclick=async e=>{const bt=e.currentTarget,a=aktarilacak(bt,'Excel');if(!a||!guard(bt,'Excel',a.list))return;
   // Excel kütüphanesi (~900 KB) açılışı yavaşlatmasın: yalnız Excel istenince yüklenir (service worker önbelleğinden)
   if(typeof XLSX==='undefined'){try{await loadScript(XLSX_URL)}catch(e){}}
