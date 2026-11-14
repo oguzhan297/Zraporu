@@ -4,7 +4,7 @@ const FLT={q:'',f:'tum'};
 const SUZ={tum:r=>true,kontrol:r=>isBad(r),yeni:r=>!r.akt,akt:r=>!!r.akt};
 function araUyar(r,q){if(!q)return true;const d=r.d,t=[d.tarih,d.z_no,'z'+d.z_no,d.aciklama,fm(satis(d)),fm(d.kart),fm(d.nakit),fm(kdvT(d)),d.not].join(' ').toLocaleLowerCase('tr-TR');
   return q.toLocaleLowerCase('tr-TR').split(/\s+/).filter(Boolean).every(w=>t.includes(w)||t.replace(/\./g,'').includes(w.replace(/\./g,'')))}
-const gorunur=r=>r.status!=='done'||(SUZ[FLT.f](r)&&araUyar(r,FLT.q));
+const gorunur=r=>r.status!=='done'||r.open||(SUZ[FLT.f](r)&&araUyar(r,FLT.q));   // açık (düzenlenen) kart süzgeçten çıksa da kapanana kadar görünür kalır
 function filtreUI(){const done=rows.filter(r=>r.status==='done'),el=$('#filtre');if(!el)return;el.hidden=done.length<3;
   for(const b of el.querySelectorAll('[data-f]')){const k=b.dataset.f;b.classList.toggle('on',FLT.f===k);b.querySelector('b').textContent=done.filter(SUZ[k]).length}}
 const aktTarih=(t,uzun)=>{const d=new Date(t);return uzun?d.toLocaleDateString('tr-TR'):`${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`};
@@ -105,7 +105,12 @@ function renderSum(){
 function refreshCard(r){
   const c=document.getElementById('c_'+r.id);if(!c){render();return}
   c.querySelector('.head').innerHTML=headHTML(r);
-  const ck=c.querySelector('.checks');if(ck)ck.innerHTML=checksHTML(r);   // kapalı kartın gövdesi çizilmez (açılınca çizilir)
+  // uyarı listesi kart düzenlenirken hemen değişirse alttaki alanlar kayıyor, dokunulan yer kaçıyordu (iPhone'da bulundu):
+  // kartta bir alan odaktayken uyarılar, odak karttan çıkınca güncellenir
+  const ck=c.querySelector('.checks');if(ck){const yap=()=>{const a=document.activeElement;
+      if(a&&c.contains(a)&&/INPUT|TEXTAREA/.test(a.tagName)){if(!c._ckBekle){c._ckBekle=1;c.addEventListener('focusout',()=>setTimeout(()=>{c._ckBekle=0;yap()},60),{once:true})}return}
+      ck.innerHTML=checksHTML(r)};
+    if(ck.innerHTML!==checksHTML(r))setTimeout(yap,300)}   // kapalı kartın gövdesi çizilmez (açılınca çizilir)
   c.querySelectorAll('input[data-k]').forEach(i=>{const f=FIELDS.find(x=>x.k===i.dataset.k);if(i!==document.activeElement)i.value=fv(f,r.d[f.k]);i.classList.toggle('unsure',!!(r.unsure&&r.unsure.includes(f.k)));i.classList.toggle('calc',!!(r.auto&&r.auto.includes(f.k)))});
   renderSum();
 }
