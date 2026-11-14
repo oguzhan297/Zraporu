@@ -19,7 +19,7 @@ async function shrink(file){
 }
 
 function applyParse(r,text,pre){
-  r._zAuto=false;r._zManual=false;
+  r._zAuto=false;r._zManual=false;r._tAuto=false;r._tMan=false;
   const res=pre||ZParse.parseZ(text);const d=res.d;d.z_no=normZ(d.z_no);
   const keepAck=r.d&&r.d.aciklama&&r.d.aciklama!==r._ack?r.d.aciklama:null;
   d.not=res.notes.join(' · ');d.z_rapor_mu=res.found>=4?undefined:false;

@@ -139,7 +139,7 @@ document.addEventListener('change',e=>{
   const r=rows.find(x=>x.id===i.dataset.id);const f=FIELDS.find(x=>x.k===i.dataset.k);
   if(!r||!f)return;
   r.d[f.k]=f.t==='text'?i.value.trim():pn(i.value);
-  if(f.k==='tarih')r.d.tarih=normDate(r.d.tarih);
+  if(f.k==='tarih'){r.d.tarih=normDate(r.d.tarih);r._tAuto=false;r._tMan=!!r.d.tarih;if(r.d.not)r.d.not=r.d.not.split(' · ').filter(x=>!/^Tarih sıradan/.test(x)).join(' · ')}
   if(f.k==='z_no'){r.d.z_no=normZ(r.d.z_no);r._zAuto=false;r._zManual=!!r.d.z_no}
   if(f.t==='num'&&i.value.trim()!==''&&r.d[f.k]==null)toast('Sayı anlaşılamadı: '+i.value);
   if(r.unsure)r.unsure=r.unsure.filter(k=>k!==f.k);

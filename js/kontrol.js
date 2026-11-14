@@ -14,6 +14,7 @@ function checks(r){if(CK){let v=CK.get(r);if(!v){v=checks0(r);CK.set(r,v)}return
 function checks0(r){
   const d=r.d,out=[];
   const names={g1:'%1',g10:'%10',g20:'%20',gp:'Poşet'};
+  if(d.tarih&&r._tAuto)out.push({ok:false,m:`Tarih fişten okunamadı; Z sırasından ${d.tarih} olarak tahmin edildi. Fişten bakıp doğruysa dokunma, yanlışsa düzelt.`});
   if(!d.tarih)out.push({ok:false,m:r.src==='foto'?'Tarih okunamadı — fişin üst kısmı (tarih satırı) fotoğrafa girmemiş olabilir. Fotoğraftan bakıp yaz (ör. 2910) ya da kartından devamını ekle.':'Tarih boş'});
   else if(!dateOk(d.tarih))out.push({ok:false,m:`Tarih geçersiz veya GG.AA.YYYY biçiminde değil: “${d.tarih}”`});
   if(!d.z_no)out.push({ok:false,m:'Z No boş'});
@@ -75,7 +76,31 @@ const dnum=s=>{const m=String(s||'').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);return
 function guessZ(r){}   // yerini autoZ aldı
 // Z No: listedeki raporlar tarihe göre sıralanır; Z'si okunamayan / şüpheli olan rapora bir önceki kesin raporun Z'si + sıra farkı yazılır.
 // Sonraki kesin rapor da varsa ikisi birbirini tutmalı (tutarsa kesin, tek taraftan ise turuncu). Elle yazılan Z'ye dokunulmaz.
+// Tarih okunamadıysa (fişin tarih satırı fotoğrafa girmemiş): aynı kasanın Z'si okunmuş komşu raporlarından tahmin et.
+// İki yanda da raporu olan ve aradaki gün sayısı Z farkına eşitse (her gün bir Z) kesine yakın; tek yandan ise "tahmini".
+// Her zaman turuncu kalır ve notta kaynağı yazar; elle yazılan tarih (r._tMan) korunur.
+function autoTarih(){let deg=false;
+  const isZ=r=>/^\d+$/.test(String(r.d.z_no||''))&&!(r.unsure||[]).includes('z_no');
+  const ref=rows.filter(x=>x.status==='done'&&!x._tAuto&&isZ(x)&&dnum(x.d.tarih)!=null);
+  for(const r of rows){if(r.status!=='done'||r._tMan||!isZ(r))continue;
+    if(r.d.tarih&&!r._tAuto)continue;
+    const z=+r.d.z_no,ayni=x=>x!==r&&(!x.d.sicil||!r.d.sicil||x.d.sicil===r.d.sicil);
+    let p=null,n=null;for(const x of ref){if(!ayni(x))continue;const zx=+x.d.z_no;if(zx<z&&z-zx<=10&&(!p||zx>+p.d.z_no))p=x;if(zx>z&&zx-z<=10&&(!n||zx<+n.d.z_no))n=x}
+    let t=null,kaynak='';
+    if(p&&n){const zg=+n.d.z_no-+p.d.z_no,dg=dnum(n.d.tarih)-dnum(p.d.tarih);
+      if(dg===zg){t=dnum(p.d.tarih)+(z-+p.d.z_no);kaynak=`Z ${p.d.z_no} (${p.d.tarih}) ile Z ${n.d.z_no} (${n.d.tarih}) arasından`}
+      else if(dg>zg&&z-+p.d.z_no===1&&dg>0){t=dnum(p.d.tarih)+1;kaynak=`Z ${p.d.z_no} (${p.d.tarih}) raporundan bir gün sonra (arada kapalı gün olabilir)`}}
+    else if(p&&z-+p.d.z_no<=3){t=dnum(p.d.tarih)+(z-+p.d.z_no);kaynak=`Z ${p.d.z_no} (${p.d.tarih}) raporundan, her gün bir Z sayılarak`}
+    else if(n&&+n.d.z_no-z<=3){t=dnum(n.d.tarih)-(+n.d.z_no-z);kaynak=`Z ${n.d.z_no} (${n.d.tarih}) raporundan, her gün bir Z sayılarak`}
+    const yeni=t!=null?gunStr(t):'';
+    if(yeni===(r.d.tarih||'')&&(!yeni||r._tAuto))continue;
+    if(!yeni&&!r._tAuto)continue;
+    r.d.tarih=yeni;r._tAuto=!!yeni;r.unsure=[...new Set([...(r.unsure||[]).filter(k=>k!=='tarih'),'tarih'])];
+    r.d.not=[(r.d.not||'').split(' · ').filter(x=>x&&!/^Tarih (tahmin|sıradan)/.test(x)).join(' · '),yeni?`Tarih sıradan tahmin edildi: ${kaynak} — fişten kontrol et`:''].filter(Boolean).join(' · ');
+    deg=true;save(r)}
+  return deg}
 function autoZ(){
+  try{autoTarih()}catch(e){console.warn('autoTarih',e)}
   // Eski sürümlerin sıradan "düzelttiği" ama fişte iki yerde aynı basılı olan Z'leri geri al (ör. 3234 → 3233 yapılmıştı)
   for(const r of rows){if(r.status!=='done'||!r._zAuto||r._zManual||r._zBak||!/^\d+$/.test(String(r._zRead||''))||!r.ocr)continue;r._zBak=1;   // her rapor oturumda bir kez denetlenir
     let iki=false;try{const p=ZParse.parseZ(r.ocr).d;iki=!!p._zIki&&normZ(p.z_no)===String(r._zRead)}catch(e){}
