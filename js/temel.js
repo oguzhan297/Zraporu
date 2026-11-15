@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=110;
+const APP_VER=111;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  111:['Okuyucunun yardımcı dosyası yüklenemezse okuma takılmıyor, yedek yoldan devam ediyor'],
   110:['Yeni: Luca CSV’ye basınca dosya bilgisayara gider (WhatsApp’a gerek yok). Bilgisayarda oguzhan297.github.io/Zraporu/aktar.html sayfasını aç, İndir’e bas. Ayarlar’dan kapatılabilir.'],
   109:['Önceki sürümde uygulamanın açılmamasına yol açan hata düzeltildi'],
   108:['Tarihi geçersiz ya da Z No’su boş rapor “Kontrol edildi” yapılamıyor (Luca almazdı)'],
