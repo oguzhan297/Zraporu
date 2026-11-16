@@ -11,7 +11,17 @@ const ser=r=>({ocr:r.ocr??null,d:r.d||{},unsure:r.unsure||[],auto:r.auto||[],src
 function setStore(st){const el=$('#sync');if(!el)return;el.innerHTML=(st==='ok'?ik('telefon'):'')+({ok:'Bu telefonda kayıtlı',err:'⚠ Kaydedilemedi — CSV’yi indirmeden kapatma',wait:'Yükleniyor…'}[st]||'');el.className='sync s-'+st}
 function save(r){if(!r||r.status!=='done')return;IDB.put('rows',{id:r.id,...ser(r)}).then(()=>setStore('ok')).catch(()=>{setStore('err');toast('Kaydedilemedi: telefon hafızası dolu olabilir.')})}
 async function removeRows(list){
-  const ids=new Set(list.map(x=>x.id));rows=rows.filter(x=>!ids.has(x.id));autoZ();render();
+  const ids=new Set(list.map(x=>x.id));
+  // Tek kart silinince yalnız o kart kaldırılır, sıradan değişen kartlar yenilenir. Eskiden bütün liste baştan çiziliyordu:
+  // 30 küsur kartın fotoğrafları birden yeniden açılınca iPhone'da bellek doluyor, uygulama donup yeniden yükleniyordu.
+  const el=list.length===1&&document.getElementById('c_'+list[0].id);
+  if(el&&rows.length>1){
+    // komşu Z/tarih denetimleri de değişebilir: verisi ya da uyarısı değişen kartlar yenilenir
+    const iz=()=>ckToplu(()=>new Map(rows.map(r=>[r,JSON.stringify([r.d,r.unsure,r._tAuto,r._zAuto,r.status==='done'?checks(r).map(c=>c.ok+c.m):0])])));
+    const once=iz();rows=rows.filter(x=>!ids.has(x.id));autoZ();el.remove();const sonra=iz();
+    for(const [r,j] of once)if(!ids.has(r.id)&&sonra.get(r)!==j&&document.getElementById('c_'+r.id))refreshCard(r);
+    renderSum();filtreUI();if(!document.querySelector('#list .card'))render()}
+  else{rows=rows.filter(x=>!ids.has(x.id));autoZ();render()}
   try{for(const r of list){await IDB.del('rows',r.id);await IDB.del('imgs',r.id);await IDB.del('orig',r.id)}}catch(e){toast('Silinemedi, tekrar dene.')}
 }
 // Fotoğraf asılları (devam fotoğrafı ve hata bildirimi için): son ORIG_N raporunkiler saklanır, eskiler silinir
