@@ -272,7 +272,7 @@
   // oraya kadar olan kısım da önceki fişin sonudur.
   function tekFis(text) {
     const L = String(text || '').split(/\r?\n/), U = L.map(l => l.toLocaleUpperCase('tr-TR'));
-    const zOf = u => { const m = u.match(/[Z2]\s?N[O0Ö]\s*[:.,]?\s*(\d{1,3}[.,]\d{3}|\d{1,6})\b/); return m ? m[1].replace(/[.,]/g, '').replace(/^0+(?=\d)/, '') : null; };
+    const zOf = u => { const m = u.match(/[Z2]\s?(?:N[O0Ö]|SAYA[ÇC])\s*[:.,]?\s*(\d{1,3}[.,]\d{3}|\d{1,6})\b/); return m ? m[1].replace(/[.,]/g, '').replace(/^0+(?=\d)/, '') : null; };
     const alt = u => /^\W{0,2}E[KR]\s?[UÜ]\s?N[O0]/.test(u);
     let bas = -1, z = null;
     for (let i = 0; i < U.length; i++) if (!alt(U[i])) { const v = zOf(U[i]); if (v && v.length >= 2) { bas = i; z = v; break; } }
@@ -584,6 +584,10 @@
         notes.push(`Tekel okunamadı; genel toplam − KDV grupları = ${rest.toFixed(2).replace('.', ',')} (fişte de geçiyor)`); d.tekel = rest; }
     }
     solvePay(d, allA, unsure, notes);
+    // Satışsız gün (Pazar): NET SATIŞ *0,00 ve fişte sıfırdan büyük hiçbir tutar yok → ödemeler ve Tekel de 0 (gereksiz "Kontrol et" çıkmasın)
+    if (d.genel === 0 && !d._genWeak && d.nakit == null && d.kart == null && L.some(l => !l.cum && /NET\s?SAT/.test(l.s) && l.a.length && l.a.every(v => v === 0))
+        && L.every(l => l.cum || l.a.every(v => v === 0) || !/\*|TOPLAM|KDV|NAK|KART|KRED|SATI|TEKEL/.test(l.s)) && ['g1', 'g10', 'g20', 'gp'].every(g => !d[g])) {
+      d.nakit = 0; d.kart = 0; if (d.tekel == null) d.tekel = 0; notes.push('Satışsız Z raporu (NET SATIŞ 0)'); }
     for (const kf of ['genel', 'nakit', 'kart']) if (d[kf] == null) unsure.push(kf);
     // Toplamlar tutmuyorsa KDV gruplarının hiçbiri "emin" sayılmasın
     const grp = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
@@ -1155,5 +1159,5 @@
     }
     return out;
   }
-  root.ZParse = { version: 111, parseZ, normLine, amounts, consistency, merge, kumulatif };
+  root.ZParse = { version: 112, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);

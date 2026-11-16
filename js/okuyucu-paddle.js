@@ -151,7 +151,13 @@ function paddleLines(items){
     if(L){L.items.push(i);L.y+=(i.y-L.y)/L.items.length;L.h=Math.max(L.h,i.h)}else lines.push({y:i.y,h:i.h,items:[i]})}
   return lines.map(l=>l.items.sort((a,b)=>a.x-b.x).map(i=>i.t).join(' ')).join('\n');
 }
-async function extractPaddle(r,ikinci){
+// Okuma bitince işçi (~800 MB: modeller + WASM belleği) 30 sn boş kalırsa kapatılır: okumadan sonra kart açıp kaydırırken
+// iPhone sayfayı bellekten kapatıyordu (16.11, v111 kara kutu). Yeni okumada modeller önbellekten birkaç saniyede yeniden açılır.
+let pdlIs=0,pdlZam=null;
+function pdlBosKapat(){clearTimeout(pdlZam);pdlZam=setTimeout(()=>{if(pdlIs||pdlLoading||!pdl||!pdl.kapat)return;
+  const m=pdl;pdl=null;kutu('isciBosKapat');try{m.kapat()}catch(e){}},30000)}
+async function extractPaddle(r,ikinci){pdlIs++;clearTimeout(pdlZam);try{return await extractPaddle0(r,ikinci)}finally{if(--pdlIs===0)pdlBosKapat()}}
+async function extractPaddle0(r,ikinci){
   r.status='work';setProg(r,'Hazırlanıyor…');render();
   let motor;
   try{motor=await getPaddle(t=>setProg(r,t))}

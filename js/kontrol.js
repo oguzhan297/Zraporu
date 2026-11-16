@@ -28,7 +28,8 @@ function checks0(r){
       const e=o.z-(o.t-t);say.set(e,(say.get(e)||0)+1)}
     const like=e=>{const a=String(e);if(a===z)return false;if(a.length!==z.length)return Math.min(a.length,z.length)>=3&&(a.startsWith(z)||a.endsWith(z)||z.startsWith(a)||z.endsWith(a));let n=0;for(let i=0;i<a.length;i++)if(a[i]!==z[i])n++;return n===1};
     const e=[...say].filter(([,c])=>c>=2).map(([e])=>e).find(like);if(e!=null&&!say.has(+z))out.push({ok:false,m:`Z No ${z} şüpheli: yakın tarihli raporlara göre ${e} olmalı`})}}
-  if(satis(d)===0)out.push({ok:false,m:'Hiç satış tutarı yok'});
+  // Satışsız gün (Pazar): NET SATIŞ 0 okunmuş, ödemeler de 0 → uyarı değil bilgi
+  if(satis(d)===0)out.push(d.genel===0&&d.nakit===0&&d.kart===0?{ok:true,info:true,m:'ⓘ Satışsız gün (NET SATIŞ 0)'}:{ok:false,m:'Hiç satış tutarı yok'});
   for(const [g,m,k] of GROUPS){if(d[g]!=null&&d[m]!=null&&d[k]!=null){const df=Math.abs(d[m]+d[k]-d[g]);if(df>=0.006)out.push({ok:false,m:`${names[g]}: Matrah + KDV, genel toplamla tutmuyor (fark ${fm(df)})`})}}
   const s=satis(d);
   if(d.genel!=null&&s>0){const df=Math.abs(s-d.genel);out.push({ok:df<0.006,m:df<0.006?'Tekel + KDV grupları + poşet = fiş genel toplamı ✓':`Grupların toplamı (${fm(s)}) fiş genel toplamıyla (${fm(d.genel)}) tutmuyor, fark ${fm(df)}`})}
