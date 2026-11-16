@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=112;
+const APP_VER=113;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  113:['Kart silince uygulama artık donmuyor (liste baştan çizilmiyor, yalnız o kart kalkıyor)','Bilgisayardaki “Luca CSV’leri” sayfasından inen dosyada Türkçe başlıklar artık bozuk değil','Okuyucu boşta kapatıldıktan sonra yeniden açılırken takılırsa beklemeden yeniden deneniyor'],
   112:['Satışsız günlerin (NET SATIŞ 0) Z raporları artık gereksiz “Kontrol et” vermiyor; fotoğrafta görünen önceki günün fişi karışmıyor','Okuma bitince okuyucu belleği boşaltılıyor: okuduktan sonra kartlara bakarken uygulamanın kapanması önlendi'],
   111:['Okuyucunun yardımcı dosyası yüklenemezse okuma takılmıyor, yedek yoldan devam ediyor'],
   110:['Yeni: Luca CSV’ye basınca dosya bilgisayara gider (WhatsApp’a gerek yok). Bilgisayarda oguzhan297.github.io/Zraporu/aktar.html sayfasını aç, İndir’e bas. Ayarlar’dan kapatılabilir.'],

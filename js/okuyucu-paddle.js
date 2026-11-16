@@ -88,7 +88,7 @@ async function fotoBitmap(src){
   const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);im.removeAttribute('src');
   const b=await createImageBitmap(c);c.width=c.height=1;return b;
 }
-function isciMotoru(f,thr=1){
+function isciMotoru(f,thr=1,sure){
   return new Promise((ok,no)=>{
     let w;try{w=new Worker(`js/paddle-worker.js?v=${APP_VER}`,{type:'module'})}catch(e){return no(e)}
     let n=0,olu=false;const bek=new Map();
@@ -96,7 +96,7 @@ function isciMotoru(f,thr=1){
     const bitir=er=>{if(olu)return;olu=true;for(const x of bek.values())x.b(er);bek.clear();try{w.terminate()}catch(e){}};
     w.onmessage=e=>{const m=e.data;if(m.hazir)return;const x=bek.get(m.n);if(!x)return;bek.delete(m.n);m.ok?x.a(m):x.b(new Error(m.err||'İşçi hatası'))};
     w.onerror=e=>{e.preventDefault&&e.preventDefault();const er=new Error('İşçi açılamadı'+(e.message?': '+e.message:''));bitir(er);no(er)};
-    const zm=setTimeout(()=>{const er=new Error('İşçi zamanında hazır olmadı');bitir(er);no(er)},thr>1?90000:120000);
+    const zm=setTimeout(()=>{const er=new Error('İşçi zamanında hazır olmadı');bitir(er);no(er)},sure||(thr>1?90000:120000));
     gonder({t:'init',det:f.det,rec:f.rec,wasm:f.wasm,wasmDir:f.wasmDir,mjs:f.mjs,thr,detName:PADDLE.det,recName:PADDLE.rec},[f.det,f.rec,f.wasm]).then(c=>{clearTimeout(zm);
       ok({tur:'isci',thr:c&&c.thr||thr,olu:()=>olu,
         async resim(id,src){const bmp=await fotoBitmap(src);await gonder({t:'img',id,bmp},[bmp])},
@@ -124,11 +124,15 @@ async function getPaddle(onProg){
     // modül işçi + OffscreenCanvas varsa işçide; yoksa ya da işçi başarısızsa sayfada
     if(!isciYok&&typeof Worker!=='undefined'&&typeof OffscreenCanvas!=='undefined'&&typeof createImageBitmap==='function'){
       const thr=cekirdek();
-      if(thr>1){const t=Date.now();
-        try{pdl=await isciMotoru(await paddleDosyalari(),thr);kutu('motor',{thr,sn:Math.round((Date.now()-t)/1000)});return pdl}
-        catch(e){if(/indirilemedi/.test(e&&e.message||''))throw e;const hata=String(e&&e.message||e).slice(0,300);
-          try{localStorage.setItem('zr_thr','1')}catch(x){}kutu('cekirdekKapandi',{m:hata.slice(0,120)});cekirdekTeshis({asama:'acilis',thr,hata,sn:Math.round((Date.now()-t)/1000)});
-          console.warn('Çok çekirdekli okuyucu açılamadı, tek çekirdekle okunacak:',e)}}
+      // Çok çekirdekli işçi bazen hiç hazır olmuyor (testte ~3-5 açılışta bir; açılan ise ~4 sn'de açılır). Eskiden 90 sn beklenip
+      // çok çekirdek kalıcı kapatılıyordu. Şimdi 20 sn'de vazgeçip yeni işçiyle üç kez denenir; hepsi olmazsa kalıcı kapatılır.
+      if(thr>1){const t=Date.now();let son=null;
+        for(let d=0;d<3;d++){
+          try{pdl=await isciMotoru(await paddleDosyalari(),thr,20000);kutu('motor',{thr,sn:Math.round((Date.now()-t)/1000),...(d?{deneme:d+1}:{})});pdlYeniden=false;return pdl}
+          catch(e){if(/indirilemedi/.test(e&&e.message||''))throw e;son=e;bosKapatma=true;kutu('isciAcilmadi',{d,yeniden:pdlYeniden,m:String(e&&e.message||e).slice(0,80)});await new Promise(a=>setTimeout(a,500))}}
+        const hata=String(son&&son.message||son).slice(0,300);
+        try{localStorage.setItem('zr_thr','1')}catch(x){}kutu('cekirdekKapandi',{m:hata.slice(0,120)});cekirdekTeshis({asama:'acilis',thr,hata,sn:Math.round((Date.now()-t)/1000)});
+        console.warn('Çok çekirdekli okuyucu açılamadı, tek çekirdekle okunacak:',son)}
       try{pdl=await isciMotoru(await paddleDosyalari());return pdl}
       catch(e){if(/indirilemedi/.test(e&&e.message||''))throw e;isciYok=true;console.warn('PaddleOCR işçisi kullanılamadı, sayfada okunacak:',e)}
     }
@@ -153,9 +157,10 @@ function paddleLines(items){
 }
 // Okuma bitince işçi (~800 MB: modeller + WASM belleği) 30 sn boş kalırsa kapatılır: okumadan sonra kart açıp kaydırırken
 // iPhone sayfayı bellekten kapatıyordu (16.11, v111 kara kutu). Yeni okumada modeller önbellekten birkaç saniyede yeniden açılır.
-let pdlIs=0,pdlZam=null;
-function pdlBosKapat(){clearTimeout(pdlZam);pdlZam=setTimeout(()=>{if(pdlIs||pdlLoading||!pdl||!pdl.kapat)return;
-  const m=pdl;pdl=null;kutu('isciBosKapat');try{m.kapat()}catch(e){}},30000)}
+// İşçi açılamayıp yeniden denenmek zorunda kalındıysa bu oturumda boşta kapatma bırakılır (bosKapatma).
+let pdlIs=0,pdlZam=null,pdlYeniden=false,bosKapatma=false;
+function pdlBosKapat(){clearTimeout(pdlZam);if(bosKapatma)return;pdlZam=setTimeout(()=>{if(pdlIs||pdlLoading||!pdl||!pdl.kapat||bosKapatma)return;
+  const m=pdl;pdl=null;pdlYeniden=true;kutu('isciBosKapat');try{m.kapat()}catch(e){}},+(localStorage.getItem('zr_bos')||30000))}
 async function extractPaddle(r,ikinci){pdlIs++;clearTimeout(pdlZam);try{return await extractPaddle0(r,ikinci)}finally{if(--pdlIs===0)pdlBosKapat()}}
 async function extractPaddle0(r,ikinci){
   r.status='work';setProg(r,'Hazırlanıyor…');render();
