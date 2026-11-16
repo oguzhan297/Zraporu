@@ -1,9 +1,9 @@
 // Uygulamayı internetsiz de açılabilir yapar. Sürüm değişince eski önbellek silinir.
-const V='zrapor-v113';
+const V='zrapor-v114';
 // PaddleOCR (paddle.js, ONNX Runtime, modeller) büyük dosyalar: ayrı önbellekte durur, uygulama sürümü değişince silinmez
 const OCR='zrapor-ocr-1';
 const isOcr=u=>u.hostname==='paddle-model-ecology.bj.bcebos.com'||(u.hostname==='cdn.jsdelivr.net'&&u.pathname.startsWith('/npm/onnxruntime-web@'))||(u.origin===self.location.origin&&(/\/paddle\.js$/.test(u.pathname)||/\/model\/[^/]+\.tar$/.test(u.pathname)));
-const SHELL=['./','./index.html','./css/uygulama.css?v=113','./js/parser.js?v=113','./js/goruntu.js?v=113','./js/paddle-worker.js?v=113','./js/paddle-isci.js?v=113','./vendor/ort-wasm-simd-threaded.mjs?o=1.31.1','./js/temel.js?v=113','./js/kutu.js?v=113','./js/depo.js?v=113','./js/ayarlar.js?v=113','./js/kontrol.js?v=113','./js/kalite.js?v=113','./js/arayuz.js?v=113','./js/okuyucu-claude.js?v=113','./js/okuyucu-tesseract.js?v=113','./js/okuyucu-paddle.js?v=113','./js/okuma.js?v=113','./js/disari.js?v=113','./js/baslat.js?v=113','./ikon.svg?v=113','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
+const SHELL=['./','./index.html','./css/uygulama.css?v=114','./js/parser.js?v=114','./js/goruntu.js?v=114','./js/paddle-worker.js?v=114','./js/paddle-isci.js?v=114','./vendor/ort-wasm-simd-threaded.mjs?o=1.31.1','./js/temel.js?v=114','./js/kutu.js?v=114','./js/depo.js?v=114','./js/ayarlar.js?v=114','./js/kontrol.js?v=114','./js/kalite.js?v=114','./js/arayuz.js?v=114','./js/okuyucu-claude.js?v=114','./js/okuyucu-tesseract.js?v=114','./js/okuyucu-paddle.js?v=114','./js/okuma.js?v=114','./js/disari.js?v=114','./js/baslat.js?v=114','./ikon.svg?v=114','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 // cache:'reload' → tarayıcının kendi önbelleğindeki eski kopyayı değil, sunucudaki güncel dosyayı al
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>Promise.all(SHELL.map(u=>c.add(new Request(u,u.startsWith('http')?{mode:'cors'}:{cache:'reload'})).catch(()=>{})))).then(()=>self.skipWaiting()))});

@@ -583,6 +583,22 @@
           && ['g1', 'g10', 'g20'].every(g => !unsure.includes(g))) {
         notes.push(`Tekel okunamadı; genel toplam − KDV grupları = ${rest.toFixed(2).replace('.', ',')} (fişte de geçiyor)`); d.tekel = rest; }
     }
+    // Kalem (departman) satırları: "HALI %10 1" ↵ "*250,00", "PERDE %10 1" ↵ "*500,00". Fotoğrafta VERGİ DÖKÜMÜ yoksa (kâğıt kesik)
+    // ilk kalem %10 toplamı sanılıyordu (250). Kalemler orana göre toplanır; toplamları NET SATIŞ'ı tutarsa gruplar bunlardır.
+    { const kal = {}; let n = 0;
+      for (let i = 0; i < L.length; i++) { const l = L[i];
+        if (l.cum || ![1, 10, 20].includes(l.rate) || !/[A-ZÇĞİÖŞÜ]{3}/.test(l.s.replace(/%.*/, '')) || /TOPLAM|TOPKDV|KDV|MATRAH|\bMAT\b|NET|SATI|PO[ŞS]ET|TEKEL/.test(l.s)) continue;
+        let v = null; if (/\*\s?[\d.]+,\d{2}/.test(l.s) && l.a.length) v = l.a[l.a.length - 1];
+        else { const nx = L[i + 1]; if (nx && nx.rate == null && nx.a.length === 1 && !hasLetters(nx.s.replace(/\*/g, '')) && /,\d{2}/.test(nx.s)) v = nx.a[0]; }
+        if (v == null || !(v > 0)) continue; kal[l.rate] = r2((kal[l.rate] || 0) + v); n++; }
+      const top = r2(Object.values(kal).reduce((a, b) => a + b, 0)), grp0 = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((a, x) => a + (d[x] || 0), 0);
+      const ozet = L.some(l => !l.cum && l.rate != null && /TOPLAM|TOPKDV|KDV|MATRAH/.test(l.s));
+      if (n >= 2 && d.genel != null && !d._genWeak && Math.abs(top - d.genel) < 0.006 && Math.abs(grp0 - d.genel) >= 0.006 && !ozet) {
+        for (const r of [1, 10, 20]) { const [g, m, k] = ['g', 'm', 'k'].map(x => x + r);
+          if (kal[r]) { d[g] = kal[r]; d[m] = r2(kal[r] / (1 + r / 100)); d[k] = r2(kal[r] - d[m]); } else if (d[g] != null) { d[g] = null; d[m] = null; d[k] = null; }
+          for (const x of [g, m, k]) { let j; while ((j = unsure.indexOf(x)) >= 0) unsure.splice(j, 1); } }
+        if (d.tekel == null) { let j; while ((j = unsure.indexOf('tekel')) >= 0) unsure.splice(j, 1); }
+        notes.push(`KDV grupları ${n} kalem satırından toplandı (fotoğrafta vergi dökümü yok)`); } }
     solvePay(d, allA, unsure, notes);
     // Satışsız gün (Pazar): NET SATIŞ *0,00 ve fişte sıfırdan büyük hiçbir tutar yok → ödemeler ve Tekel de 0 (gereksiz "Kontrol et" çıkmasın)
     if (d.genel === 0 && !d._genWeak && d.nakit == null && d.kart == null && L.some(l => !l.cum && /NET\s?SAT/.test(l.s) && l.a.length && l.a.every(v => v === 0))
@@ -1159,5 +1175,5 @@
     }
     return out;
   }
-  root.ZParse = { version: 113, parseZ, normLine, amounts, consistency, merge, kumulatif };
+  root.ZParse = { version: 114, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);

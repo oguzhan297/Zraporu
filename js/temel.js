@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=113;
+const APP_VER=114;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  114:['Fotoğrafta vergi dökümü görünmeyen (kâğıdı kesik) Z raporunda KDV grubu artık kalem satırlarından toplanıyor (ör. Halı %10 + Perde %10)'],
   113:['Kart silince uygulama artık donmuyor (liste baştan çizilmiyor, yalnız o kart kalkıyor)','Bilgisayardaki “Luca CSV’leri” sayfasından inen dosyada Türkçe başlıklar artık bozuk değil','Okuyucu boşta kapatıldıktan sonra yeniden açılırken takılırsa beklemeden yeniden deneniyor'],
   112:['Satışsız günlerin (NET SATIŞ 0) Z raporları artık gereksiz “Kontrol et” vermiyor; fotoğrafta görünen önceki günün fişi karışmıyor','Okuma bitince okuyucu belleği boşaltılıyor: okuduktan sonra kartlara bakarken uygulamanın kapanması önlendi'],
   111:['Okuyucunun yardımcı dosyası yüklenemezse okuma takılmıyor, yedek yoldan devam ediyor'],
