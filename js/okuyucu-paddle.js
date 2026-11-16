@@ -192,13 +192,20 @@ async function extractPaddle0(r,ikinci){
         const res=ZParse.parseZ(text),sc=ZParse.consistency(res);
         all.push(res);texts.push(text);
         if(!best||sc>best.sc)best={res,sc,text};
-        if(sc>=6)break;
+        // toplamlar tuttu: tarih de bir okumada çıktıysa dur; hiçbir okumada yoksa tarih için sonraki geçişe devam
+        // (iPhone'da kırpılmış geçiş en üstteki TARİH satırını kesebiliyor: Kilimli Z1378 "TARIN")
+        if(sc>=6&&all.some(x=>x.d.tarih))break;
+        if(sc>=6)continue;
         if(all.length>=2){const mm=ZParse.merge(all);if(!mm.unsure.some(k=>k!=='z_no'&&k!=='diger'&&FIELDS.some(f=>f.k===k)))break}
       }
     }finally{for(let i=0;i<ps.length;i++)motor.birak(sid(i))}
     // toplamları tam tutan bir okuma varsa onu al; yoksa okumaları alan alan birleştir
-    const merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all);
-    applyParse(r,best.sc>=6||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
+    let merged=best.sc>=6||all.length<2?best.res:ZParse.merge(all),ekli=false;
+    // toplamları tutan okumada tarih / Z no yoksa diğer okumalardan tamamla (oylama ZParse.merge'de; tek ve şüpheli okuma turuncu kalır)
+    if(best.sc>=6&&all.length>=2&&['tarih','z_no'].some(k=>!best.res.d[k])){const mm=ZParse.merge(all),d={...best.res.d},un=[...best.res.unsure];
+      for(const k of ['tarih','z_no'])if(!d[k]&&mm.d[k]){d[k]=mm.d[k];ekli=true;const i=un.indexOf(k);if(mm.unsure.includes(k)){if(i<0)un.push(k)}else if(i>=0)un.splice(i,1)}
+      if(ekli){merged={...best.res,d,unsure:un};kutu('tamamla',{tarih:!best.res.d.tarih&&!!d.tarih,z:!best.res.d.z_no&&!!d.z_no})}}
+    applyParse(r,(best.sc>=6&&!ekli)||all.length<2?best.text:texts.map((t,i)=>`—— ${i+1}. okuma ——\n`+t).join('\n'),merged);
     r.status='done';r.open=false;r.created=r.created||Date.now();r.sayfa=sayfalar(r).length;delete r.blob;delete r.file;delete r.pages;resimBirak(r);delete r.prog;
     kutu('okundu',{sn:Math.round((Date.now()-t0)/1000),gecis:all.length});hizKaydet(motor.thr>1?'cok':'cpu',(Date.now()-t0)/1000/all.length);cekirdekDegerlendir(motor.thr||1,motor.tur);hizUI();r._sure=(Date.now()-t0)/all.length;
     save(r);autoZ();saveImg(r,r._small);delete r._small;
