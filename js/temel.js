@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=116;
+const APP_VER=117;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  117:['Yeni: Test kaydı (Ayarlar’dan kapatılabilir, varsayılan açık): kullanırken adımların fotoğraf, tutar ve firma adı olmadan test arşivine canlı yazılıyor; sorun olunca nedenini görebilmek için'],
   116:['Z sayısı büyürken tarih geri gidiyorsa (ör. Z 761 fişte 31.10 iken 11.10 okunmuş) artık “Kontrol et” uyarısı çıkıyor'],
   115:['Luca CSV artık bilgisayara otomatik gönderilmiyor; dosya eskisi gibi paylaşım ekranından iniyor'],
   114:['Fotoğrafta vergi dökümü görünmeyen (kâğıdı kesik) Z raporunda KDV grubu artık kalem satırlarından toplanıyor (ör. Halı %10 + Perde %10)'],

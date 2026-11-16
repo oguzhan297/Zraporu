@@ -63,6 +63,8 @@ $('#ghtest').onclick=async()=>{const t=$('#ghres');if(!S.ghKey){t.textContent='�
 
 // Otomatik test arşivi: "Kontrol et" çıkan rapor okunur okunmaz, elle düzeltilip "Kontrol edildi" denen rapor da doğru değerleriyle
 // gelen kutusuna sessizce gider (anahtar varsa). Saatlik görev bunları inceleyip okuyucuyu düzeltir.
+$('#canlikayit').checked=S.canli!==false;
+$('#canlikayit').addEventListener('change',e=>{S.canli=e.target.checked;saveS();if(e.target.checked)try{KUTU.canli.yaz()}catch(x){}});
 $('#otobildir').checked=S.otoBildir!==false;
 $('#otobildir').addEventListener('change',e=>{S.otoBildir=e.target.checked;saveS()});
 let otoZincir=Promise.resolve();

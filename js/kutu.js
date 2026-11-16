@@ -5,9 +5,9 @@
 const KUTU=(()=>{
   const ON='zr_',AN=ON+'kutu',OT=ON+'oturum',CR=ON+'cokme',N=80;
   const oturum={id:Math.random().toString(36).slice(2,8),basla:Date.now()};
-  let liste=[],son=0;
+  let liste=[],son=0;const tum=[];
   const yaz=()=>{try{localStorage.setItem(AN,JSON.stringify(liste))}catch(e){}};
-  const ekle=(e,o)=>{liste.push({t:Date.now()-oturum.basla,e,...(o||{})});if(liste.length>N)liste=liste.slice(-N);
+  const ekle=(e,o)=>{const ev={t:Date.now()-oturum.basla,e,...(o||{})};liste.push(ev);tum.push(ev);if(tum.length>500)tum.splice(0,tum.length-500);if(liste.length>N)liste=liste.slice(-N);
     const s=Date.now();if(s-son>400){son=s;yaz()}else{clearTimeout(ekle._t);ekle._t=setTimeout(yaz,450)}};
   // ekrandaki görüntülerin toplam piksel sayısı (bellek için kaba gösterge) ve diğer durum bilgisi
   const durum=()=>{let px=0,img=0;for(const i of document.images){if(i.complete&&i.naturalWidth){img++;px+=i.naturalWidth*i.naturalHeight}}
@@ -36,6 +36,23 @@ const KUTU=(()=>{
     try{await ghGonder(kl,[{ad:'cokme.json',b64:b64Metin(JSON.stringify({tur:'zrapor-cokme',...c},null,1))}]);localStorage.removeItem(CR);
       toast('Uygulama önceki açılışta kapanmıştı; nedenini bulmak için kayıt gönderildi')}catch(e){}}
   setTimeout(()=>{if(onceki||localStorage.getItem(CR))gonder()},5000);
-  return {ekle,durum,onceki,gonder};
+
+  // Canlı kayıt (Ayarlar'da açık/kapalı, varsayılan açık; gelen kutusu anahtarı gerekir): olaylar oturum boyunca
+  // canli/z/<oturum>.json dosyasına birkaç saniyede bir yazılır (üzerine yazılır). Fotoğraf, tutar ya da firma adı yazılmaz.
+  const canli=(()=>{const d=new Date(oturum.basla).toISOString().replace(/[:.]/g,'-').slice(0,19),yol=`canli/z/${d}_${oturum.id}.json`;
+    let sha=null,gonderilen=-1,mesgul=false,hata=0,kapali=false,zam=null;
+    const acik=()=>!kapali&&typeof S!=='undefined'&&S&&S.canli!==false&&!!S.ghKey&&typeof ghIstek==='function'&&typeof b64Metin==='function';
+    async function yaz(){if(!acik()||mesgul||tum.length===gonderilen)return;mesgul=true;
+      try{const govde=JSON.stringify({tur:'z-canli',oturum:{...oturum,surum:typeof APP_VER!=='undefined'?APP_VER:null,gonderim:new Date().toISOString()},cihaz:navigator.userAgent,ekran:[screen.width,screen.height,devicePixelRatio],cekirdek:navigator.hardwareConcurrency||null,bellek:navigator.deviceMemory||null,durum:durum(),olaylar:tum},null,0),n=tum.length;
+        const gonder=async()=>ghIstek('/contents/'+yol,{method:'PUT',body:JSON.stringify({message:'Canlı kayıt z',content:b64Metin(govde),...(sha?{sha}:{})})});
+        let r=await gonder();
+        if(r.status===409||r.status===422){const g=await ghIstek('/contents/'+yol);if(g.ok){sha=(await g.json()).sha;r=await gonder()}}
+        if(r.ok){sha=(await r.json()).content.sha;gonderilen=n;hata=0}
+        else{hata++;if(r.status===401||r.status===403||r.status===404||hata>=5)kapali=true}}
+      catch(e){hata++;if(hata>=5)kapali=true}finally{mesgul=false}}
+    // ekrandayken 8 sn'de bir (yalnız yeni olay varsa), arka plana geçerken ve açılırken hemen
+    zam=setInterval(yaz,8000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')setTimeout(yaz,50)});
+    return {yaz,yol,acik}})();
+  return {ekle,durum,onceki,gonder,canli};
 })();
 const kutu=(e,o)=>KUTU.ekle(e,o);
