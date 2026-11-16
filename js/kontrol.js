@@ -28,6 +28,14 @@ function checks0(r){
       const e=o.z-(o.t-t);say.set(e,(say.get(e)||0)+1)}
     const like=e=>{const a=String(e);if(a===z)return false;if(a.length!==z.length)return Math.min(a.length,z.length)>=3&&(a.startsWith(z)||a.endsWith(z)||z.startsWith(a)||z.endsWith(a));let n=0;for(let i=0;i<a.length;i++)if(a[i]!==z[i])n++;return n===1};
     const e=[...say].filter(([,c])=>c>=2).map(([e])=>e).find(like);if(e!=null&&!say.has(+z))out.push({ok:false,m:`Z No ${z} şüpheli: yakın tarihli raporlara göre ${e} olmalı`})}}
+  // Tarih Z sırasına uymuyor: Z numarası arttıkça tarih geri gidemez. Aynı kasanın yakın Z'lerinden (≤40 fark) en az ikisiyle çelişiyorsa
+  // uyar (tek çelişki başka firmanın sayacı olabilir). Z761 fişte 31.10 iken "11.10" okunmuştu; Z749/Z750 (19–20.10) çeliştiği hâlde uyarı yoktu.
+  {const t=dnum(d.tarih),z=String(d.z_no||'');if(t!=null&&/^\d+$/.test(z)&&!r._tAuto){const zz=+z,ters=[];
+    for(const x of rows){if(x===r||x.status!=='done'||!/^\d+$/.test(String(x.d.z_no||'')))continue;const tx=dnum(x.d.tarih);if(tx==null||x._tAuto)continue;
+      if(x.d.sicil&&d.sicil&&x.d.sicil!==d.sicil)continue;const dz=zz-+x.d.z_no;if(!dz||Math.abs(dz)>40)continue;
+      if((dz>0&&t<tx)||(dz<0&&t>tx))ters.push(x)}
+    if(ters.length>=2){const a=ters.sort((u,v)=>Math.abs(zz-+u.d.z_no)-Math.abs(zz-+v.d.z_no)).slice(0,2).map(x=>`Z ${x.d.z_no} (${x.d.tarih})`).join(' ve ');
+      out.push({ok:false,m:`Tarih Z sırasına uymuyor: ${a} raporlarıyla çelişiyor (Z büyüdükçe tarih de ilerlemeli). Tarihi fişten kontrol et.`})}}}
   // Satışsız gün (Pazar): NET SATIŞ 0 okunmuş, ödemeler de 0 → uyarı değil bilgi
   if(satis(d)===0)out.push(d.genel===0&&d.nakit===0&&d.kart===0?{ok:true,info:true,m:'ⓘ Satışsız gün (NET SATIŞ 0)'}:{ok:false,m:'Hiç satış tutarı yok'});
   for(const [g,m,k] of GROUPS){if(d[g]!=null&&d[m]!=null&&d[k]!=null){const df=Math.abs(d[m]+d[k]-d[g]);if(df>=0.006)out.push({ok:false,m:`${names[g]}: Matrah + KDV, genel toplamla tutmuyor (fark ${fm(df)})`})}}
