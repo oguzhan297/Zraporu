@@ -33,10 +33,12 @@ function guard(btn,label,list){
   toast([bad?`${bad} raporda uyarı var`:'',pend?`${pend} rapor henüz okunmadı / hatalı, dosyaya girmez`:''].filter(Boolean).join(' · '));
   setTimeout(()=>{btn.dataset.armed='';btn.innerHTML=ilk},4000);return false;
 }
+// Bilgisayara otomatik gönderme kapalı (kullanıcı isteği, 16.11): CSV paylaşım ekranından iner. Açmak için true yap + ayar kutusunu geri koy.
+const CSV_PC=false;
 $('#csv').onclick=async e=>{const b=e.currentTarget,a=aktarilacak(b,'⬇ Luca CSV');if(!a||!guard(b,'⬇ Luca CSV',a.list))return;
   const bayt=enc1254(csvText(a.list)+'\r\n'),ad=fname('csv');
   // Ayarlar'da açıksa dosya paylaşım ekranı yerine gizli gelen kutusuna gider; bilgisayarda aktar.html'den tek tıkla indirilir
-  if(S.ghKey&&S.csvPC!==false){b.disabled=true;const ilk=b.innerHTML;b.textContent='Gönderiliyor…';
+  if(CSV_PC&&S.ghKey){b.disabled=true;const ilk=b.innerHTML;b.textContent='Gönderiliyor…';
     try{await bilgisayaraGonder(ad,bayt);if(a.isaretle)isaretle(a.list);toast('Bilgisayara gönderildi ✓ · bilgisayarda “Luca CSV’leri” sayfasından indir');return}
     catch(x){toast('Bilgisayara gönderilemedi ('+x.message+'); paylaşım ekranı açılıyor')}
     finally{b.disabled=false;b.innerHTML=ilk}}

@@ -1175,5 +1175,5 @@
     }
     return out;
   }
-  root.ZParse = { version: 114, parseZ, normLine, amounts, consistency, merge, kumulatif };
+  root.ZParse = { version: 115, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);
