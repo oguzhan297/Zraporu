@@ -981,6 +981,20 @@
       }
       if (best) ks.forEach(([r, k, m, g], i) => { if (!near(d[k], best.cur[i])) { notes.push(`%${r} KDV: ${String(d[k]).replace('.', ',')} → ${best.cur[i].toFixed(2).replace('.', ',')} (fişin KDV toplamıyla doğrulandı)`); d[k] = best.cur[i]; d[m] = r2(d[g] - d[k]); } });
     }
+    // Fişin KDV toplamı tek hanesi bozuk okunmuş olabilir (yazıcının soluk sol sütunu: "687,68" → "587,68"). Her KDV hem oran
+    // dökümünde hem departmanlarda aynı okunmuş ve oranına uyuyorsa, gruplar genel toplamı ve ödemeleri tutuyorsa,
+    // KDV'ler toplamı okunan KDV toplamından yalnız bir hane farklıysa yanlış okunan KDV toplamıdır.
+    if (topk != null && ks.length && !near(kSum(), topk) && gen != null) {
+      const sk = r2(kSum()), a = sk.toFixed(2), b = topk.toFixed(2);
+      const birHane = a.length === b.length && [...a].filter((c, i) => c !== b[i]).length === 1;
+      const teyitli = ks.every(([r, k, m, g]) => { const e = d[g] * r / (100 + r);
+        return near(d[k], K[r]) && near(d[k], DK[r]) && near(d[g], G[r]) && near(d[g], DG[r]) && Math.abs(d[k] - e) <= Math.max(0.05, e * 0.003); });
+      const gs = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((s, k) => s + (d[k] || 0), 0);
+      if (birHane && teyitli && near(gs, gen) && near((d.nakit || 0) + (d.kart || 0) + oth, gen)) {
+        notes.push(`Fişteki KDV toplamı ${b.replace('.', ',')} okundu; KDV'ler oran ve departman dökümüyle doğrulandı (${a.replace('.', ',')}).`);
+        topk = sk; d.top_kdv = d._tk = d._topk = sk;
+      }
+    }
     // oran dökümünde okunan değerler (KDV fişin KDV toplamıyla düzeltildiyse düzeltilmiş hâli)
     const vd = {}; for (const r of [1, 10, 20]) if (G[r] != null && K[r] != null) { const kk = 'k' + r; vd[r] = [G[r], near(d['g' + r], G[r]) && notes.some(n => n.startsWith(`%${r} KDV:`)) ? d[kk] : K[r]]; }
     if (Object.keys(vd).length) d._vd = vd; else delete d._vd;
@@ -1175,5 +1189,5 @@
     }
     return out;
   }
-  root.ZParse = { version: 118, parseZ, normLine, amounts, consistency, merge, kumulatif };
+  root.ZParse = { version: 119, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);
