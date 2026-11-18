@@ -892,9 +892,11 @@
     // oranı ciro / KDV oranından bul (etiket sık bozuk okunur): KDV 0 → %0; değilse KDV'nin ciroya oranına en yakın oran
     const ratioRate = (g, k) => { if (g == null || k == null || g <= 0) return null; if (k === 0) return 0;
       let b = null; for (const r of RATES) { if (!r) continue; const e = g * r / (100 + r), er = Math.abs(e - k) / Math.max(1, e); if (er < 0.015 && (!b || er < b.er)) b = { r, er }; } return b ? b.r : null; };
-    const blocks = [];   // {sec, lab, g, k}
+    // "*" ile basılan tutar (oran etiketi "%10" sayılmaz)
+    const starAmt = t => { const m = t.match(/\*\s?\d[\d.,\s]*$/); if (!m) return null; const a = amounts(m[0].replace(/(\d)\s+([,.])\s*(\d{2})(?!\d)/g, '$1$2$3')); return a.length ? a[a.length - 1] : null; };
+    const blocks = [];   // {sec, lab, g, k, vals: bloktaki tutarlar sırayla}
     let sec = null, blk = null, genel = null, topk = null, nakit = null, krTop = null, payTot = null;
-    const KR = [], OTH = [];
+    const KR = [], OTH = [], gunVals = [];
     for (let i = 0; i < L.length; i++) {
       const t = L[i].s;
       if (/DEPARTMANLARA/.test(t)) { sec = 'dep'; blk = null; continue; }
@@ -904,16 +906,18 @@
       else if (/[İI1]ND[İI1]R[İI1]M\s?D[ÖO]K|[İI1]PTAL|BEKLEMEYE|SATI[ŞS]\s?F[İI1][ŞS][İI1]\s?ADED/.test(t) && sec !== 'dep' && sec !== 'oran') { sec = 'son'; continue; }
       if (sec === 'dep' || sec === 'oran') {
         if (/K\S{1,2}\s?ORAN|DEPARTMAN/.test(t) && !CIRO.test(t) && !/TUTAR/.test(t)) {
-          const lr = labRate(t);
-          if (blk && blk.g == null && blk.k == null) { if (lr != null) blk.lab = lr; }   // departman başlığı + "KDV ORANI" aynı blok
-          else blocks.push(blk = { sec, lab: lr, g: null, k: null });
+          const lr = labRate(t), sv = starAmt(t);
+          if (blk && blk.g == null && blk.k == null) { if (lr != null) blk.lab = lr; if (sv != null) blk.vals.push(sv); }   // departman başlığı + "KDV ORANI" aynı blok
+          else { if (blk && sv != null) blk.vals.push(sv); blocks.push(blk = { sec, lab: lr, g: null, k: null, vals: [] }); }   // yeni etiket satırındaki tutar önceki bloğa kaymıştır
           continue;
         }
         if (!blk) continue;
+        { const sv = starAmt(t); if (sv != null) blk.vals.push(sv); }
         const v = val(i); if (v == null) continue;
         if (CIRO.test(t)) { if (blk.g == null) blk.g = v; }
         else if (/TUTAR/.test(t)) { if (blk.k == null) blk.k = v; }
       } else if (sec === 'gun') {
+        { const sv = starAmt(t); if (sv != null) gunVals.push(sv); }
         const v = val(i); if (v == null) continue;
         if (KTUT.test(t) || (/TUTAR/.test(t) && !CIRO.test(t))) { if (topk == null) topk = v; } else if (CIRO.test(t) && genel == null) genel = v;
       } else if (sec === 'odeme') {
@@ -926,6 +930,14 @@
       }
     }
     { const bl = odemeBlokCoz(L); if (bl) { nakit = bl.n; krTop = bl.k; payTot = bl.G; KR.length = 0; } }   // etiket-tutar kayması: nakit + kart = toplam üçlüsü
+    // GÜNLÜK FİŞ CİROSU / KDV TUTARI tutarları bir satır aşağı kaymış ("KDV TUTARI *64.972,34" ↵ "*1.713,06"): sırayla ciro, KDV
+    if (gunVals.length === 2 && gunVals[1] < gunVals[0] && (genel == null || topk == null || topk >= genel)) { genel = gunVals[0]; topk = gunVals[1]; }
+    // etiket-tutar kayması (tutarlar bir satır yukarı/aşağı kaymış): etiketlerden alınan ciro/KDV orana uymuyorsa bloğun sıradaki ilk iki tutarı denenir
+    for (const b of blocks) {
+      if (ratioRate(b.g, b.k) != null || b.vals.length < 2) continue;
+      const [v0, v1] = b.vals, rr = ratioRate(v0, v1);
+      if (rr != null && v0 >= 50 && (b.lab == null || rr === b.lab)) { b.g = v0; b.k = v1; }
+    }
     // her bloğun oranı: ciro/KDV oranından; bulunamazsa etiketten. Departmanlar orana göre toplanır.
     const G = {}, K = {}, DG = {}, DK = {};
     for (const b of blocks) {
@@ -1219,5 +1231,5 @@
     }
     return out;
   }
-  root.ZParse = { version: 120, parseZ, normLine, amounts, consistency, merge, kumulatif };
+  root.ZParse = { version: 121, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);
