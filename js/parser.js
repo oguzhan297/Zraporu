@@ -599,6 +599,7 @@
           for (const x of [g, m, k]) { let j; while ((j = unsure.indexOf(x)) >= 0) unsure.splice(j, 1); } }
         if (d.tekel == null) { let j; while ((j = unsure.indexOf('tekel')) >= 0) unsure.splice(j, 1); }
         notes.push(`KDV grupları ${n} kalem satırından toplandı (fotoğrafta vergi dökümü yok)`); } }
+    odemeBlok(L, d, unsure, notes);
     solvePay(d, allA, unsure, notes);
     // Satışsız gün (Pazar): NET SATIŞ *0,00 ve fişte sıfırdan büyük hiçbir tutar yok → ödemeler ve Tekel de 0 (gereksiz "Kontrol et" çıkmasın)
     if (d.genel === 0 && !d._genWeak && d.nakit == null && d.kart == null && L.some(l => !l.cum && /NET\s?SAT/.test(l.s) && l.a.length && l.a.every(v => v === 0))
@@ -667,6 +668,34 @@
     if (calc.length === 1) tryFix(calc[0], true);
     else if (weak.length === 1) tryFix(weak[0], true);
     else if (!weak.length && d.g20 > 0) tryFix(R[0], false);
+  }
+  // "FİŞ ÖDEME DÖKÜMLERİ" bloğu (Kuveyt Türk POS'lu fiş): etiketler ve tutarlar OCR'da bir satır kayar (KREDİ ÖDEMELERİ TOPLAMI yanına KREDİ-04
+  // tutarı düşer). Blok içindeki tutarlardan nakit + kart = genel ve (kredi satırları toplamı = kart) ilişkisini tutan tek üçlü aranır.
+  function odemeBlokCoz(L) {
+    const i0 = L.findIndex(l => /[ÖO]DEME\s?D.?K.?MLER/.test(l.s)); if (i0 < 0) return null;
+    let i1 = L.findIndex((l, i) => i > i0 && /[İI]ND[İI]R[İI]M/.test(l.s)); if (i1 < 0) i1 = Math.min(L.length, i0 + 14);
+    const nums = []; for (let i = i0 + 1; i < i1; i++) for (const v of L[i].a || []) if (v > 0) nums.push(v);
+    if (nums.length < 4 || nums.length > 9) return null;
+    const near = (a, b) => Math.abs(a - b) < 0.006, sol = new Map();
+    for (let a = 0; a < nums.length; a++) for (let b = 0; b < nums.length; b++) for (let c = 0; c < nums.length; c++) {
+      if (a === b || b === c || a === c) continue;
+      const n = nums[a], k = nums[b], G = nums[c]; if (!near(n + k, G) || G <= Math.max(n, k)) continue;
+      const rest = nums.filter((_, i) => i !== a && i !== b && i !== c);
+      const kanit = rest.some(v => near(v, k)) || rest.some((v, i) => rest.some((w, j) => j > i && near(v + w, k)));
+      if (kanit) sol.set(n + '|' + k + '|' + G, { n, k, G });
+    }
+    return sol.size === 1 ? [...sol.values()][0] : null;
+  }
+  function odemeBlok(L, d, unsure, notes) {
+    const bl = odemeBlokCoz(L); if (!bl) return;
+    const { n, k, G } = bl;
+    const near = (a, b) => Math.abs(a - b) < 0.006;
+    const grp = ['tekel', 'g1', 'g10', 'g20', 'gp'].reduce((x, y) => x + (d[y] || 0), 0);
+    const eski = [d.nakit, d.kart, d.genel].map(v => v == null ? '—' : String(v).replace('.', ','));
+    d.nakit = n; d.kart = k; if (d.diger) d.diger = 0;
+    if (near(grp, G)) { d.genel = G; d._genWeak = false; for (const x of ['genel', 'nakit', 'kart']) { let j; while ((j = unsure.indexOf(x)) >= 0) unsure.splice(j, 1); } }
+    else { for (const x of ['nakit', 'kart']) { let j; while ((j = unsure.indexOf(x)) >= 0) unsure.splice(j, 1); } if (d.genel == null || !near(d.genel, G)) unsure.push('genel'); }
+    if (eski[0] !== String(n).replace('.', ',') || eski[1] !== String(k).replace('.', ',')) notes.push(`Ödeme dökümü satırları kaymış: nakit ${String(n).replace('.', ',')} + kart ${String(k).replace('.', ',')} = ${String(G).replace('.', ',')} olarak alındı`);
   }
   // Ödemeler: genel toplam gruplarla doğrulanmışsa nakit + kart (+ diğer) = genel toplam olacak şekilde seç.
   // Kanıtlar: okunan nakit / KASA NAKİT / okunan kart / metinde aynen geçen tutar / banka dökümü toplamı
@@ -896,6 +925,7 @@
         else if (hasLetters(t)) OTH.push(v);
       }
     }
+    { const bl = odemeBlokCoz(L); if (bl) { nakit = bl.n; krTop = bl.k; payTot = bl.G; KR.length = 0; } }   // etiket-tutar kayması: nakit + kart = toplam üçlüsü
     // her bloğun oranı: ciro/KDV oranından; bulunamazsa etiketten. Departmanlar orana göre toplanır.
     const G = {}, K = {}, DG = {}, DK = {};
     for (const b of blocks) {
@@ -1189,5 +1219,5 @@
     }
     return out;
   }
-  root.ZParse = { version: 119, parseZ, normLine, amounts, consistency, merge, kumulatif };
+  root.ZParse = { version: 120, parseZ, normLine, amounts, consistency, merge, kumulatif };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,8 +1,9 @@
 // Temel: alan tanımları, matrah/KDV tamamlama, sayı-tarih biçimleri, küçük yardımcılar (her dosya bunlara dayanır)
 // Uygulama sürümü: arac/surum.mjs ile değiştir (index.html, sw.js, parser.js, işçi aynı anda güncellenir)
-const APP_VER=119;
+const APP_VER=120;
 // Her sürümde kullanıcıya gösterilecek kısa notlar (güncellemeden sonra bir kez gösterilir). Yeni sürümde buraya ekle.
 const YENILIK={
+  120:['Kuveyt Türk POS’lu fişlerde “ödeme dökümü” satırları bir satır kayınca kredi kartı, nakit ve genel toplam yanlış okunuyordu (ör. kart 2.923,42 yerine 27.247,10); artık nakit + kart = toplam ilişkisiyle doğru bulunuyor'],
 119:['Fişin altındaki toplam KDV’nin bir rakamı soluk basılıp yanlış okunduğunda (ör. 687,68 → 587,68), KDV’ler departman ve oran dökümüyle doğrulanıyorsa artık gereksiz “Kontrol et” çıkmıyor'],
   118:['iPhone’da bazı fişlerde en üstteki tarih satırı okunamadığında, tarih artık aynı fişin diğer okumalarından tamamlanıyor (ör. Kilimli Z 1378)'],
   117:['Yeni: Test kaydı (Ayarlar’dan kapatılabilir, varsayılan açık): kullanırken adımların fotoğraf, tutar ve firma adı olmadan test arşivine canlı yazılıyor; sorun olunca nedenini görebilmek için'],
